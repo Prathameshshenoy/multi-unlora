@@ -151,4 +151,4 @@ volume_backup/
 │   └── trainer.py               LoRA injection and SFT training execution
 └── volume_backup/               trained artefacts (excluded from version control)
 ```
-
+`**Copyright ©️ 2026. All rights reserved.**` add this markdown at the end of the readme of both gpudedupe and multi-unlora
