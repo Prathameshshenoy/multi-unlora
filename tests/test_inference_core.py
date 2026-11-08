@@ -119,6 +119,9 @@ class Encoded(dict):
 class Tokenizer:
     padding_side = "right"
 
+    def apply_chat_template(self, messages, **kwargs):
+        return str(messages)
+
     def __call__(self, text, **kwargs):
         self.last_options = kwargs
         batch = len(text) if isinstance(text, list) else 1

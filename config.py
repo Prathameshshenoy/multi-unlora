@@ -98,10 +98,12 @@ REPE_BIAS = -0.5
 # prevent low-confidence noise from degrading the base distribution.
 PROCESSOR_TOP_K = 10
 
-# KL divergence ceiling for the panic guard in MultiUnLoRALogitsProcessor.
-# Corrections that push KL above this threshold are exponentially attenuated
-# rather than applied in full.
-PROCESSOR_KL_THRESHOLD = 2.5
+# Per-token KL(corrected || base) budget for contrastive correction.
+# Bisection reduces correction strength; impossible mask budgets abstain.
+PROCESSOR_KL_THRESHOLD = 0.5
+
+# Provisional operating point; tune only on held-out validation data.
+PROCESSOR_PLAUSIBILITY_BETA = 0.1
 
 # Decay rate for the exponential attenuation applied when KL exceeds the
 # threshold. Higher values decay the correction more steeply past the ceiling.

@@ -21,6 +21,7 @@ import torch
 from tqdm import tqdm
 
 import config
+from inference.prompts import format_prompt, PROMPT_PROTOCOL
 from repe.anchors import HALL_PROMPTS, JAIL_PROMPTS, SAFE_PROMPTS
 
 
@@ -150,7 +151,7 @@ def extract_concept_vector(model, tokenizer, prompts, layer_idx=config.REPE_LAYE
         for i in tqdm(
             range(0, len(prompts), batch_size), desc=f"Extracting layer {layer_idx}"
         ):
-            batch = [f"User: {p}\nAssistant:" for p in prompts[i : i + batch_size]]
+            batch = [format_prompt(tokenizer, p) for p in prompts[i : i + batch_size]]
             captured = {}
 
             def hook_fn(module, input, output):
@@ -161,7 +162,7 @@ def extract_concept_vector(model, tokenizer, prompts, layer_idx=config.REPE_LAYE
             handle = target_layer.register_forward_hook(hook_fn)
             try:
                 inputs = tokenizer(
-                    batch, return_tensors="pt", padding=True, truncation=True,
+                    batch, return_tensors="pt", padding=True, truncation=True, add_special_tokens=False,
                     max_length=config.MAX_SEQ_LENGTH,
                 ).to(device)
                 with torch.no_grad():
@@ -184,7 +185,7 @@ def _unit_direction(vector):
     return vector / norm
 
 
-def load_or_compute_vectors(model, tokenizer):
+def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False):
     """Loads RepE direction vectors from checkpoint, or computes and saves them.
 
     Direction vectors are the normalised differences between each concept's
@@ -212,9 +213,13 @@ def load_or_compute_vectors(model, tokenizer):
     checkpoint_path = config.REPE_CHECKPOINT
     _, _, device = _prepare_base_model(model, config.REPE_LAYER_IDX)
 
-    if os.path.exists(checkpoint_path):
+    if os.path.exists(checkpoint_path) and not force:
         print(f"Loading RepE vectors from checkpoint: {checkpoint_path}")
         vectors = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        if vectors.get("prompt_protocol") != PROMPT_PROTOCOL:
+            if not allow_compute:
+                raise RuntimeError("RepE prompt protocol mismatch; recalibrate before inference")
+            return load_or_compute_vectors(model, tokenizer, force=True)
         # If checkpoint is old format (no direction vectors), recompute
         if "v_hall" not in vectors:
             print("Old checkpoint format detected — recomputing direction vectors.")
@@ -231,6 +236,8 @@ def load_or_compute_vectors(model, tokenizer):
         print(f"Direction vectors loaded. Shape: {v_hall.shape}")
         return v_hall, v_jail
 
+    if not allow_compute:
+        raise RuntimeError("Missing calibrated RepE checkpoint")
     print("No checkpoint found — computing RepE vectors from scratch.")
 
     print("Processing safe prompts...")
@@ -252,6 +259,7 @@ def load_or_compute_vectors(model, tokenizer):
     os.makedirs(os.path.dirname(checkpoint_path) or ".", exist_ok=True)
     torch.save(
         {
+            "prompt_protocol": PROMPT_PROTOCOL,
             "h_safe": h_safe.cpu(),
             "h_hall": h_hall.cpu(),
             "h_jail": h_jail.cpu(),
