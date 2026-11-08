@@ -1,231 +1,141 @@
 # Multi-UnLoRA
 
-Experimental inference-time behavioral correction using learned anti-expert adapters.
+An experimental system that compares a base language model with inference-time
+correction from two learned anti-expert adapters.
 
-## Overview
+**Current result:** the real engine and localhost integration work, but an
+accuracy improvement has **not** been established. Both adapters trained
+successfully. The initial 200-question-per-benchmark comparison measured:
 
-Multi-UnLoRA investigates behavioral correction without modifying base model weights. Two "BadExpert"
-LoRA adapters are trained to specialise in hallucination and jailbreak-compliant behaviour
-respectively. At inference time, a custom LogitsProcessor queries both adapters at every
-token step and subtracts their weighted logit differences from the base model's logits. The
-strength of each subtraction is determined dynamically by a Representation Engineering
-(RepE) router that projects the incoming prompt's hidden state onto pre-computed concept
-direction vectors.
+| Diagnostic | Base | Corrected |
+| --- | ---: | ---: |
+| MMLU label accuracy | 59.0% | 58.5% |
+| TruthfulQA MC1 label accuracy | 58.0% | 58.0% |
 
-## How It Works
+A separate validation sweep selected zero correction because none of its
+nonzero settings improved TruthfulQA. A free-form sky-blue check also exposed a
+factual regression. These results are preserved, not presented as a quality
+success. Read [the engine evidence](docs/ENGINE_STATUS.md) for protocols,
+uncertainty, limitations, and machine-readable results.
 
-The pipeline runs in four stages:
+## How it works
 
-**Train.** Two BadExpert LoRA adapters are fine-tuned via SFT on the HaluEval QA dataset
-(hallucination) and the LLM-LAT harmful-dataset (jailbreak). Each adapter learns to produce
-the behaviour the system is designed to suppress.
+Two LoRA anti-experts learn undesirable response patterns. A RepE router sets
+per-prompt correction weights. At each token, the engine subtracts each
+adapter's difference from the base logits:
 
-**Calibrate.** Hidden states are extracted from a set of safe, hallucination, and jailbreak
-anchor prompts at a fixed transformer layer. Normalised direction vectors are computed as
-the difference between each bad-concept mean and the safe baseline, then saved to a
-checkpoint on the Modal Volume.
+```text
+corrected = base − alpha_hall * (hall − base) − alpha_jail * (jail − base)
+```
 
-**Evaluate.** The base model is evaluated against MMLU, TruthfulQA, and AdvBench under
-four conditions: baseline, hallucination expert only, jailbreak expert only, and
-Multi-UnLoRA. A separate LLM-as-a-Judge pass scores TruthfulQA responses.
+A base-plausibility filter excludes unsupported candidates. A prospective,
+per-sequence numerical budget limits `KL(corrected || base)`; the engine falls
+back to the base distribution if the filter alone exceeds the budget. This
+bounds a token distribution change, not factuality or safety.
 
-**Analyze.** All result CSVs are aggregated into two publication tables: a qualitative
-side-by-side sample table and a quantitative summary of MMLU accuracy, TruthfulQA
-truthfulness rate, and AdvBench attack success rate.
+Training, calibration, evaluation, and serving share the native chat template.
+The runtime pins the base revision and validates adapter weight hashes,
+configuration identity, and calibration provenance. The historical absolute-logit
+processor remains only as a named ablation.
 
-## Live comparison
+## Setup
 
-The website accepts a prompt or an example, streams base-model and Multi-UnLoRA
-responses, and shows correction weights and token probabilities. The interface
-uses plain text and measured details. Both arms use the same native chat template.
-
-The current engine subtracts **adapter differences from the base logits**, then
-uses a base-plausibility filter and a measured per-token KL budget. The original
-absolute-logit penalty is retained only as a legacy ablation. Neither a KL budget
-nor a training loss proves answer accuracy or safety.
-
-See [the implementation plan](docs/IMPLEMENTATION_PLAN.md) for acceptance gates,
-quality evaluation, compute limits, and the deferred Vercel deployment.
-
-### Local real-model session
-
-The real engine runs on Modal because the configured 8B model needs CUDA. The
-website and a credential-holding proxy run on localhost:
+Local tooling uses Python 3.14 and [uv](https://docs.astral.sh/uv/). The isolated
+GPU image uses Python 3.11, PyTorch 2.8, Transformers 4.57.6, and PEFT 0.18.1.
+A Modal account is required for the configured 8B CUDA model.
 
 ```bash
 uv sync --extra demo
-uv run python scripts/run_engine.py serve-local
+uv run modal setup
 ```
 
-Open <http://127.0.0.1:8000>. This creates a bounded 15-minute session, keeps the
-access token on the server, and stops its ephemeral GPU app afterward. The local
-budget ledger prevents the initial authorized compute ceiling from expanding
-silently. Training and calibrated artifacts must exist first.
+Artifacts are stored on the Modal volume `multi-unlora-vol`. A fresh Modal
+workspace needs that volume created before running the supported workflow.
 
-The commands below are for an initial bounded research run, not an automatically
-validated model release:
+## Real localhost demo
+
+```bash
+uv run python scripts/run_engine.py serve-local --minutes 5
+```
+
+Open <http://127.0.0.1:8000>. The website talks to a local FastAPI proxy, which
+holds the session token and connects to the real GPU API over HTTPS. Enter a
+prompt or choose an example to stream both responses, weights, and token
+probabilities. Stop disconnects the request; subsequent requests can reuse the
+engine after cleanup. The UI reports experimental quality status and output
+limits.
+
+Session durations are 5, 10, or 15 minutes. Both ends enforce an absolute expiry,
+and the local process stops its ephemeral Modal app afterward. Model cold starts
+can take tens of seconds; the verified first 128-token comparison took 78.2
+seconds including loading. No provider credential belongs in browser code.
+
+The initial authorization is **US$10**, within the user's reported US$20 Modal
+credit balance. The ignored `.runtime/budget.json` tracks conservative workload
+reservations, not actual invoice charges. It refuses work above the cap. Current
+reservation history and results are local; do not delete the ledger to bypass it.
+
+The real demo is for inspection, not a validated safety product. Vercel hosting
+and a subdomain of `prathameshshenoy.com` remain the final deployment phase.
+
+## Training and quality checks
+
+The supported initial workflow is:
 
 ```bash
 uv run python scripts/run_engine.py preflight
 uv run python scripts/run_engine.py train --steps 120
 uv run python scripts/run_engine.py evaluate
+uv run python scripts/run_engine.py tune-confirm
 ```
 
-Results and budget reservations are saved under ignored `.runtime/`. The cloud
-volume stores adapters, a versioned manifest, calibrated directions, and the
-quality report. Do not delete the budget ledger to bypass a compute ceiling.
+The pilot uses 800 distinct training prompts and 48 held-out prompts per concept,
+response-only loss, LoRA rank 16, fixed seeds, and an immutable model revision.
+The validation sweep and confirmation have fixed partitions and settings. They
+never tune on held-out results or automatically promote a free-form serving
+policy. Existing manifests and confirmation files prevent accidental overwrites.
 
-### Interface-only preview
+Adapters, a manifest, vectors, and quality reports live on the Modal volume.
+Source snapshots and full local results live under ignored `.runtime/`. Public
+summaries are in [docs/results](docs/results).
+
+The original Unsloth orchestration in `modal_app.py` is retained as legacy POC
+code. Its historical asymmetric-prompt CSVs cannot be resumed under the current
+protocol. Refusal matching is labelled a proxy, and self-judge outputs are
+labelled diagnostics. Neither is an independent safety or truthfulness measure.
+
+## Interface preview without GPU use
 
 ```bash
 MULTI_UNLORA_BACKEND=preview uv run uvicorn demo.app:app --host 127.0.0.1 --port 8000
 ```
 
-This is explicitly simulated and does not answer prompts with a language model.
-The default backend is unavailable unless a real or preview backend is selected.
-A separately running real GPU API can also be connected through server variables
+Preview responses and token details are explicitly simulated. The default
+backend is unavailable unless a real or preview backend is selected.
+
+For an existing real GPU API, the local proxy supports these server variables:
 `MULTI_UNLORA_BACKEND=remote`, `MULTI_UNLORA_REMOTE_URL`, and
-`MULTI_UNLORA_REMOTE_TOKEN`. Provider credentials never belong in browser code.
+`MULTI_UNLORA_REMOTE_TOKEN`. The API exposes health, examples, and an SSE generation
+stream. See [the API contract](web/README.md).
 
-### Evaluation and verification
-
-The quality runner reports paired forced-choice MMLU and TruthfulQA MC1 accuracy,
-bootstrap uncertainty, held-out anti-expert likelihood, and explicit gates.
-Free-form truthfulness and safety still require independent evaluation. Historical
-CSV results using asymmetric prompts are incompatible with the current protocol.
-Resume also checks model/data/settings fingerprints.
+## Verification
 
 ```bash
 uv run pytest
 node --check web/app.js
 ```
 
-API tests run in the lightweight Python 3.14 environment. Numerical and realistic
-PEFT integration tests require torch, transformers, peft, pandas, and tqdm; CI
-runs them separately using Python 3.11 and the GPU runtime's library versions.
+The lightweight environment runs API, budget, and Modal registration checks.
+Numerical tests require torch, transformers, peft, pandas, and tqdm. CI runs them
+separately in Python 3.11, including real tiny Llama/PEFT tests for adapter state,
+identity, cache independence, and the KL budget.
 
-`GET /api/health`, `GET /api/examples`, and `POST /api/generate` supply health,
-presets, and streamed events. See [the API contract](web/README.md).
+Real localhost verification covered both generated responses, bounded finite
+telemetry, disconnection after an actual token, and successful immediate reuse.
+The observations are in [local_verification.json](docs/results/local_verification.json).
 
-Vercel hosting and a subdomain of `prathameshshenoy.com` are the final step after
-engine and localhost verification. No frontend hosting is needed for local work.
+See [the implementation plan](docs/IMPLEMENTATION_PLAN.md) for remaining accuracy
+work and deployment gates. The private master blueprint remains local and is
+excluded from Git.
 
-## Installation
-
-**Prerequisites**
-
-- Python 3.14 (pinned in `.python-version`)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Modal](https://modal.com) account with CLI authenticated
-
-**Setup**
-
-Install dependencies:
-
-```
-uv sync
-```
-
-Authenticate with Modal:
-
-```
-uv run modal setup
-```
-
-## Usage
-
-Run the pipeline stages in order. Each function is checkpoint-guarded and safe to
-re-run after a failure — it resumes from the last completed unit of work.
-
-```
-uv run modal run modal_app.py::train
-uv run modal run modal_app.py::calibrate
-uv run modal run modal_app.py::evaluate_mmlu
-uv run modal run modal_app.py::evaluate_tqa
-uv run modal run modal_app.py::evaluate_advbench
-uv run modal run modal_app.py::evaluate_tqa_judge
-uv run modal run modal_app.py::analyze
-uv run modal run modal_app.py::run_demo
-```
-
-To run a quick test across all benchmarks before committing to a full run, set
-`EVAL_FRACTION = 0.1` in `config.py` (the default). Set it to `1.0` for a full run.
-
-## Volume Management
-
-All artefacts produced during a run — adapter weights, RepE checkpoints, and result
-CSVs — are stored on a Modal Volume named `multi-unlora-vol`, mounted at `/vol` inside
-each container.
-
-**Backup the volume to disk:**
-
-```
-uv run modal volume get multi-unlora-vol / ./volume_backup
-```
-
-**Restore a local backup to the volume:**
-
-```
-uv run modal volume put multi-unlora-vol ./volume_backup /
-```
-
-The `volume_backup/` directory is excluded from version control. It contains the
-following subdirectories after a complete run:
-
-```
-volume_backup/
-├── adapters/
-│   ├── bad_expert_lora/                hallucination BadExpert adapter weights
-│   └── jailbreak_bad_expert_lora/      jailbreak BadExpert adapter weights
-├── checkpoints/
-│   ├── hallucination/                  SFT training checkpoints (steps 500, 1000)
-│   ├── jailbreak/                      SFT training checkpoints (steps 500, 1000)
-│   └── repe_vectors.pt                 calibrated RepE direction vectors
-├── results/
-│   ├── mmlu_baseline.csv               MMLU baseline pass results
-│   ├── mmlu_unlora.csv                 MMLU Multi-UnLoRA pass results
-│   ├── tqa_baseline.csv                TruthfulQA baseline results
-│   ├── tqa_hall_expert.csv             TruthfulQA hallucination expert results
-│   ├── tqa_jail_expert.csv             TruthfulQA jailbreak expert results
-│   ├── tqa_unlora.csv                  TruthfulQA Multi-UnLoRA results
-│   ├── advbench_baseline.csv           AdvBench baseline results
-│   ├── advbench_hall_expert.csv        AdvBench hallucination expert results
-│   ├── advbench_jail_expert.csv        AdvBench jailbreak expert results
-│   ├── advbench_unlora.csv             AdvBench Multi-UnLoRA results
-│   ├── table1_qualitative.csv          qualitative sample table (Table 1)
-│   └── table2_quantitative.csv         quantitative results table (Table 2)
-├── runs/
-│   └── run_YYYYMMDD_HHMMSS/
-│       └── run_config.json             hyperparameter and results snapshot for this run
-└── current_run_id.txt                  pointer to the most recent run
-```
-
-## Project Structure
-
-```
-.
-├── config.py                    all hyperparameters and paths
-├── hardware.py                  CUDA memory utilities
-├── modal_app.py                 Modal entry point and pipeline orchestration
-├── model_loader.py              base model and adapter loading
-├── evaluation/
-│   ├── __init__.py
-│   ├── analysis.py              result aggregation and publication table rendering
-│   ├── benchmarks.py            MMLU, TruthfulQA, and AdvBench dataset loaders
-│   ├── judge.py                 LLM-as-a-Judge prompt template and score extraction
-│   └── runners.py               generic evaluation loop with checkpoint resuming
-├── inference/
-│   ├── __init__.py
-│   └── processor.py             MultiUnLoRALogitsProcessor
-├── repe/
-│   ├── __init__.py
-│   ├── anchors.py               safe, hallucination, and jailbreak anchor prompt lists
-│   ├── extractor.py             hidden-state extraction and concept vector computation
-│   └── router.py                dynamic alpha weight computation via cosine similarity
-├── training/
-│   ├── __init__.py
-│   ├── datasets.py              HaluEval and LLM-LAT dataset construction
-│   └── trainer.py               LoRA injection and SFT training execution
-└── volume_backup/               trained artefacts (excluded from version control)
-```
 **Copyright ©️ 2026. All rights reserved.**

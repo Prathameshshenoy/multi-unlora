@@ -108,3 +108,35 @@ cleanup, cache independence, and measured KL limits. Numerical regression
 checks cover masks, shift invariance, overflow rejection, and zero-budget
 abstention. Passing these checks establishes implementation behavior, not
 answer accuracy.
+
+## Conditional-label validation result
+
+The v3 sweep completed on 64 separate validation questions per benchmark.
+No candidate improved TruthfulQA MC1 over its 60.94% baseline. MMLU validation
+was 67.19% for the base and 68.75% for the nonzero candidates, but that small
+validation difference does not establish a confirmed gain. The predefined
+selection rule chose zero correction. Fresh confirmation was therefore skipped
+rather than spending GPU time comparing identical distributions.
+
+Both recorded protocols remain negative evidence for an accuracy claim. The
+comparison UI runs the experimental engine with an explicit failed/pending
+quality status. No selected conditional-label setting was transferred to
+free-form generation. See the machine-readable summaries in
+[results/initial_pilot.json](results/initial_pilot.json) and
+[results/conditional_validation.json](results/conditional_validation.json).
+
+## Real localhost integration
+
+Chrome and an HTTP streaming check exercised the trained 8B model and both real
+adapters through the local proxy. The measured stream was not simulated. Both
+response branches completed, all recorded token KL values were finite and within
+the configured budget, a client disconnected after a real token, and the next
+comparison succeeded on its first attempt. The initial 128-token browser run
+took 78.2 seconds including cold startup; generation measured 20.6 tokens/s for
+the base and 3.5 tokens/s with correction.
+
+The separate 32-token sky-blue check exposed a qualitative regression: the
+corrected response called the explanation an ongoing topic of debate. This is
+not evidence of improved factuality. The raw observed responses and integration
+checks are preserved in [results/local_verification.json](results/local_verification.json).
+The final UI also labels output truncation and retains failed quality status.

@@ -44,7 +44,7 @@ uses response-only loss and the same native chat template as inference. The base
 model is pinned to an immutable revision. Training loss is a diagnostic, not an
 accuracy measurement.
 
-The first quality report must include:
+The quality report includes:
 
 1. Paired baseline/corrected forced-choice accuracy on 200 MMLU and 200
    TruthfulQA MC1 questions from a fixed held-out partition.
@@ -113,8 +113,32 @@ be made during engine validation.
 
 ## Verification record
 
-The initial contrastive engine change is committed as `560a803`. CPU regression
-checks pass, and realistic tiny-model/PEFT tests are being added. The real training
-run completed successfully on an A100. Held-out results and real localhost
-verification must be recorded separately; completion of training is not completion
-of the accuracy goal.
+The initial contrastive engine change is committed as `560a803`. CPU checks
+include realistic tiny Llama/PEFT adapter tests. Both adapters trained successfully
+on an A100. The first held-out v2 gate failed: MMLU 59.0% → 58.5%, TruthfulQA MC1
+58.0% → 58.0%. The separate constrained-label v3 validation sweep found no
+TruthfulQA gain and conservatively selected zero correction, so a redundant fresh
+confirmation was skipped. See [engine evidence](ENGINE_STATUS.md) and the JSON
+summaries in `docs/results/`.
+
+The engine is operational and its accuracy is measured; a quality improvement is
+not established. Real localhost streaming, finite telemetry, cancellation after an actual token, and immediate reuse passed; see `docs/results/local_verification.json`. The sky-blue response also exposed a qualitative regression. Further
+quality work must test whether the adapters distinguish undesirable answers from
+correct answers, rather than merely learning response style, and compare routing
+against simpler concept-specific baselines on independent validation data.
+
+## Compute and final checks
+
+The user reported US$20 in Modal credits; this initial task retained its separate
+US$10 authorization. Conservative cloud/setup reservations total **US$9.45**,
+including the stopped validation attempt and a CPU-only setup allowance. A purely
+local SDK registration failure is recorded as zero cloud cost. These are ceilings,
+not verified invoice charges. A five-minute local session reserves US$0.50 and
+fits the remaining conservative allowance.
+
+Final numerical/integration checks: 87 passed in Python 3.11, with the Modal SDK
+module skipped there. The Python 3.14 environment separately passed 55 checks,
+including actual SDK registration, with numerical skips because torch is absent.
+JavaScript parsing, Python compilation, and whitespace checks pass. The GPU
+session was stopped after real browser/HTTP verification to avoid ongoing GPU
+use. Vercel and domain configuration remain deferred.

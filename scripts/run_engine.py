@@ -17,9 +17,10 @@ import uuid
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0}
+SERVE_RESERVATIONS = {5: .5, 10: .8, 15: 1.0}
 
 
-def reserve(stage):
+def reserve(stage, *, minutes=15):
     import fcntl
     state = ROOT/'.runtime'
     state.mkdir(exist_ok=True)
@@ -29,7 +30,7 @@ def reserve(stage):
         ledger = json.loads(path.read_text()) if path.exists() else {
             'approved_usd':10, 'prior_cpu_preflight_reserve_usd':.5, 'reservations':[]}
         spent = ledger['prior_cpu_preflight_reserve_usd'] + sum(r['reserved_usd'] for r in ledger['reservations'])
-        cost = RESERVATIONS[stage]
+        cost = SERVE_RESERVATIONS[minutes] if stage=="serve-local" else RESERVATIONS[stage]
         if spent+cost > ledger['approved_usd']:
             raise RuntimeError(f'Conservative budget ceiling reached: ${spent:.2f} reserved; stage needs ${cost:.2f}')
         ledger['reservations'].append({'stage':stage,'reserved_usd':cost,
@@ -44,6 +45,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('stage',choices=list(RESERVATIONS))
     parser.add_argument('--steps',type=int,choices=[80,120],default=120)
+    parser.add_argument('--minutes',type=int,choices=[5,10,15],default=15)
     args = parser.parse_args()
     # Freeze only runtime source. Edits in the IDE must not race a cloud build.
     snapshot = ROOT/'.runtime'/('source-'+uuid.uuid4().hex[:10])
@@ -63,10 +65,10 @@ def main():
         import time
         token = secrets.token_urlsafe(32)
         # Absolute deadline enforced at both ends; timer also stops the app.
-        deadline = time.time()+900
+        deadline = time.time()+args.minutes*60
         service = modal_engine.register_local_demo(token,deadline)
     # Reserve only after pure local SDK validation succeeds, before any cloud dispatch.
-    reserve(args.stage)
+    reserve(args.stage,minutes=args.minutes)
     print('Connecting to Modal and preparing the runtime image...',flush=True)
     import hashlib
     source_hashes = {str(p.relative_to(snapshot)):hashlib.sha256(p.read_bytes()).hexdigest()
@@ -93,7 +95,7 @@ def main():
             timer = threading.Timer(max(0,deadline-time.time()),lambda:setattr(server,'should_exit',True))
             timer.daemon = True
             timer.start()
-            print('Real inference at http://127.0.0.1:8000 (15-minute budgeted session)',flush=True)
+            print(f'Real inference at http://127.0.0.1:8000 ({args.minutes}-minute budgeted session)',flush=True)
             try:
                 server.run()
             finally:
