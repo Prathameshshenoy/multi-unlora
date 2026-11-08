@@ -1,13 +1,13 @@
 # Multi-UnLoRA
 
-Inference-time safety correction for large language models via learned concept subtraction.
+Experimental inference-time behavioral correction using learned anti-expert adapters.
 
 ## Overview
 
-Multi-UnLoRA improves LLM safety without modifying base model weights. Two "BadExpert"
+Multi-UnLoRA investigates behavioral correction without modifying base model weights. Two "BadExpert"
 LoRA adapters are trained to specialise in hallucination and jailbreak-compliant behaviour
 respectively. At inference time, a custom LogitsProcessor queries both adapters at every
-token step and subtracts their probability mass from the base model's distribution. The
+token step and subtracts their weighted logit differences from the base model's logits. The
 strength of each subtraction is determined dynamically by a Representation Engineering
 (RepE) router that projects the incoming prompt's hidden state onto pre-computed concept
 direction vectors.
@@ -33,79 +33,82 @@ Multi-UnLoRA. A separate LLM-as-a-Judge pass scores TruthfulQA responses.
 side-by-side sample table and a quantitative summary of MMLU accuracy, TruthfulQA
 truthfulness rate, and AdvBench attack success rate.
 
-## Live decoding lab
+## Live comparison
 
-The browser workspace accepts custom prompts and presets, streams baseline and
-Multi-UnLoRA responses, and visualizes router weights, token probabilities, KL
-shift, and generation timing. Both arms use identical prompts and greedy decoding.
-GPU execution is serial because both anti-experts share mutable adapter state.
+The website accepts a prompt or an example, streams base-model and Multi-UnLoRA
+responses, and shows correction weights and token probabilities. The interface
+uses plain text and measured details. Both arms use the same native chat template.
 
-**Status:** an experimental mechanism with a tested serving/UI implementation.
-CPU tests do not establish model quality. Live CUDA serving requires your trained
-artifacts and an authenticated Modal deployment; it has not been validated here.
-The existing POC correction operator is retained. The research blueprint's new
-contrastive operator, arbitration, KV caches, and publication experiments remain
-future work. See [the implementation plan](docs/IMPLEMENTATION_PLAN.md).
+The current engine subtracts **adapter differences from the base logits**, then
+uses a base-plausibility filter and a measured per-token KL budget. The original
+absolute-logit penalty is retained only as a legacy ablation. Neither a KL budget
+nor a training loss proves answer accuracy or safety.
 
-### Local interface preview
+See [the implementation plan](docs/IMPLEMENTATION_PLAN.md) for acceptance gates,
+quality evaluation, compute limits, and the deferred Vercel deployment.
+
+### Local real-model session
+
+The real engine runs on Modal because the configured 8B model needs CUDA. The
+website and a credential-holding proxy run on localhost:
 
 ```bash
 uv sync --extra demo
+uv run python scripts/run_engine.py serve-local
+```
+
+Open <http://127.0.0.1:8000>. This creates a bounded 15-minute session, keeps the
+access token on the server, and stops its ephemeral GPU app afterward. The local
+budget ledger prevents the initial authorized compute ceiling from expanding
+silently. Training and calibrated artifacts must exist first.
+
+The commands below are for an initial bounded research run, not an automatically
+validated model release:
+
+```bash
+uv run python scripts/run_engine.py preflight
+uv run python scripts/run_engine.py train --steps 120
+uv run python scripts/run_engine.py evaluate
+```
+
+Results and budget reservations are saved under ignored `.runtime/`. The cloud
+volume stores adapters, a versioned manifest, calibrated directions, and the
+quality report. Do not delete the budget ledger to bypass a compute ceiling.
+
+### Interface-only preview
+
+```bash
 MULTI_UNLORA_BACKEND=preview uv run uvicorn demo.app:app --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000>. Preview responses and telemetry are explicitly
-simulated, and do not answer the user's prompt. Without the environment variable,
-the API reports unavailable instead of silently providing canned model answers.
+This is explicitly simulated and does not answer prompts with a language model.
+The default backend is unavailable unless a real or preview backend is selected.
+A separately running real GPU API can also be connected through server variables
+`MULTI_UNLORA_BACKEND=remote`, `MULTI_UNLORA_REMOTE_URL`, and
+`MULTI_UNLORA_REMOTE_TOKEN`. Provider credentials never belong in browser code.
 
-### Real GPU deployment
+### Evaluation and verification
 
-Keep the existing training/calibration pipeline below. After those stages finish,
-create a Modal secret named `multi-unlora-demo` in your Modal dashboard containing
-`MULTI_UNLORA_API_TOKEN` (a strong random visitor access token). For a separately
-hosted frontend also set `MULTI_UNLORA_ALLOWED_ORIGINS` to its exact HTTPS origin
-(comma-separated for multiple origins). Then deploy:
-
-```bash
-uv run modal deploy modal_demo.py
-```
-
-Open the returned Modal URL: it serves the website and inference API together.
-Click **Connect**, enter the visitor token, and connect. For a static frontend on
-another host, also enter that Modal HTTPS URL. The URL is stored locally; the token
-stays only in the current page. Provider credentials never belong in the frontend.
-The deployed service requires a token and permits one active comparison with a
-1–256 token output budget. It never starts training or calibration on a request.
-The first prompt loads the model; allow for a substantial cold start.
-
-Local GPU serving also supports `MULTI_UNLORA_BACKEND=gpu`, but requires the same
-CUDA/Unsloth environment as the Modal image and artifacts at the configured paths.
-The local demo extra deliberately does not install the GPU training stack.
-
-### API and verification
-
-`GET /api/health` reports the selected backend; `GET /api/examples` supplies
-presets. `POST /api/generate` accepts `{prompt, max_new_tokens}` and emits SSE
-metadata, routing, token, telemetry, complete, and error events. See
-[the frontend contract](web/README.md) for payloads.
+The quality runner reports paired forced-choice MMLU and TruthfulQA MC1 accuracy,
+bootstrap uncertainty, held-out anti-expert likelihood, and explicit gates.
+Free-form truthfulness and safety still require independent evaluation. Historical
+CSV results using asymmetric prompts are incompatible with the current protocol.
+Resume also checks model/data/settings fingerprints.
 
 ```bash
 uv run pytest
 node --check web/app.js
-python3 scripts/build_site.py
 ```
 
-The lightweight environment runs API checks and skips numerical checks without
-PyTorch. Run `tests/test_inference_core.py` in an environment with torch,
-transformers, pandas, tqdm, and pytest; CI has a dedicated CPU numerical job.
-The existing Modal image uses Python 3.11; the local uv environment uses 3.14.
+API tests run in the lightweight Python 3.14 environment. Numerical and realistic
+PEFT integration tests require torch, transformers, peft, pandas, and tqdm; CI
+runs them separately using Python 3.11 and the GPU runtime's library versions.
 
-**Evaluation migration:** baseline, expert, and corrected arms now receive the
-same system prompt. Old CSVs are incompatible and explicitly cannot be resumed.
-Archive historical result CSVs and regenerate every comparison arm; old quality
-numbers are confounded. Recalibrate RepE vectors because old extraction could
-use an enabled adapter. KL is a soft attenuation heuristic, not a guaranteed
-bound or safety score.
+`GET /api/health`, `GET /api/examples`, and `POST /api/generate` supply health,
+presets, and streamed events. See [the API contract](web/README.md).
+
+Vercel hosting and a subdomain of `prathameshshenoy.com` are the final step after
+engine and localhost verification. No frontend hosting is needed for local work.
 
 ## Installation
 

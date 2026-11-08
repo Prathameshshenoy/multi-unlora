@@ -1,118 +1,120 @@
-# Multi-UnLoRA: POC to a dependable live demo
+# Multi-UnLoRA implementation plan
 
-Prepared 9 November 2026. This delivery plan complements, and does not replace,
-`Multi_Unlora_MASTER_BLUEPRINT.md`. That document's literature, novelty, and
-publication claims remain unvalidated. Building an observable demo does not
-establish those claims.
+Updated 9 November 2026. Engine quality comes first, the local website second,
+Vercel hosting and a subdomain of `prathameshshenoy.com` last.
+The private master blueprint stays local and is excluded from Git.
 
-## Outcome
+## 1. Correct the engine
 
-A visitor enters a prompt or chooses a preset, runs a comparison, and watches
-the base model and Multi-UnLoRA respond. The interface explains routing and
-token correction with measured telemetry, exposes failures, and clearly
-distinguishes an illustrative preview from actual model inference.
+The original processor penalized absolute anti-expert logits. Even an adapter
+with identical output to the base changed the result. A regression test reproduced
+that failure before the implementation changed.
 
-## Architecture and ownership
+The corrected engine subtracts each adapter's difference from the base logits:
+
+```text
+corrected = base − alpha_hall * (hall − base) − alpha_jail * (jail − base)
+```
+
+A base-plausibility mask excludes implausible candidates. A per-row numerical
+budget limits `KL(corrected || base)` using a prospective strength search. If
+masking alone exceeds the budget, the row uses the base distribution. This is a
+token-level constraint; it does not prove factual accuracy or safety.
+
+Acceptance checks:
+
+- Identical/zero adapters preserve the base distribution.
+- Adapter state is restored after success, failure, and cancellation.
+- Masking and the KL budget are tested across batches and numerical edge cases.
+- Calibration, serving, and evaluation use one native chat template.
+- Model revision, adapter hashes, data fingerprints, and calibration provenance
+  are checked before serving.
+
+The old processor remains a named ablation in `inference/legacy_processor.py`.
+It is not the serving default.
+
+## 2. Train and measure
+
+The Modal volume was empty at the start of this phase. The user authorized an
+initial training/evaluation budget of **US$10**.
+
+The initial run now has two real adapters: 120 optimizer steps each, LoRA rank
+16, 800 distinct training prompts per concept, and 48 held-out prompts. Training
+uses response-only loss and the same native chat template as inference. The base
+model is pinned to an immutable revision. Training loss is a diagnostic, not an
+accuracy measurement.
+
+The first quality report must include:
+
+1. Paired baseline/corrected forced-choice accuracy on 200 MMLU and 200
+   TruthfulQA MC1 questions from a fixed held-out partition.
+2. Paired bootstrap confidence intervals, invalid-choice counts, model and data
+   provenance, and the exact correction settings.
+3. Held-out anti-expert response likelihood versus the base model. Both experts
+   must actually learn their target behavior before their subtraction is useful.
+4. An explicit pass/fail result, with remaining free-form factuality, harmful
+   compliance, and benign over-refusal evaluation listed separately.
+
+Do not change operating points in response to holdout results. Any tuning must
+use the separate validation partition and be followed by a fresh, documented
+confirmation protocol. Refusal-prefix matching is only a proxy; it is not an
+attack-success measurement. A self-judge does not establish independent truth.
+
+## 3. Run the actual model on localhost
 
 ```mermaid
 flowchart LR
-    UI[Static visualizer] -->|POST /api/generate, SSE| API[FastAPI service]
-    API --> Gate[One admitted comparison per process]
-    Gate --> Base[Base model, adapters disabled]
-    Gate --> Router[RepE prompt routing]
-    Router --> Decode[Corrected decoding, two named adapters]
-    Decode --> Trace[Token probabilities and KL telemetry]
-    Trace --> UI
-    API --> Health[Health and example prompts]
+    Browser[Local website] --> Local[Local FastAPI server]
+    Local -->|HTTPS SSE, server-held session token| GPU[Modal GPU API]
+    GPU --> Base[Base model]
+    GPU --> Route[RepE weights]
+    Route --> Correct[Contrastive correction]
+    Correct --> Trace[Responses and measured token details]
+    Trace --> Browser
 ```
 
-Use one same-origin deployment when possible: Modal serves the web directory
-and the API together. A separately hosted static Site can connect to an HTTPS
-API through the connection settings; allow only that Site's origin in CORS.
-The browser must never hold a provider credential. An optional demo bearer
-token is a visitor access credential, entered for the current session only.
+The browser talks to the local server. Cloud credentials and session access tokens
+stay on the server. The GPU runtime uses plain HuggingFace/PEFT, isolated from the
+legacy Unsloth training image.
 
-The backend, frontend, and inference hardening work are delegated independently
-with an agreed event contract. Integration, documentation, dependency locking,
-and final verification belong to the primary agent.
+The local session must verify real responses, finite telemetry, stopping a run,
+and successfully starting another run afterward. No preview answer or synthetic
+trace counts as live model validation.
 
-## Delivery stages and acceptance gates
+The visual direction stays: dark neutral surfaces, green accents, compact panels,
+and readable typography. Copy stays plain: “Prompt,” “Responses,” and “Token
+details.” Remove dramatic claims and “decoding lab” branding.
 
-| Stage | Work | Gate |
-| --- | --- | --- |
-| 1. Establish correctness | Restore adapter state on exceptions; stable KL; zero-strength identity; normalize router vectors safely; identical evaluation prompts | CPU regression tests; old benchmark CSVs marked incompatible |
-| 2. Serve the model | Validated FastAPI request; lazy GPU loading; SSE; bounded admission; cancellation; health; optional bearer auth and explicit CORS | CPU API tests including invalid input, unavailable backend, concurrency and error paths |
-| 3. Visualize | Prompt examples; streamed comparison; router weights; token distribution; latency; stop; connection and error states; responsive layout | JS checks and browser checks where available |
-| 4. Prepare deployment | Local run command; separate Modal deployment entry point; static Site package; reproducible dependencies and CI | Tests pass; frontend loads; GPU smoke test recorded separately |
-| 5. Validate live compute | Verify trained adapters and RepE checkpoint; deploy GPU service; cold and warm prompt runs; cancellation under load | Both branches produce real model output, telemetry finite, subsequent requests recover after interruption |
-| 6. Validate research | Related-work gate G0; contrastive operator experiment; anti-expert quality; detector distribution; unbiased benchmark reruns | Recorded experiment artifacts, seeds, uncertainty, external judging; no claims based on preview data |
+## 4. Keep compute bounded
 
-Stages 1–4 are implementation scope for this pass. Stage 5 requires an
-authenticated Modal account, usable trained artifacts, and GPU execution;
-it is a separate deployment/validation gate, not something a CPU test proves.
-Stage 6 is the research programme in the existing blueprint. In particular,
-its replacement operator, arbitration, certificate, multi-family experiments,
-and benchmark construction must not be silently presented as implemented by
-hardening the current experimental processor.
+`scripts/run_engine.py` records conservative reservations in the ignored
+`.runtime/budget.json`. GPU jobs have explicit timeouts, one container, and no
+automatic retries. The initial localhost verification session has a 15-minute
+expiry enforced at both ends and a timer that stops its ephemeral Modal app.
+Reservations are workload ceilings, not provider invoice measurements.
 
-## Live deployment runbook
+No always-on GPU service or frontend hosting is part of this initial run.
+Artifacts remain on `multi-unlora-vol`; local credentials, source snapshots,
+raw results, and the budget ledger are excluded from Git.
 
-1. Run the CPU tests and the explicit local preview described in README.
-2. Confirm both adapter directories contain compatible weights and the RepE
-   checkpoint exists on `multi-unlora-vol`. The demo must not train or calibrate
-   implicitly when receiving a visitor request.
-3. Authenticate Modal, review `modal_demo.py`, and deploy it. Start with one
-   GPU container, one active comparison, and the configured request/token limits.
-4. Open its same-origin website. Confirm `/api/health` reports GPU backend;
-   run one benign prompt, one false-premise prompt, and one safety preset.
-5. Verify the same rendered prompt is used for both arms, stop a generation,
-   immediately submit another, and confirm adapter state remains clean.
-6. If using the static Site, set its API URL and add its exact origin to the
-   backend's allowed origins. Do not put private Modal/provider secrets in JS.
-7. Record measured cold-start time, generation throughput, peak GPU memory,
-   and failures. Set operational limits based on measurements before opening
-   the service to unrestricted public traffic.
+## 5. Deploy last
 
-## Remaining project work, in priority order
+After the engine has measured evidence and the full local flow works:
 
-- **Scientific correctness:** implement and compare the blueprint's contrastive
-  operator separately; measure anti-expert quality and router calibration;
-  replace asymmetric historical results rather than appending to them.
-- **Evaluation validity:** independent judge and refusal rubric; held-out
-  operating-point selection; over-refusal set; paired uncertainty intervals;
-  multiple training seeds and model families.
-- **Performance:** separate KV caches per adapter with cached/uncached equivalence
-  tests. The first real serving version intentionally uses full-prefix passes
-  to avoid adapter cache contamination; throughput must be measured.
-- **Reproducibility:** artifact manifests binding model revision, adapter hashes,
-  vector provenance, training data revisions and settings. Training resumption
-  should validate artifact completeness rather than just directory presence.
-- **Operations:** sustained GPU load tests, proxy-level per-user quotas,
-  deployment-level authentication, cost monitoring, and an artifact rollback
-  procedure before a broad public launch.
+- Finish any remaining quality gates before describing the model as more accurate
+  or safer than its baseline.
+- Configure Vercel for the frontend and choose the final subdomain under
+  `prathameshshenoy.com`.
+- Configure the backend, access controls, allowed origin, and an ongoing compute
+  budget separately from this initial US$10 run.
 
-## Definition of done
+Sites hosting is no longer part of the plan. No domain or Vercel changes should
+be made during engine validation.
 
-The implemented demo is complete when CPU contract checks pass and the website
-can consume the real inference protocol. A *validated live model deployment*
-additionally requires Stage 5 evidence. A *research-ready project* requires
-Stage 6. Report these outcomes separately; never substitute canned answers,
-simulated telemetry, or a published static page for validated live inference.
+## Verification record
 
-## Delivery evidence
-
-- Three implementation agents completed inference, API, and frontend work.
-- The combined CPU suite passed **24 tests** in a temporary Python 3.11
-  environment with PyTorch and Transformers installed. The lightweight Python
-  3.14 environment runs API tests and skips the numerical module without torch.
-- Python compilation, JavaScript syntax checks, static packaging, and Git
-  whitespace checks pass. Chrome verified example selection, streaming of both
-  branches, completion, router values, and telemetry in labelled preview mode.
-  Mobile layout is implemented in CSS but has not been visually verified.
-- GitHub implementation commits are pushed to `main`. The private master
-  blueprint is ignored and was never staged.
-- A private Site was registered, but publication did not occur. Automatic
-  approval review rejected uploading frontend source to that destination without
-  explicit user approval. The local static frontend remains reviewable in `web/`.
-- Modal configuration exists locally, but a bounded CLI profile check timed out.
-  No GPU was provisioned and no live model deployment or quality claim is verified.
+The initial contrastive engine change is committed as `560a803`. CPU regression
+checks pass, and realistic tiny-model/PEFT tests are being added. The real training
+run completed successfully on an A100. Held-out results and real localhost
+verification must be recorded separately; completion of training is not completion
+of the accuracy goal.
