@@ -98,3 +98,21 @@ can consume the real inference protocol. A *validated live model deployment*
 additionally requires Stage 5 evidence. A *research-ready project* requires
 Stage 6. Report these outcomes separately; never substitute canned answers,
 simulated telemetry, or a published static page for validated live inference.
+
+## Delivery evidence
+
+- Three implementation agents completed inference, API, and frontend work.
+- The combined CPU suite passed **24 tests** in a temporary Python 3.11
+  environment with PyTorch and Transformers installed. The lightweight Python
+  3.14 environment runs API tests and skips the numerical module without torch.
+- Python compilation, JavaScript syntax checks, static packaging, and Git
+  whitespace checks pass. Chrome verified example selection, streaming of both
+  branches, completion, router values, and telemetry in labelled preview mode.
+  Mobile layout is implemented in CSS but has not been visually verified.
+- GitHub implementation commits are pushed to `main`. The private master
+  blueprint is ignored and was never staged.
+- A private Site was registered, but publication did not occur. Automatic
+  approval review rejected uploading frontend source to that destination without
+  explicit user approval. The local static frontend remains reviewable in `web/`.
+- Modal configuration exists locally, but a bounded CLI profile check timed out.
+  No GPU was provisioned and no live model deployment or quality claim is verified.
