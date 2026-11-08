@@ -21,3 +21,6 @@ volume_backup*
 
 # Keep the private research blueprint local.
 Multi_Unlora_MASTER_BLUEPRINT.md
+
+# Local runtime credentials, budget ledger, and raw experiment outputs
+.runtime/

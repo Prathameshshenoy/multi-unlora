@@ -9,7 +9,7 @@ The deployed app refuses to start without the bearer token.
 import modal
 
 import config
-from modal_app import image, volume
+from modal_engine import engine_image as image, volume
 
 app = modal.App("multi-unlora-demo")
 serving_image = (

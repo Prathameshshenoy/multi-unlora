@@ -15,6 +15,9 @@ for the paper's latency and memory overhead analysis.
 """
 
 import gc
+import hashlib
+import json
+from pathlib import Path
 import os
 import time
 
@@ -29,15 +32,18 @@ from inference.processor import MultiUnLoRALogitsProcessor
 from repe.router import compute_dynamic_alphas
 
 
-EVALUATION_PROTOCOL = "shared-honest-prompt-v1"
+EVALUATION_PROTOCOL = "contrastive-native-forced-label-v2"
 
 
-def format_evaluation_prompt(prompt):
+def format_evaluation_prompt(prompt, tokenizer=None):
     """Use identical conditioning for baseline, expert, and corrected arms.
 
     Existing CSVs produced before this protocol are confounded and must be
     archived and regenerated. They must not be resumed or compared to v1.
     """
+    if tokenizer is not None:
+        from inference.prompts import format_prompt
+        return format_prompt(tokenizer, prompt)
     if prompt.startswith("Question:"):
         return prompt
     return f"{config.SYSTEM_PROMPT_HONEST}User: {prompt}\nAssistant:"
@@ -103,7 +109,16 @@ def run_evaluation(
     if force_adapter:
         mode_label = f"Expert ({force_adapter})"
 
-    # Resume from wherever we left off if the CSV already exists.
+    from inference.operator import OPERATOR_VERSION
+    manifest_path = Path(config.ADAPTER_DIR)/"manifest.json"
+    snapshot = {"protocol":EVALUATION_PROTOCOL,"operator":OPERATOR_VERSION,
+        "model":config.BASE_MODEL_NAME,"examples":examples,"max_new_tokens":max_new_tokens,
+        "alpha_cap":config.ALPHA_CAP,"beta":config.PROCESSOR_PLAUSIBILITY_BETA,
+        "kl_budget":config.PROCESSOR_KL_THRESHOLD,"use_unlora":use_unlora,
+        "force_adapter":force_adapter,
+        "manifest":json.loads(manifest_path.read_text()) if manifest_path.exists() else None}
+    run_fingerprint = hashlib.sha256(json.dumps(snapshot,sort_keys=True).encode()).hexdigest()
+    # Resume only the exact same data, artifacts and correction settings.
     if os.path.exists(output_csv) and os.path.getsize(output_csv) > 0:
         existing = pd.read_csv(output_csv)
         if "evaluation_protocol" not in existing or not (
@@ -113,6 +128,8 @@ def run_evaluation(
                 "Legacy evaluation CSV uses incompatible prompt conditioning. "
                 "Archive it and rerun every arm; old results are not comparable."
             )
+        if "evaluation_fingerprint" not in existing or not (existing["evaluation_fingerprint"]==run_fingerprint).all():
+            raise ValueError("Evaluation fingerprint changed; archive this CSV and run a fresh comparison")
         start_idx = len(existing)
         print(f"Resuming {mode_label} eval from index {start_idx}: {output_csv}")
     else:
@@ -136,9 +153,9 @@ def run_evaluation(
         example = examples[i]
         prompt = example["prompt"]
 
-        prompt = format_evaluation_prompt(prompt)
+        prompt = format_evaluation_prompt(prompt, tokenizer)
 
-        inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+        inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to("cuda")
 
         # --- Infrastructure metrics ---
         vram_before = get_vram_usage_mb()
@@ -146,10 +163,10 @@ def run_evaluation(
 
         if use_unlora:
             alpha_hall, alpha_jail = compute_dynamic_alphas(
-                model, tokenizer, prompt, v_hall, v_jail
+                model, tokenizer, prompt, v_hall, v_jail, add_special_tokens=False
             )
             logits_processor = LogitsProcessorList(
-                [MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail)]
+                [MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail, attention_mask=inputs.get("attention_mask"))]
             )
         else:
             logits_processor = LogitsProcessorList([])
@@ -160,17 +177,30 @@ def run_evaluation(
         t_start = time.perf_counter()
 
         with torch.no_grad():
-            output_ids = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                logits_processor=logits_processor,
-                pad_token_id=tokenizer.eos_token_id,
-                temperature=0.0,
-                do_sample=False,
-                stop_strings=["\nUser:"],
-                tokenizer=tokenizer,
-            )
-
+            if "correct_answer" in example and max_new_tokens == 1:
+                # Evaluate the answer labels rather than a possibly whitespace token.
+                labels = [tokenizer.encode(letter,add_special_tokens=False) for letter in "ABCD"]
+                if any(len(ids)!=1 for ids in labels):
+                    raise ValueError("MMLU answer labels must be single tokens")
+                scores = model(**inputs,use_cache=False,return_dict=True).logits[:,-1,:]
+                scores = logits_processor(inputs.input_ids,scores)
+                ids = [tokens[0] for tokens in labels]
+                if torch.isfinite(scores[0,ids]).any():
+                    label_id = ids[int(scores[0,ids].argmax())]
+                    output_ids = torch.cat((inputs.input_ids,inputs.input_ids.new_tensor([[label_id]])),dim=1)
+                else:
+                    output_ids = inputs.input_ids  # Explicitly incorrect / no valid label.
+            else:
+                output_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    logits_processor=logits_processor,
+                    pad_token_id=tokenizer.eos_token_id,
+                    temperature=0.0,
+                    do_sample=False,
+                    stop_strings=["\nUser:"],
+                    tokenizer=tokenizer,
+                )
         t_end = time.perf_counter()
         vram_after = get_vram_usage_mb()
 
@@ -194,6 +224,7 @@ def run_evaluation(
 
         row = row_fn(example, model_answer, metrics)
         row["evaluation_protocol"] = EVALUATION_PROTOCOL
+        row["evaluation_fingerprint"] = run_fingerprint
 
         is_first = not os.path.exists(output_csv) or os.path.getsize(output_csv) == 0
         pd.DataFrame([row]).to_csv(output_csv, mode="a", header=is_first, index=False)

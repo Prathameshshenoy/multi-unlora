@@ -15,13 +15,16 @@ optimised attention kernels do not always propagate hidden states correctly
 through the PEFT wrapper.
 """
 
+import hashlib
+import json
 import os
+import tempfile
 
 import torch
 from tqdm import tqdm
 
 import config
-from inference.prompts import format_prompt, PROMPT_PROTOCOL
+from inference.prompts import format_prompt, PROMPT_PROTOCOL, SYSTEM_MESSAGE
 from repe.anchors import HALL_PROMPTS, JAIL_PROMPTS, SAFE_PROMPTS
 
 
@@ -105,7 +108,8 @@ def get_hidden_state_via_hook(
             add_special_tokens=add_special_tokens,
         ).to(device)
         with torch.no_grad():
-            hf_model(**inputs, use_cache=False, return_dict=True)
+            forward = hf_model.model if callable(hf_model.model) else hf_model
+            forward(**inputs, use_cache=False, return_dict=True)
         if "hidden" not in captured:
             raise RuntimeError("Hidden-state hook did not fire")
 
@@ -166,7 +170,8 @@ def extract_concept_vector(model, tokenizer, prompts, layer_idx=config.REPE_LAYE
                     max_length=config.MAX_SEQ_LENGTH,
                 ).to(device)
                 with torch.no_grad():
-                    hf_model(**inputs, use_cache=False, return_dict=True)
+                    forward = hf_model.model if callable(hf_model.model) else hf_model
+                    forward(**inputs, use_cache=False, return_dict=True)
                 if "hidden" not in captured:
                     raise RuntimeError("Hidden-state hook did not fire")
                 vectors.extend(captured["hidden"][:, -1, :].float().unbind(0))
@@ -185,7 +190,23 @@ def _unit_direction(vector):
     return vector / norm
 
 
-def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False):
+def vector_provenance(*, model_revision, layer_idx=config.REPE_LAYER_IDX):
+    """Identity of the base-only calibration computation (not adapter quality)."""
+    anchors = {"safe": SAFE_PROMPTS, "hallucination": HALL_PROMPTS, "jailbreak": JAIL_PROMPTS}
+    encoded = json.dumps(anchors, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+    return {
+        "base_model": config.BASE_MODEL_NAME,
+        "model_revision": model_revision,
+        "prompt_protocol": PROMPT_PROTOCOL,
+        "system_message_sha256": hashlib.sha256(SYSTEM_MESSAGE.encode()).hexdigest(),
+        "max_seq_length": config.MAX_SEQ_LENGTH,
+        "layer_idx": layer_idx,
+        "anchors_sha256": hashlib.sha256(encoded.encode()).hexdigest(),
+    }
+
+
+def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False,
+                            expected_metadata=None):
     """Loads RepE direction vectors from checkpoint, or computes and saves them.
 
     Direction vectors are the normalised differences between each concept's
@@ -216,10 +237,14 @@ def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False
     if os.path.exists(checkpoint_path) and not force:
         print(f"Loading RepE vectors from checkpoint: {checkpoint_path}")
         vectors = torch.load(checkpoint_path, map_location=device, weights_only=True)
-        if vectors.get("prompt_protocol") != PROMPT_PROTOCOL:
+        if not isinstance(vectors, dict):
+            raise RuntimeError("Invalid RepE checkpoint structure; recalibrate explicitly")
+        metadata_matches = expected_metadata is None or vectors.get("metadata") == expected_metadata
+        if vectors.get("prompt_protocol") != PROMPT_PROTOCOL or not metadata_matches:
             if not allow_compute:
-                raise RuntimeError("RepE prompt protocol mismatch; recalibrate before inference")
-            return load_or_compute_vectors(model, tokenizer, force=True)
+                raise RuntimeError("RepE calibration provenance mismatch; recalibrate before inference")
+            return load_or_compute_vectors(model, tokenizer, force=True,
+                                           expected_metadata=expected_metadata)
         # If checkpoint is old format (no direction vectors), recompute
         if "v_hall" not in vectors:
             print("Old checkpoint format detected — recomputing direction vectors.")
@@ -233,6 +258,11 @@ def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False
         else:
             v_hall = _unit_direction(vectors["v_hall"])
             v_jail = _unit_direction(vectors["v_jail"])
+        hidden_size = getattr(getattr(get_hf_base_model(model), "config", None), "hidden_size", None)
+        if v_hall.ndim != 1 or v_jail.shape != v_hall.shape or (
+            hidden_size is not None and v_hall.numel() != hidden_size
+        ):
+            raise RuntimeError("RepE direction shape does not match the model hidden size")
         print(f"Direction vectors loaded. Shape: {v_hall.shape}")
         return v_hall, v_jail
 
@@ -257,17 +287,25 @@ def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False
     v_jail = _unit_direction(v_jail)
 
     os.makedirs(os.path.dirname(checkpoint_path) or ".", exist_ok=True)
-    torch.save(
-        {
+    checkpoint = {
             "prompt_protocol": PROMPT_PROTOCOL,
+            "metadata": expected_metadata,
             "h_safe": h_safe.cpu(),
             "h_hall": h_hall.cpu(),
             "h_jail": h_jail.cpu(),
             "v_hall": v_hall.cpu(),
             "v_jail": v_jail.cpu(),
-        },
-        checkpoint_path,
-    )
+        }
+    # A failed calibration must leave the previous complete checkpoint intact.
+    descriptor, staged = tempfile.mkstemp(prefix=".repe-", suffix=".pt",
+                                         dir=os.path.dirname(checkpoint_path) or ".")
+    os.close(descriptor)
+    try:
+        torch.save(checkpoint, staged)
+        os.replace(staged, checkpoint_path)
+    finally:
+        if os.path.exists(staged):
+            os.unlink(staged)
 
     print(f"Direction vectors computed. Shape: {v_hall.shape}")
     return v_hall, v_jail

@@ -46,16 +46,23 @@ def correct_logits(base, delta, *, beta=0.1, kl_budget=0.5):
     if not torch.isfinite(delta).all():
         raise ValueError("delta must be finite")
     work, delta = base.float(), delta.float()
-    finite = torch.isfinite(work)
+    finite = torch.isfinite(base)
+    if not torch.isfinite(work[finite]).all() or not torch.isfinite(delta).all():
+        raise ValueError("Finite logits and deltas must be representable in float32")
+    # Centre base logits before arithmetic: additive logit offsets must not
+    # change the correction or its budget because of avoidable cancellation.
+    work = work - work.amax(-1, keepdim=True)
     # A uniform logit offset carries no adapter information. Centre it away.
     anchor = delta.gather(1, work.argmax(-1, keepdim=True))
     delta = torch.where(finite, delta - anchor, 0.0)
+    if not torch.isfinite(delta).all():
+        raise ValueError("Centred deltas overflow float32")
     active = delta.abs().amax(-1) > 0
     log_p = F.log_softmax(work, -1)
     mask = finite & (work >= work.amax(-1, keepdim=True) + math.log(beta))
     masked_base = work.masked_fill(~mask, -torch.inf)
     floor = reverse_kl(F.log_softmax(masked_base, -1), log_p)
-    abstained = active & (floor > kl_budget)
+    abstained = active & ((floor > kl_budget) | (kl_budget == 0))
     eligible = active & ~abstained & (kl_budget > 0)
 
     def candidate(scale):
@@ -77,11 +84,11 @@ def correct_logits(base, delta, *, beta=0.1, kl_budget=0.5):
             high = torch.where(feasible, high, mid)
     scale = torch.where(needs_search, low, ones)
     scale = torch.where(eligible, scale, torch.zeros_like(scale))
-    result = torch.where(eligible[:, None], candidate(scale), work)
+    result = torch.where(eligible[:, None], candidate(scale), base.float())
     kl = reverse_kl(F.log_softmax(result, -1), log_p)
     # Conservative fallback for nonfinite or accumulated numerical roundoff.
     invalid = ~torch.isfinite(kl) | (kl > kl_budget + 1e-6)
-    result = torch.where(invalid[:, None], work, result)
+    result = torch.where(invalid[:, None], base.float(), result)
     kl = torch.where(invalid, torch.zeros_like(kl), kl)
     scale = torch.where(invalid, torch.zeros_like(scale), scale)
     abstained |= invalid

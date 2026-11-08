@@ -88,3 +88,27 @@ def test_bfloat16_results_obey_float32_budget():
     result = correct_logits(base, torch.tensor([[8., -8., 0., 0.]]), beta=.01, kl_budget=.03)
     assert result.scores.dtype == torch.float32
     assert result.kl.item() <= .030001
+
+
+def test_operator_rejects_values_that_overflow_float32_instead_of_returning_nan():
+    from inference.operator import correct_logits
+    with pytest.raises(ValueError, match="float32"):
+        correct_logits(torch.tensor([[1e300, 0]], dtype=torch.float64),
+                       torch.zeros(1, 2, dtype=torch.float64))
+
+
+def test_zero_budget_records_abstention_for_nonzero_requested_correction():
+    from inference.operator import correct_logits
+    base = torch.zeros(1, 3)
+    correction = correct_logits(base, torch.tensor([[1., 0., 0.]]), kl_budget=0.)
+    torch.testing.assert_close(correction.scores, base)
+    assert correction.abstained.item()
+
+
+def test_active_distribution_is_invariant_to_uniform_logit_and_delta_offsets():
+    from inference.operator import correct_logits
+    base = torch.tensor([[2., 1., -1., -2.]])
+    delta = torch.tensor([[0., 2., -3., 1.]])
+    initial = correct_logits(base, delta, beta=.01, kl_budget=.05)
+    shifted = correct_logits(base + 1024., delta + 32., beta=.01, kl_budget=.05)
+    torch.testing.assert_close(initial.scores.softmax(-1), shifted.scores.softmax(-1), atol=2e-7, rtol=1e-6)

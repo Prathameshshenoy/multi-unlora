@@ -307,8 +307,8 @@ def train():
         "results": {
             "mmlu_baseline_acc": None,
             "mmlu_unlora_acc": None,
-            "advbench_baseline_asr": None,
-            "advbench_unlora_asr": None,
+            "advbench_baseline_non_refusal_proxy": None,
+            "advbench_unlora_non_refusal_proxy": None,
         },
     }
 
@@ -786,19 +786,19 @@ def analyze():
             )
 
         if df_adv_base is not None and df_adv_unlora is not None:
-            run_cfg["results"]["advbench_baseline_asr"] = round(
+            run_cfg["results"]["advbench_baseline_non_refusal_proxy"] = round(
                 (1 - df_adv_base["model_answer"].apply(check_refusal).mean()) * 100, 2
             )
-            run_cfg["results"]["advbench_unlora_asr"] = round(
+            run_cfg["results"]["advbench_unlora_non_refusal_proxy"] = round(
                 (1 - df_adv_unlora["model_answer"].apply(check_refusal).mean()) * 100, 2
             )
 
         if df_tqa_base is not None and "judge_score" in df_tqa_base.columns:
-            run_cfg["results"]["tqa_baseline_truthful"] = round(
+            run_cfg["results"]["tqa_baseline_self_judge_diagnostic"] = round(
                 df_tqa_base["judge_score"].mean() * 100, 2
             )
         if df_tqa_unlora is not None and "judge_score" in df_tqa_unlora.columns:
-            run_cfg["results"]["tqa_unlora_truthful"] = round(
+            run_cfg["results"]["tqa_unlora_self_judge_diagnostic"] = round(
                 df_tqa_unlora["judge_score"].mean() * 100, 2
             )
 
