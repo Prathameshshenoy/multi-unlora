@@ -81,6 +81,17 @@ def register_local_demo(token, deadline):
         'MULTI_UNLORA_DEMO_DEADLINE':str(deadline)})
     factory = modal.concurrent(max_inputs=8)(modal.asgi_app()(serve_gpu_app))
     return app.function(name='local_gpu_api',image=image,
-        volumes={config.VOLUME_MOUNT:volume},gpu='A100-40GB',timeout=180,
+        volumes={config.VOLUME_MOUNT:volume},gpu='A100-40GB',timeout=300,
         max_containers=1,retries=0,cpu=2,memory=16384,scaledown_window=2,
         secrets=[modal.Secret.from_dict({'MULTI_UNLORA_API_TOKEN':token})])(factory)
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1200, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def tune_and_confirm():
+    import json
+    from evaluation.tuning import run_tuning_confirmation
+    try:
+        return json.loads(json.dumps(run_tuning_confirmation()))
+    finally:
+        volume.commit()

@@ -65,7 +65,7 @@ def create_app(backend=None):
         if secret and not hmac.compare_digest((authorization or "").encode("utf-8"), ("Bearer " + secret).encode("utf-8")):
             raise HTTPException(status_code=401, detail="A valid API bearer token is required.", headers={"WWW-Authenticate": "Bearer"})
 
-    @app.get("/api/health")
+    @app.get("/api/health", dependencies=[Depends(authorize)])
     def health():
         active = app.state.backend
         if expired():

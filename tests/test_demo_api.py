@@ -186,3 +186,10 @@ def test_cors_is_an_explicit_allowlist(monkeypatch):
     denied = client.options("/api/generate", headers=headers)
     assert denied.status_code == 400
     assert "access-control-allow-origin" not in denied.headers
+
+
+def test_configured_token_protects_health(monkeypatch):
+    monkeypatch.setenv('MULTI_UNLORA_API_TOKEN','session-token')
+    client = TestClient(create_app(PreviewBackend()))
+    assert client.get('/api/health').status_code == 401
+    assert client.get('/api/health',headers={'Authorization':'Bearer session-token'}).status_code == 200

@@ -191,3 +191,11 @@ def test_demo_deadline_cancels_an_active_comparison(monkeypatch):
     assert 'session_expired' in response.text
     assert stopped.wait(1)
     assert not app.state.admission.locked()
+
+
+def test_health_access_token_is_forwarded_to_cloud(monkeypatch):
+    def respond(request):
+        assert request.headers['authorization'] == 'Bearer server-only-token'
+        return httpx.Response(200,json={'backend':'gpu','ready':True})
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        assert RemoteBackend('https://gpu.example','server-only-token',client).health()[0]

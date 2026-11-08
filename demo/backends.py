@@ -261,7 +261,7 @@ class RemoteBackend:
     def health(self):
         client = self._client()
         try:
-            response = client.get(self.url + "/api/health", timeout=10.0)
+            response = client.get(self.url + "/api/health", headers={"Authorization": "Bearer " + self.token}, timeout=10.0)
             response.raise_for_status()
             data = response.json()
             if data.get("backend") != "gpu" or data.get("simulated") is True:
