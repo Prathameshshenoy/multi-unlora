@@ -82,7 +82,7 @@ def register_local_demo(token, deadline):
     factory = modal.concurrent(max_inputs=8)(modal.asgi_app()(serve_gpu_app))
     return app.function(name='local_gpu_api',image=image,
         volumes={config.VOLUME_MOUNT:volume},gpu='A100-40GB',timeout=300,
-        max_containers=1,retries=0,cpu=2,memory=16384,scaledown_window=2,
+        max_containers=1,cpu=2,memory=16384,scaledown_window=2,
         secrets=[modal.Secret.from_dict({'MULTI_UNLORA_API_TOKEN':token})])(factory)
 
 

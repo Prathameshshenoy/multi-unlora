@@ -1,6 +1,6 @@
 """Run bounded Modal stages and record conservative budget reservations.
 
-Reservations are deliberately not refunded on failures: unknown cloud activity
+Cloud reservations are deliberately not refunded on failures: unknown cloud activity
 must never silently expand the approved budget. CPU preflight reserves $0.25;
 GPU time reserves $0.001/second, above listed A100+requested CPU/RAM rates.
 This is a workload ceiling, not an invoice or a provider billing API.
@@ -45,7 +45,6 @@ def main():
     parser.add_argument('stage',choices=list(RESERVATIONS))
     parser.add_argument('--steps',type=int,choices=[80,120],default=120)
     args = parser.parse_args()
-    reserve(args.stage)
     # Freeze only runtime source. Edits in the IDE must not race a cloud build.
     snapshot = ROOT/'.runtime'/('source-'+uuid.uuid4().hex[:10])
     snapshot.mkdir()
@@ -66,6 +65,8 @@ def main():
         # Absolute deadline enforced at both ends; timer also stops the app.
         deadline = time.time()+900
         service = modal_engine.register_local_demo(token,deadline)
+    # Reserve only after pure local SDK validation succeeds, before any cloud dispatch.
+    reserve(args.stage)
     print('Connecting to Modal and preparing the runtime image...',flush=True)
     import hashlib
     source_hashes = {str(p.relative_to(snapshot)):hashlib.sha256(p.read_bytes()).hexdigest()
