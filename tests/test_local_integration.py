@@ -80,12 +80,13 @@ def test_real_tensor_generation_path_and_model_reuse(monkeypatch):
     backend.model,backend.tokenizer = Model(),Tokenizer()
     backend.v_hall=backend.v_jail=torch.ones(3)
     monkeypatch.setattr(router,'compute_dynamic_alphas',lambda *a,**k:(.2,.2))
-    for _ in range(2):
-        events = list(backend.stream('hello',8,threading.Event()))
+    for limit, expected_text, finish_reason in ((8,'aa','eos'), (1,'a','length')):
+        events = list(backend.stream('hello',limit,threading.Event()))
         final = events[-1][1]
         assert events[-1][0] == 'complete'
         assert not final['simulated']
-        assert final['baseline']['text'] == final['unlora']['text'] == 'aa'
+        assert final['baseline']['text'] == final['unlora']['text'] == expected_text
+        assert final['baseline']['finish_reason'] == final['unlora']['finish_reason'] == finish_reason
         assert not backend.model.enabled
         telemetry = [data for event,data in events if event=='telemetry']
         assert all(data['kl_divergence']==0 for data in telemetry)
@@ -199,3 +200,30 @@ def test_health_access_token_is_forwarded_to_cloud(monkeypatch):
         return httpx.Response(200,json={'backend':'gpu','ready':True})
     with httpx.Client(transport=httpx.MockTransport(respond)) as client:
         assert RemoteBackend('https://gpu.example','server-only-token',client).health()[0]
+
+
+def test_quality_metadata_accepts_report_only_settings_without_hiding_failed_gate(monkeypatch, tmp_path):
+    import hashlib
+    import config
+    from demo.backends import GPUBackend
+
+    monkeypatch.setattr(config,'ADAPTER_DIR',str(tmp_path))
+    monkeypatch.setattr(config,'RESULTS_DIR',str(tmp_path))
+    manifest = {'base_model':config.BASE_MODEL_NAME,'model_revision':'revision','status':'pilot_unvalidated'}
+    (tmp_path/'manifest.json').write_text(json.dumps(manifest))
+    report = {
+        'manifest_fingerprint':hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest(),
+        'operator':'contrastive-v1',
+        'settings':{'alpha_cap':config.ALPHA_CAP,'beta':config.PROCESSOR_PLAUSIBILITY_BETA,
+                    'kl_budget':config.PROCESSOR_KL_THRESHOLD,'requested_n':200},
+        'forced_choice_gate_passed':False,'production_quality_verified':False,
+    }
+    (tmp_path/'pilot_quality.json').write_text(json.dumps(report))
+    backend = GPUBackend()
+    backend.loaded = True
+    backend.operator_version = 'contrastive-v1'
+    assert backend.metadata()['quality'] == {'status':'forced_choice_failed','production_quality_verified':False}
+    # Extra evaluation bookkeeping is allowed; a changed engine setting is not.
+    report['settings']['beta'] = .999
+    (tmp_path/'pilot_quality.json').write_text(json.dumps(report))
+    assert backend.metadata()['quality']['status']=='pending'

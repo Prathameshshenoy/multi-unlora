@@ -112,3 +112,29 @@ def test_active_distribution_is_invariant_to_uniform_logit_and_delta_offsets():
     initial = correct_logits(base, delta, beta=.01, kl_budget=.05)
     shifted = correct_logits(base + 1024., delta + 32., beta=.01, kl_budget=.05)
     torch.testing.assert_close(initial.scores.softmax(-1), shifted.scores.softmax(-1), atol=2e-7, rtol=1e-6)
+
+
+def test_telemetry_lists_only_positive_probability_unmasked_candidates():
+    import json
+    scores = torch.tensor([[6., 0., -1., -2., -3., -4.]])
+    events = []
+    processor = MultiUnLoRALogitsProcessor(
+        IdenticalExpert(scores + torch.tensor([[1., 0., 0., 0., 0., 0.]])),
+        .4, 0, beta=.1, telemetry_callback=events.append,
+    )
+    corrected = processor(torch.ones(1, 2, dtype=torch.long), scores)
+    assert torch.isfinite(corrected).sum().item() == 1
+    assert events[0]['top_tokens'] == [
+        {'token_id': 0, 'base_probability': float(scores.softmax(-1)[0, 0]),
+         'corrected_probability': 1.0}
+    ]
+    json.dumps(events, allow_nan=False)
+
+
+def test_telemetry_omits_zero_mass_from_probability_underflow():
+    events = []
+    scores = torch.tensor([[0., -200., -300.]])
+    MultiUnLoRALogitsProcessor(IdenticalExpert(scores), 0, 0, telemetry_callback=events.append)(
+        torch.ones(1, 2, dtype=torch.long), scores
+    )
+    assert [candidate['token_id'] for candidate in events[0]['top_tokens']] == [0]

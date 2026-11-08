@@ -81,6 +81,9 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                 "top_tokens": [{"token_id": token_id,
                     "base_probability": float(base_probs[0, token_id]),
                     "corrected_probability": probability}
-                    for token_id, probability in zip(ids.tolist(), probabilities.tolist())],
+                    for token_id, probability in zip(ids.tolist(), probabilities.tolist())
+                    # topk fills unused slots with arbitrary zero-mass tokens
+                    # when the plausibility filter leaves fewer than five.
+                    if math.isfinite(probability) and probability > 0],
             })
         return correction.scores

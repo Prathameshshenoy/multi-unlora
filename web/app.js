@@ -115,6 +115,7 @@ function metrics(branch,data) {
   if (count != null) parts.push(`${count} tokens`);
   if (Number.isFinite(Number(time))) parts.push(`${Number(time).toFixed(2)} s`);
   if (Number(time)>0 && count != null) parts.push(`${(Number(count)/Number(time)).toFixed(1)} tok/s`);
+  if (data.finish_reason === 'length') parts.push('Token limit reached');
   $(`${branch}-metrics`).textContent = (backend === 'preview' ? 'SIMULATED · ' : '') + (parts.join('  ·  ') || 'Generation complete');
 }
 let streamCompleted = false;

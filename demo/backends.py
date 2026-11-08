@@ -43,7 +43,8 @@ class PreviewBackend:
                 if branch == "baseline" else
                 "This is a simulated Multi-UnLoRA response. The animated routing weights and token probabilities are illustrative; they do not establish factual accuracy or safety."
             )
-            words = text.split()[:max_new_tokens]
+            all_words = text.split()
+            words = all_words[:max_new_tokens]
             started = time.perf_counter()
             chunks = []
             for step, word in enumerate(words, 1):
@@ -62,7 +63,7 @@ class PreviewBackend:
                 if cancelled.wait(0.025):
                     return
             elapsed = time.perf_counter() - started
-            result[branch] = {"text": "".join(chunks), "tokens": len(words), "wall_time_s": elapsed, "throughput_tps": len(words) / max(elapsed, 1e-9)}
+            result[branch] = {"text": "".join(chunks), "tokens": len(words), "wall_time_s": elapsed, "throughput_tps": len(words) / max(elapsed, 1e-9), "finish_reason": "length" if len(all_words) > max_new_tokens else "eos"}
         yield "complete", {**result, "simulated": True}
 
 
@@ -88,8 +89,13 @@ class GPUBackend:
             settings = {"alpha_cap": config.ALPHA_CAP,
                         "beta": config.PROCESSOR_PLAUSIBILITY_BETA,
                         "kl_budget": config.PROCESSOR_KL_THRESHOLD}
+            reported_settings = report.get("settings")
+            settings_match = isinstance(reported_settings, dict) and all(
+                not isinstance(reported_settings.get(key), bool) and
+                reported_settings.get(key) == value for key, value in settings.items()
+            )
             if (report.get("manifest_fingerprint") != digest or
-                    report.get("settings") != settings or
+                    not settings_match or
                     report.get("operator") != getattr(self, "operator_version", None)):
                 report = {}
         return {
@@ -171,6 +177,7 @@ class GPUBackend:
                     mask = inputs.get("attention_mask")
                     mask = mask.clone() if mask is not None else torch.ones_like(ids)
                     new_ids, text, emitted = [], "", ""
+                    finish_reason = "length"
                     started = time.perf_counter()
                     pending = []
                     processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail, telemetry_callback=pending.append, attention_mask=inputs.get("attention_mask")) if branch == "unlora" else None
@@ -193,6 +200,7 @@ class GPUBackend:
                         pending.clear()
                         new_ids.append(token_id)
                         if token_id in eos_ids:
+                            finish_reason = "eos"
                             break
                         ids = torch.cat((ids, torch.tensor([[token_id]], device=ids.device)), dim=-1)
                         mask = torch.cat((mask, mask.new_ones((mask.shape[0], 1))), dim=-1)
@@ -206,7 +214,7 @@ class GPUBackend:
                                 emitted = stable
                     elapsed = time.perf_counter() - started
                     text = tokenizer.decode(new_ids, skip_special_tokens=True)
-                    result[branch] = {"text": text, "tokens": len(new_ids), "wall_time_s": elapsed, "throughput_tps": len(new_ids) / max(elapsed, 1e-9)}
+                    result[branch] = {"text": text, "tokens": len(new_ids), "wall_time_s": elapsed, "throughput_tps": len(new_ids) / max(elapsed, 1e-9), "finish_reason": finish_reason}
                 yield "complete", {**result, "simulated": False}
         finally:
             model.disable_adapter_layers()
