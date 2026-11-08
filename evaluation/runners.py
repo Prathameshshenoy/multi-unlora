@@ -18,7 +18,6 @@ import gc
 import os
 import time
 
-import unsloth
 import pandas as pd
 import torch
 from tqdm import tqdm
@@ -28,6 +27,20 @@ import config
 from hardware import get_vram_usage_mb
 from inference.processor import MultiUnLoRALogitsProcessor
 from repe.router import compute_dynamic_alphas
+
+
+EVALUATION_PROTOCOL = "shared-honest-prompt-v1"
+
+
+def format_evaluation_prompt(prompt):
+    """Use identical conditioning for baseline, expert, and corrected arms.
+
+    Existing CSVs produced before this protocol are confounded and must be
+    archived and regenerated. They must not be resumed or compared to v1.
+    """
+    if prompt.startswith("Question:"):
+        return prompt
+    return f"{config.SYSTEM_PROMPT_HONEST}User: {prompt}\nAssistant:"
 
 
 def run_evaluation(
@@ -51,8 +64,8 @@ def run_evaluation(
 
     Three execution modes are supported, selected by the use_unlora and
     force_adapter arguments:
-      - Baseline: adapters disabled, adversarial system prompt, no processor.
-      - Expert:   a single named adapter active, no system prompt, no processor.
+      - Baseline: adapters disabled, shared honest system prompt, no processor.
+      - Expert:   a single named adapter active, shared prompt, no processor.
       - UnLoRA:   adapters disabled between tokens, honest system prompt,
                   MultiUnLoRALogitsProcessor active.
 
@@ -70,8 +83,8 @@ def run_evaluation(
         v_jail (torch.Tensor, optional): Normalised jailbreak direction vector,
             on CUDA. Required when use_unlora=True.
         use_unlora (bool): If True, runs with MultiUnLoRALogitsProcessor and the
-            honest system prompt. If False, runs the base model with the
-            adversarial system prompt and no processor. Defaults to True.
+            shared honest system prompt. If False, runs the base model with
+            the same prompt and no processor. Defaults to True.
         force_adapter (str, optional): If set, enables the named adapter and runs
             without a processor. Used to generate BadExpert reference responses
             for Table 1. Mutually exclusive with use_unlora=True.
@@ -84,6 +97,8 @@ def run_evaluation(
     Raises:
         ValueError: If use_unlora is True but v_hall or v_jail is None.
     """
+    if force_adapter and use_unlora:
+        raise ValueError("force_adapter and use_unlora=True are mutually exclusive")
     mode_label = "UnLoRA" if use_unlora else "Baseline"
     if force_adapter:
         mode_label = f"Expert ({force_adapter})"
@@ -91,6 +106,13 @@ def run_evaluation(
     # Resume from wherever we left off if the CSV already exists.
     if os.path.exists(output_csv) and os.path.getsize(output_csv) > 0:
         existing = pd.read_csv(output_csv)
+        if "evaluation_protocol" not in existing or not (
+            existing["evaluation_protocol"] == EVALUATION_PROTOCOL
+        ).all():
+            raise ValueError(
+                "Legacy evaluation CSV uses incompatible prompt conditioning. "
+                "Archive it and rerun every arm; old results are not comparable."
+            )
         start_idx = len(existing)
         print(f"Resuming {mode_label} eval from index {start_idx}: {output_csv}")
     else:
@@ -114,16 +136,7 @@ def run_evaluation(
         example = examples[i]
         prompt = example["prompt"]
 
-        # MMLU prompts are pre-formatted with a "Question:" prefix by the loader
-        # and must not be wrapped with a system prompt — doing so breaks the
-        # single-token answer extraction that MMLU scoring depends on.
-        if not prompt.startswith("Question:"):
-            if use_unlora:
-                prompt = f"{config.SYSTEM_PROMPT_HONEST}User: {prompt}\nAssistant:"
-            elif force_adapter:
-                prompt = f"User: {prompt}\nAssistant:"
-            else:
-                prompt = f"{config.SYSTEM_PROMPT_ADVERSARIAL}User: {prompt}\nAssistant:"
+        prompt = format_evaluation_prompt(prompt)
 
         inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
 
@@ -180,6 +193,7 @@ def run_evaluation(
         }
 
         row = row_fn(example, model_answer, metrics)
+        row["evaluation_protocol"] = EVALUATION_PROTOCOL
 
         is_first = not os.path.exists(output_csv) or os.path.getsize(output_csv) == 0
         pd.DataFrame([row]).to_csv(output_csv, mode="a", header=is_first, index=False)

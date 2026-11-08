@@ -38,12 +38,34 @@ def get_hf_base_model(peft_model):
         The innermost HuggingFace model (e.g. LlamaForCausalLM), with no
         PEFT or Unsloth wrappers.
     """
-    if hasattr(peft_model, "base_model"):
-        return peft_model.base_model.model
+    if callable(getattr(peft_model, "get_base_model", None)):
+        return peft_model.get_base_model()
     return peft_model
 
 
-def get_hidden_state_via_hook(model, tokenizer, text, layer_idx=config.REPE_LAYER_IDX):
+def _prepare_base_model(model, layer_idx):
+    """Use the transformer layer's device, including for CPU verification.
+
+    Preserve the existing Unsloth workaround for offloaded embedding/output
+    weights without assuming CUDA or moving the entire model.
+    """
+    if hasattr(model, "disable_adapter_layers"):
+        model.disable_adapter_layers()
+    hf_model = get_hf_base_model(model)
+    target_layer = hf_model.model.layers[layer_idx]
+    device = next(target_layer.parameters()).device
+    for module in (
+        getattr(hf_model.model, "embed_tokens", None),
+        getattr(hf_model, "lm_head", None),
+    ):
+        if module is not None and module.weight.device != device:
+            module.to(device)
+    return hf_model, target_layer, device
+
+
+def get_hidden_state_via_hook(
+    model, tokenizer, text, layer_idx=config.REPE_LAYER_IDX, *, add_special_tokens=True
+):
     """Extracts the hidden-state vector at a specific transformer layer for a single input.
 
     Registers a temporary forward hook on the target layer, runs one forward
@@ -51,8 +73,8 @@ def get_hidden_state_via_hook(model, tokenizer, text, layer_idx=config.REPE_LAYE
     removed in a finally block so it is never left dangling on an exception.
 
     Unsloth can offload embed_tokens and lm_head to CPU after PEFT wrapping.
-    Both are moved back to CUDA before the forward pass to prevent a device
-    mismatch crash when calling the unwrapped HuggingFace model directly.
+    Both are moved to the target transformer layer device before the forward
+    pass to prevent a mismatch when calling the unwrapped model directly.
 
     Args:
         model (PeftModel): PEFT-wrapped model with adapters loaded.
@@ -63,11 +85,10 @@ def get_hidden_state_via_hook(model, tokenizer, text, layer_idx=config.REPE_LAYE
 
     Returns:
         torch.Tensor: Hidden-state vector at the last token position,
-            shape (hidden_dim,), on CUDA.
+            shape (hidden_dim,), on the target layer device.
     """
     captured = {}
-    hf_model = get_hf_base_model(model)
-    target_layer = hf_model.model.layers[layer_idx]
+    hf_model, target_layer, device = _prepare_base_model(model, layer_idx)
 
     def hook_fn(module, input, output):
         captured["hidden"] = (
@@ -77,24 +98,15 @@ def get_hidden_state_via_hook(model, tokenizer, text, layer_idx=config.REPE_LAYE
     handle = target_layer.register_forward_hook(hook_fn)
 
     try:
-        inputs = tokenizer(text, return_tensors="pt").to("cuda")
-
-        # Unsloth sometimes offloads these to CPU after PEFT wrapping.
-        # Move them back before the forward pass or we get a device mismatch.
-        if (
-            hasattr(hf_model.model, "embed_tokens")
-            and hf_model.model.embed_tokens.weight.device.type == "cpu"
-        ):
-            hf_model.model.embed_tokens.to("cuda")
-
-        if (
-            hasattr(hf_model, "lm_head")
-            and hf_model.lm_head.weight.device.type == "cpu"
-        ):
-            hf_model.lm_head.to("cuda")
-
+        inputs = tokenizer(
+            text, return_tensors="pt", truncation=True,
+            max_length=config.MAX_SEQ_LENGTH,
+            add_special_tokens=add_special_tokens,
+        ).to(device)
         with torch.no_grad():
-            hf_model(input_ids=inputs.input_ids, use_cache=False, return_dict=True)
+            hf_model(**inputs, use_cache=False, return_dict=True)
+        if "hidden" not in captured:
+            raise RuntimeError("Hidden-state hook did not fire")
 
         # The last token has attended over the full input sequence and therefore
         # carries the most compressed contextual representation of the prompt.
@@ -124,68 +136,52 @@ def extract_concept_vector(model, tokenizer, prompts, layer_idx=config.REPE_LAYE
 
     Returns:
         torch.Tensor: Mean concept vector averaged over all prompts,
-            shape (hidden_dim,), on CUDA.
+            shape (hidden_dim,), on the target layer device.
     """
+    if not prompts:
+        raise ValueError("At least one anchor prompt is required")
     vectors = []
     batch_size = config.REPE_EXTRACTION_BATCH_SIZE
-    hf_model = get_hf_base_model(model)
-    target_layer = hf_model.model.layers[layer_idx]
-
+    hf_model, target_layer, device = _prepare_base_model(model, layer_idx)
     original_padding_side = tokenizer.padding_side
     tokenizer.padding_side = "left"
 
-    for i in tqdm(
-        range(0, len(prompts), batch_size), desc=f"Extracting layer {layer_idx}"
-    ):
-        batch = prompts[i : i + batch_size]
-        captured = {}
+    try:
+        for i in tqdm(
+            range(0, len(prompts), batch_size), desc=f"Extracting layer {layer_idx}"
+        ):
+            batch = [f"User: {p}\nAssistant:" for p in prompts[i : i + batch_size]]
+            captured = {}
 
-        def hook_fn(module, input, output):
-            captured["hidden"] = (
-                output[0].detach() if isinstance(output, tuple) else output.detach()
-            )
-
-        handle = target_layer.register_forward_hook(hook_fn)
-
-        try:
-            batch = [f"User: {p}\nAssistant:" for p in batch]
-            inputs = tokenizer(
-                batch,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=config.MAX_SEQ_LENGTH,
-            ).to("cuda")
-
-            if (
-                hasattr(hf_model.model, "embed_tokens")
-                and hf_model.model.embed_tokens.weight.device.type == "cpu"
-            ):
-                hf_model.model.embed_tokens.to("cuda")
-
-            if (
-                hasattr(hf_model, "lm_head")
-                and hf_model.lm_head.weight.device.type == "cpu"
-            ):
-                hf_model.lm_head.to("cuda")
-
-            with torch.no_grad():
-                hf_model(
-                    input_ids=inputs.input_ids,
-                    attention_mask=inputs.attention_mask,
-                    use_cache=False,
-                    return_dict=True,
+            def hook_fn(module, input, output):
+                captured["hidden"] = (
+                    output[0].detach() if isinstance(output, tuple) else output.detach()
                 )
 
-            # Left padding guarantees the last real token is always at index -1.
-            last_token_states = captured["hidden"][:, -1, :]
-            for vec in last_token_states:
-                vectors.append(vec)
-        finally:
-            handle.remove()
-
-    tokenizer.padding_side = original_padding_side
+            handle = target_layer.register_forward_hook(hook_fn)
+            try:
+                inputs = tokenizer(
+                    batch, return_tensors="pt", padding=True, truncation=True,
+                    max_length=config.MAX_SEQ_LENGTH,
+                ).to(device)
+                with torch.no_grad():
+                    hf_model(**inputs, use_cache=False, return_dict=True)
+                if "hidden" not in captured:
+                    raise RuntimeError("Hidden-state hook did not fire")
+                vectors.extend(captured["hidden"][:, -1, :].float().unbind(0))
+            finally:
+                handle.remove()
+    finally:
+        tokenizer.padding_side = original_padding_side
     return torch.stack(vectors).mean(dim=0)
+
+
+def _unit_direction(vector):
+    vector = vector.float()
+    norm = vector.norm()
+    if not torch.isfinite(vector).all() or not torch.isfinite(norm) or norm <= 1e-12:
+        raise ValueError("Concept direction is nonfinite or zero; recalibrate anchors")
+    return vector / norm
 
 
 def load_or_compute_vectors(model, tokenizer):
@@ -211,13 +207,14 @@ def load_or_compute_vectors(model, tokenizer):
 
     Returns:
         tuple[torch.Tensor, torch.Tensor]: (v_hall, v_jail) — normalised
-            direction vectors on CUDA, each of shape (hidden_dim,).
+            direction vectors on the target layer device, each of shape (hidden_dim,).
     """
     checkpoint_path = config.REPE_CHECKPOINT
+    _, _, device = _prepare_base_model(model, config.REPE_LAYER_IDX)
 
     if os.path.exists(checkpoint_path):
         print(f"Loading RepE vectors from checkpoint: {checkpoint_path}")
-        vectors = torch.load(checkpoint_path, map_location="cuda")
+        vectors = torch.load(checkpoint_path, map_location=device, weights_only=True)
         # If checkpoint is old format (no direction vectors), recompute
         if "v_hall" not in vectors:
             print("Old checkpoint format detected — recomputing direction vectors.")
@@ -225,12 +222,12 @@ def load_or_compute_vectors(model, tokenizer):
             h_hall = vectors["h_hall"]
             h_jail = vectors["h_jail"]
             v_hall = h_hall - h_safe
-            v_hall = v_hall / v_hall.norm()
+            v_hall = _unit_direction(v_hall)
             v_jail = h_jail - h_safe
-            v_jail = v_jail / v_jail.norm()
+            v_jail = _unit_direction(v_jail)
         else:
-            v_hall = vectors["v_hall"]
-            v_jail = vectors["v_jail"]
+            v_hall = _unit_direction(vectors["v_hall"])
+            v_jail = _unit_direction(vectors["v_jail"])
         print(f"Direction vectors loaded. Shape: {v_hall.shape}")
         return v_hall, v_jail
 
@@ -247,11 +244,12 @@ def load_or_compute_vectors(model, tokenizer):
 
     print(f"Saving vectors to: {checkpoint_path}")
     v_hall = h_hall - h_safe
-    v_hall = v_hall / v_hall.norm()
+    v_hall = _unit_direction(v_hall)
 
     v_jail = h_jail - h_safe
-    v_jail = v_jail / v_jail.norm()
+    v_jail = _unit_direction(v_jail)
 
+    os.makedirs(os.path.dirname(checkpoint_path) or ".", exist_ok=True)
     torch.save(
         {
             "h_safe": h_safe.cpu(),

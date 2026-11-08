@@ -22,7 +22,9 @@ import config
 from repe.extractor import get_hidden_state_via_hook
 
 
-def compute_dynamic_alphas(model, tokenizer, prompt_text, v_hall, v_jail):
+def compute_dynamic_alphas(
+    model, tokenizer, prompt_text, v_hall, v_jail, *, add_special_tokens=True
+):
     """Computes per-concept penalty weights for a single prompt.
 
     Extracts the prompt's hidden state at config.REPE_LAYER_IDX, normalises
@@ -55,43 +57,37 @@ def compute_dynamic_alphas(model, tokenizer, prompt_text, v_hall, v_jail):
             shape (hidden_dim,).
 
     Returns:
-        tuple[float, float]: (alpha_hall, alpha_jail), both rounded to 3 decimal
-            places. Values are in (0, 1) before capping and guaranteed to sum
+        tuple[float, float]: (alpha_hall, alpha_jail), without rounding.
+            Values are in (0, 1) before capping and guaranteed to sum
             to at most config.ALPHA_CAP after.
     """
+    if hasattr(model, "disable_adapter_layers"):
+        model.disable_adapter_layers()
     current_h = get_hidden_state_via_hook(
-        model, tokenizer, prompt_text, config.REPE_LAYER_IDX
-    ).to("cuda")
+        model, tokenizer, prompt_text, config.REPE_LAYER_IDX,
+        add_special_tokens=add_special_tokens,
+    ).float()
 
-    # Normalize input hidden state before projection
-    current_h_norm = current_h / current_h.norm()
+    directions = [v_hall.to(current_h), v_jail.to(current_h)]
+    for vector in [current_h, *directions]:
+        if vector.ndim != 1 or vector.shape != current_h.shape:
+            raise ValueError("Router vectors must share a one-dimensional hidden size")
+        norm = vector.norm()
+        if not torch.isfinite(vector).all() or not torch.isfinite(norm) or norm <= 1e-12:
+            raise ValueError("Router vectors must be finite and nonzero; recalibrate vectors")
 
-    # Dot product onto each direction vector
-    # Positive = prompt heading toward bad concept, negative = heading away
-    cos_hall = torch.dot(current_h_norm, v_hall).item()
-    cos_jail = torch.dot(current_h_norm, v_jail).item()
-
-    # Sigmoid maps (-inf, +inf) to (0, 1)
-    # At cos=0 (neutral): alpha=0.5
-    # At cos=0.5 (tilted toward bad): alpha~0.82
-    # At cos=-0.5 (tilted away): alpha~0.18
-    alpha_hall = round(
-        torch.sigmoid(
-            torch.tensor(config.REPE_K_SCALE * cos_hall + config.REPE_BIAS)
-        ).item(),
-        3,
-    )
-    alpha_jail = round(
-        torch.sigmoid(
-            torch.tensor(config.REPE_K_SCALE * cos_jail + config.REPE_BIAS)
-        ).item(),
-        3,
-    )
-
+    current_h_norm = F.normalize(current_h, dim=0)
+    cosines = [
+        torch.dot(current_h_norm, F.normalize(vector, dim=0)).clamp(-1.0, 1.0)
+        for vector in directions
+    ]
+    alpha_hall, alpha_jail = [
+        float(torch.sigmoid(config.REPE_K_SCALE * cosine + config.REPE_BIAS))
+        for cosine in cosines
+    ]
     total = alpha_hall + alpha_jail
     if total > config.ALPHA_CAP:
         scale = config.ALPHA_CAP / total
-        alpha_hall = round(alpha_hall * scale, 3)
-        alpha_jail = round(alpha_jail * scale, 3)
-
+        alpha_hall *= scale
+        alpha_jail = min(alpha_jail * scale, config.ALPHA_CAP - alpha_hall)
     return alpha_hall, alpha_jail

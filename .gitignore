@@ -11,3 +11,13 @@ wheels/
 
 # Modal volume
 volume_backup*
+
+# Local credentials and test state
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.sites-publish/
+
+# Keep the private research blueprint local.
+Multi_Unlora_MASTER_BLUEPRINT.md
