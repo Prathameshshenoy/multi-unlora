@@ -1,7 +1,9 @@
 """Streaming backends. GPU dependencies are imported only for real inference."""
 
 import math
+import json
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -72,9 +74,40 @@ class GPUBackend:
 
     def __init__(self):
         self.loaded = False
+        self.loading = False
+        self.load_failed = False
+
+    def metadata(self):
+        """Read public provenance without importing the GPU stack or leaking paths."""
+        manifest = _read_json(Path(config.ADAPTER_DIR) / "manifest.json")
+        report = _read_json(Path(config.RESULTS_DIR) / "pilot_quality.json")
+        # A report for different adapters is never evidence for this model.
+        if report:
+            import hashlib
+            digest = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+            settings = {"alpha_cap": config.ALPHA_CAP,
+                        "beta": config.PROCESSOR_PLAUSIBILITY_BETA,
+                        "kl_budget": config.PROCESSOR_KL_THRESHOLD}
+            if (report.get("manifest_fingerprint") != digest or
+                    report.get("settings") != settings or
+                    report.get("operator") != getattr(self, "operator_version", None)):
+                report = {}
+        return {
+            "engine_state": "warm" if self.loaded else ("loading" if self.loading else ("load_failed" if self.load_failed else "cold")),
+            "model_loaded": self.loaded,
+            "model_revision": manifest.get("model_revision"),
+            "training_status": manifest.get("status", "unknown"),
+            "operator": getattr(self, "operator_version", None),
+            "quality": {
+                "status": "pending" if not report else ("forced_choice_passed" if report.get("forced_choice_gate_passed") else "forced_choice_failed"),
+                "production_quality_verified": report.get("production_quality_verified") is True,
+            },
+        }
 
     def health(self):
-        required = (Path(config.HALL_ADAPTER_PATH) / "adapter_config.json", Path(config.JAIL_ADAPTER_PATH) / "adapter_config.json", Path(config.REPE_CHECKPOINT))
+        if self.load_failed:
+            return False, "Model initialization failed. Check the service logs and restart the session after fixing the artifacts."
+        required = (Path(config.ADAPTER_DIR) / "manifest.json", Path(config.HALL_ADAPTER_PATH) / "adapter_config.json", Path(config.JAIL_ADAPTER_PATH) / "adapter_config.json", Path(config.REPE_CHECKPOINT))
         if not all(path.is_file() for path in required):
             return False, "Trained adapters and calibrated RepE checkpoint are required. Run training and calibration first."
         return True, "Model loaded." if self.loaded else "Artifacts available. First request loads the GPU model and may take several minutes."
@@ -82,23 +115,15 @@ class GPUBackend:
     def _load(self):
         if self.loaded:
             return
-        # Unsloth must patch Transformers before the remaining model imports.
-        import unsloth  # noqa: F401
-        import torch
-        from model_loader import load_adapters, load_base_model
-        from repe.extractor import load_or_compute_vectors
-
-        if not torch.cuda.is_available():
-            raise RuntimeError("CUDA is required")
-        base, self.tokenizer = load_base_model()
-        self.model = load_adapters(base, self.tokenizer)
-        self.model.disable_adapter_layers()
-        self.v_hall, self.v_jail = load_or_compute_vectors(self.model, self.tokenizer)
+        from inference.runtime import load_inference_model
+        self.model, self.tokenizer, self.v_hall, self.v_jail = load_inference_model()
         self.loaded = True
 
     def stream(self, prompt, max_new_tokens, cancelled):
+        self.loading = not self.loaded
         try:
             self._load()
+            self.load_failed = False
         except Exception:
             # Failed cold starts must not retain half-loaded models on CUDA.
             import gc
@@ -107,20 +132,26 @@ class GPUBackend:
             for name in ("model", "tokenizer", "v_hall", "v_jail"):
                 self.__dict__.pop(name, None)
             self.loaded = False
+            self.load_failed = True
             gc.collect()
             torch_module = sys.modules.get("torch")
             if torch_module is not None and torch_module.cuda.is_available():
                 torch_module.cuda.empty_cache()
             raise
+        finally:
+            self.loading = False
         if cancelled.is_set():
             return
         import torch
         from inference.processor import MultiUnLoRALogitsProcessor
+        from inference.operator import OPERATOR_VERSION
         from repe.router import compute_dynamic_alphas
 
         tokenizer, model = self.tokenizer, self.model
-        messages = [{"role": "system", "content": "You are a helpful, factual assistant. State uncertainty honestly."}, {"role": "user", "content": prompt}]
-        formatted = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        self.operator_version = OPERATOR_VERSION
+        yield "metadata", {"backend": self.name, "simulated": False, "model": config.BASE_MODEL_NAME, **self.metadata()}
+        from inference.prompts import format_prompt
+        formatted = format_prompt(tokenizer, prompt)
         inputs = tokenizer(formatted, add_special_tokens=False, return_tensors="pt").to(next(model.parameters()).device)
         if inputs.input_ids.shape[1] + max_new_tokens > config.MAX_SEQ_LENGTH:
             yield "error", {"message": "Prompt and output budget exceed the model context. Shorten the prompt or output budget."}
@@ -131,23 +162,29 @@ class GPUBackend:
                 alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False)
                 yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail}
                 result = {}
-                eos = model.generation_config.eos_token_id
-                eos_ids = set(eos if isinstance(eos, list) else [eos])
-                eos_ids.add(tokenizer.eos_token_id)
+                eos = getattr(model.generation_config, "eos_token_id", None)
+                eos_ids = set(eos if isinstance(eos, (list, tuple)) else [eos])
+                eos_ids.add(getattr(tokenizer, "eos_token_id", None))
+                eos_ids.discard(None)
                 for branch in ("baseline", "unlora"):
                     ids = inputs.input_ids.clone()
+                    mask = inputs.get("attention_mask")
+                    mask = mask.clone() if mask is not None else torch.ones_like(ids)
                     new_ids, text, emitted = [], "", ""
                     started = time.perf_counter()
                     pending = []
-                    processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail, telemetry_callback=pending.append) if branch == "unlora" else None
+                    processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail, telemetry_callback=pending.append, attention_mask=inputs.get("attention_mask")) if branch == "unlora" else None
                     for _ in range(max_new_tokens):
                         if cancelled.is_set():
                             return
                         # Full-prefix forwards intentionally avoid sharing KV state
                         # between the base model and its two changing adapters.
-                        scores = model(input_ids=ids, use_cache=False, return_dict=True).logits[:, -1, :]
+                        scores = model(input_ids=ids, attention_mask=mask, use_cache=False, return_dict=True).logits[:, -1, :]
                         if processor:
                             scores = processor(ids, scores)
+                        if (torch.isnan(scores).any() or torch.isposinf(scores).any() or
+                                not torch.isfinite(scores).any(dim=-1).all()):
+                            raise ValueError("Model produced an invalid next-token distribution")
                         token_id = int(scores.argmax(dim=-1).item())
                         for payload in pending:
                             for token in payload.get("top_tokens", []):
@@ -158,6 +195,7 @@ class GPUBackend:
                         if token_id in eos_ids:
                             break
                         ids = torch.cat((ids, torch.tensor([[token_id]], device=ids.device)), dim=-1)
+                        mask = torch.cat((mask, mask.new_ones((mask.shape[0], 1))), dim=-1)
                         text = tokenizer.decode(new_ids, skip_special_tokens=True)
                         # Avoid emitting incomplete UTF-8 replacement characters.
                         stable = text.rstrip("\ufffd")
@@ -174,6 +212,150 @@ class GPUBackend:
             model.disable_adapter_layers()
 
 
+def _read_json(path):
+    try:
+        value = json.loads(path.read_text())
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def backend_from_env():
     name = os.getenv("MULTI_UNLORA_BACKEND", "unavailable").lower()
-    return {"gpu": GPUBackend, "preview": PreviewBackend, "unavailable": UnavailableBackend}.get(name, UnavailableBackend)()
+    return {"gpu": GPUBackend, "preview": PreviewBackend, "unavailable": UnavailableBackend, "remote": RemoteBackend}.get(name, UnavailableBackend)()
+
+
+class RemoteBackend:
+    """Localhost bridge to a real HTTPS GPU API; credentials stay server-side."""
+
+    name = "remote"
+    simulated = False
+    _PUBLIC_METADATA = ("model", "engine_state", "model_loaded", "model_revision",
+                        "training_status", "operator", "quality", "session_expires_at")
+
+    def __init__(self, url=None, token=None, client=None):
+        from urllib.parse import urlsplit
+
+        self.url = (url or os.getenv("MULTI_UNLORA_REMOTE_URL", "")).rstrip("/")
+        parsed = urlsplit(self.url)
+        if (parsed.scheme != "https" or not parsed.netloc or parsed.username or
+                parsed.password or parsed.query or parsed.fragment):
+            raise ValueError("Remote inference needs an HTTPS URL without embedded credentials")
+        self.token = token if token is not None else os.getenv("MULTI_UNLORA_REMOTE_TOKEN", "")
+        self.client = client
+        self._remote_metadata = {}
+
+    def _client(self):
+        import httpx
+
+        # Cold model/container starts can take minutes. A separate cancellation
+        # watcher closes a live response rather than waiting for this timeout.
+        return self.client or httpx.Client(timeout=httpx.Timeout(600.0, connect=10.0))
+
+    def metadata(self):
+        return dict(self._remote_metadata)
+
+    def _remember(self, data):
+        self._remote_metadata.update({key: data[key] for key in self._PUBLIC_METADATA if key in data})
+
+    def health(self):
+        client = self._client()
+        try:
+            response = client.get(self.url + "/api/health", timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("backend") != "gpu" or data.get("simulated") is True:
+                return False, "Remote endpoint is not a real GPU inference backend."
+            self._remember(data)
+            return data.get("ready") is True, data.get("detail", "Remote GPU backend.")
+        except Exception:
+            return False, "Cannot reach the GPU service. Check the local server configuration."
+        finally:
+            if self.client is None:
+                client.close()
+
+    def stream(self, prompt, max_new_tokens, cancelled):
+        client = self._client()
+        finished = threading.Event()
+        response_holder = []
+        verified = False
+        completed = False
+
+        def close_when_cancelled():
+            while not finished.wait(0.1):
+                if cancelled.is_set():
+                    try:
+                        if response_holder:
+                            response_holder[0].close()
+                        elif self.client is None:
+                            client.close()
+                    except Exception:
+                        pass
+                    return
+
+        def parse(event, lines):
+            nonlocal verified, completed
+            payload = json.loads("\n".join(lines))
+            if not isinstance(payload, dict):
+                raise ValueError("Remote stream event must be a JSON object")
+            if event == "error":
+                return "error", {"message": "GPU generation failed. Check the service logs."}
+            if event == "metadata":
+                if payload.get("simulated") is not False or payload.get("backend") != "gpu":
+                    raise ValueError("Remote endpoint must provide real GPU inference")
+                verified = True
+                self._remember(payload)
+                return "metadata", {"backend": self.name, "simulated": False, **self.metadata()}
+            if not verified:
+                raise ValueError("GPU stream did not identify its model backend")
+            if event == "complete":
+                if payload.get("simulated") is not False:
+                    raise ValueError("Remote completion must be real inference")
+                completed = True
+            if event in ("routing", "token", "telemetry", "complete"):
+                return event, payload
+            return None
+
+        watcher = threading.Thread(target=close_when_cancelled, daemon=True, name="unlora-remote-cancel")
+        watcher.start()
+        try:
+            if cancelled.is_set():
+                return
+            with client.stream("POST", self.url + "/api/generate",
+                               headers={"Authorization": "Bearer " + self.token},
+                               json={"prompt": prompt, "max_new_tokens": max_new_tokens}) as response:
+                response_holder.append(response)
+                if response.status_code != 200:
+                    yield "error", {"message": f"GPU service returned HTTP {response.status_code}. Check server configuration."}
+                    return
+                event, lines, size = "message", [], 0
+                for line in response.iter_lines():
+                    if cancelled.is_set():
+                        return
+                    if not line:
+                        if lines:
+                            item = parse(event, lines)
+                            if item:
+                                yield item
+                        event, lines, size = "message", [], 0
+                    elif line.startswith("event:"):
+                        event = line[6:].strip()
+                    elif line.startswith("data:"):
+                        size += len(line)
+                        if size > 1_000_000:
+                            raise ValueError("Remote event exceeds the stream limit")
+                        lines.append(line[5:].removeprefix(" "))
+                if lines and not cancelled.is_set():
+                    item = parse(event, lines)
+                    if item:
+                        yield item
+                if not cancelled.is_set() and not completed:
+                    yield "error", {"message": "GPU connection ended before the comparison finished."}
+        except Exception:
+            if not cancelled.is_set():
+                raise
+        finally:
+            finished.set()
+            watcher.join(timeout=0.2)
+            if self.client is None:
+                client.close()

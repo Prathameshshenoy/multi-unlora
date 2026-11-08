@@ -15,12 +15,24 @@ let startedAt = 0;
 let timer;
 let apiBase = '';
 let settingsGeneration = 0;
+let sessionDeadline = null;
 try { apiBase = localStorage.getItem('multi-unlora-api') || ''; } catch {}
 elements['api-url'].value = apiBase;
 
 function endpoint(path) { return `${apiBase.replace(/\/$/,'')}${path}`; }
 function headers() { const value = elements['api-token'].value.trim(); return value ? {Authorization:`Bearer ${value}`} : {}; }
 function notice(message, error = false) { elements.notice.textContent = message; elements.notice.hidden = !message; elements.notice.classList.toggle('error',error); }
+function engineStatus(data) {
+  const quality = data.quality;
+  if (quality) {
+    $('quality-status').textContent = quality.production_quality_verified === true ? 'See the evaluation report for measured results.' : quality.status === 'forced_choice_passed' ? 'Forced-choice checks passed. Broader accuracy and safety validation pending.' : quality.status === 'forced_choice_failed' ? 'Pilot evaluation did not pass the quality gate.' : 'Pilot adapters · accuracy validation pending.';
+  }
+  if (Number.isFinite(data.session_expires_at)) {
+    sessionDeadline = data.session_expires_at * 1000;
+    $('session-status').textContent = `Local session ends at ${new Date(sessionDeadline).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}.`;
+    $('session-status').hidden = false;
+  }
+}
 function setRunEnabled() { elements['run-button'].disabled = !ready || running || !elements.prompt.value.trim(); }
 function renderExamples(examples) {
   $('examples').replaceChildren();
@@ -52,8 +64,9 @@ async function connect() {
     const health = await response.json();
     if (generation !== settingsGeneration) return;
     ready = health.ready === true; backend = health.backend || 'unavailable';
+    engineStatus(health);
     elements['model-name'].textContent = health.model || 'Model not configured';
-    elements['connection-status'].textContent = ready ? (backend === 'preview' ? 'Preview connected' : 'Inference connected') : 'Inference unavailable';
+    elements['connection-status'].textContent = ready ? (backend === 'preview' ? 'Preview connected' : health.model_loaded ? 'Model ready' : 'GPU connected') : health.status === 'expired' ? 'Session ended' : 'Inference unavailable';
     elements['status-dot'].className = `dot ${ready ? (backend === 'preview' ? 'preview' : 'online') : ''}`;
     notice(backend === 'preview' ? 'PREVIEW MODE — Responses, router weights, and token telemetry are simulated to demonstrate the interface. No language model is running.' : ready ? '' : (health.detail || 'The inference backend is not ready. Configure the model artifacts and GPU service before running a comparison.'));
     const examplesResponse = await fetch(endpoint('/api/examples'),{headers:headers(),signal:AbortSignal.timeout(10000)});
@@ -79,11 +92,11 @@ function telemetry(data) {
   if (Number.isFinite(kl)) { trace.push(Math.max(0,kl)); $('kl-value').textContent = kl.toFixed(4); }
   const step = data.step ?? trace.length;
   $('step-count').textContent = `${step} TOKENS`;
-  $('chart-empty').textContent = backend === 'preview' ? 'Simulated trace · no model measurements' : 'Measured before attenuation · lower KL means less distribution shift';
+  $('chart-empty').textContent = backend === 'preview' ? 'Simulated trace · no model measurements' : 'Measured after correction · KL(corrected ‖ base)';
   const max = Math.max(.02,...trace); const points = trace.map((value,index) => `${(index / Math.max(trace.length-1,1))*600},${110-(value/max)*100}`);
   $('chart-line').setAttribute('d',points.length ? `M${points.join(' L')}` : '');
   $('chart-fill').setAttribute('d',points.length ? `M0,120 L${points.join(' L')} L${trace.length>1?600:0},120 Z` : '');
-  if (Number.isFinite(Number(data.attenuation))) $('attenuation').textContent = `Guard ×${Number(data.attenuation).toFixed(2)}`;
+  if (Number.isFinite(Number(data.attenuation))) $('attenuation').textContent = `Budget scale ×${Number(data.attenuation).toFixed(2)}`;
   if (Array.isArray(data.top_tokens) && data.top_tokens.length) {
     $('token-table').replaceChildren();
     for (const token of data.top_tokens.slice(0,5)) {
@@ -106,7 +119,13 @@ function metrics(branch,data) {
 }
 let streamCompleted = false;
 function handleEvent(event,data) {
-  if (event === 'metadata') { backend = data.backend || backend; if (data.model) elements['model-name'].textContent = data.model; }
+  if (event === 'metadata') {
+    backend = data.backend || backend;
+    if (data.model) elements['model-name'].textContent = data.model;
+    engineStatus(data);
+    if (data.engine_state === 'cold' || data.engine_state === 'loading') elements['run-state'].textContent = 'LOADING MODEL';
+    if (data.model_loaded) elements['connection-status'].textContent = 'Model ready';
+  }
   else if (event === 'routing') routing(data);
   else if (event === 'token') {
     const branch = ['unlora','corrected','multi_unlora'].includes(data.branch) ? 'unlora' : data.branch === 'baseline' ? 'baseline' : null;
@@ -126,7 +145,10 @@ function handleEvent(event,data) {
     }
     streamCompleted = true; elements['run-state'].textContent = 'COMPARISON COMPLETE';
   }
-  else if (event === 'error') throw new Error(data.message || data.detail || 'Inference failed.');
+  else if (event === 'error') {
+    if (data.code === 'session_expired') { ready = false; elements['connection-status'].textContent = 'Session ended'; }
+    throw new Error(data.message || data.detail || 'Inference failed.');
+  }
 }
 
 // SSE events may span any number of network chunks, including split CRLF pairs.
@@ -173,3 +195,9 @@ elements['run-button'].addEventListener('click',run);
 elements['stop-button'].addEventListener('click',() => controller?.abort());
 elements.prompt.addEventListener('keydown',(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(); } });
 connect();
+setInterval(() => {
+  if (sessionDeadline !== null && Date.now() >= sessionDeadline) {
+    ready = false; setRunEnabled(); elements['connection-status'].textContent = 'Session ended';
+    elements['status-dot'].className = 'dot';
+  }
+},1000);

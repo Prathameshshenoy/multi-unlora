@@ -4,9 +4,11 @@ import asyncio
 import hmac
 import json
 import logging
+import math
 import os
 import queue
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -41,6 +43,19 @@ def create_app(backend=None):
     app = FastAPI(title="Multi-UnLoRA demo", version="0.2.0")
     app.state.backend = backend if backend is not None else backend_from_env()
     app.state.admission = threading.Lock()
+    raw_deadline = os.getenv("MULTI_UNLORA_DEMO_DEADLINE", "")
+    deadline = float(raw_deadline) if raw_deadline else None
+    if deadline is not None and (not math.isfinite(deadline) or deadline <= 0):
+        raise ValueError("MULTI_UNLORA_DEMO_DEADLINE must be a positive Unix timestamp")
+    app.state.deadline = deadline
+
+    def expired():
+        return deadline is not None and time.time() >= deadline
+
+    def metadata(active):
+        describe = getattr(active, "metadata", None)
+        result = describe() if describe else {}
+        return {**result, "session_expires_at": deadline}
     origins = [origin.strip() for origin in os.getenv("MULTI_UNLORA_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
@@ -53,8 +68,11 @@ def create_app(backend=None):
     @app.get("/api/health")
     def health():
         active = app.state.backend
-        ready, detail = active.health()
-        return {"status": "ready" if ready else "unavailable", "backend": active.name, "model": config.BASE_MODEL_NAME, "ready": ready, "detail": detail}
+        if expired():
+            ready, detail = False, "This bounded demo session has ended. Start a new local session to continue."
+        else:
+            ready, detail = active.health()
+        return {"status": "expired" if expired() else ("ready" if ready else "unavailable"), "backend": active.name, "model": config.BASE_MODEL_NAME, "ready": ready, "detail": detail, **metadata(active)}
 
     @app.get("/api/examples")
     def examples():
@@ -62,8 +80,12 @@ def create_app(backend=None):
 
     @app.post("/api/generate", dependencies=[Depends(authorize)])
     async def generate(payload: GenerationRequest):
+        if expired():
+            raise HTTPException(status_code=410, detail="This bounded demo session has ended.")
         active = app.state.backend
-        ready, _ = active.health()
+        ready, _ = await asyncio.to_thread(active.health)
+        if expired():
+            raise HTTPException(status_code=410, detail="This bounded demo session has ended.")
         if not ready:
             raise HTTPException(status_code=503, detail="Inference backend is unavailable. See /api/health.")
         # Reject excess work rather than building a GPU queue with unbounded cost.
@@ -116,8 +138,12 @@ def create_app(backend=None):
             worker.start()
             worker_started = True
             try:
-                yield encode("metadata", {"request_id": request_id, "backend": active.name, "simulated": active.simulated, "model": config.BASE_MODEL_NAME})
+                yield encode("metadata", {"request_id": request_id, "backend": active.name, "simulated": active.simulated, "model": config.BASE_MODEL_NAME, **metadata(active)})
                 while True:
+                    if expired():
+                        cancelled.set()
+                        yield encode("error", {"message": "This bounded demo session has ended. Generation stopped.", "code": "session_expired"})
+                        break
                     try:
                         item = await asyncio.to_thread(events.get, True, 0.5)
                     except queue.Empty:

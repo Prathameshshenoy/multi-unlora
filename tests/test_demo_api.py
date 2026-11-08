@@ -146,10 +146,11 @@ def test_gpu_context_limit_is_checked_before_forward(monkeypatch):
     backend.model = SimpleNamespace(parameters=lambda: iter([SimpleNamespace(device="cpu")]))
     monkeypatch.setitem(sys.modules, "torch", SimpleNamespace())
     monkeypatch.setitem(sys.modules, "inference.processor", SimpleNamespace(MultiUnLoRALogitsProcessor=object))
+    monkeypatch.setitem(sys.modules, "inference.operator", SimpleNamespace(OPERATOR_VERSION="contrastive-v1"))
     monkeypatch.setitem(sys.modules, "repe.router", SimpleNamespace(compute_dynamic_alphas=lambda *args: (0.2, 0.2)))
     result = list(backend.stream("Hello", 1, threading.Event()))
-    assert result[0][0] == "error"
-    assert "context" in result[0][1]["message"]
+    assert result[-1][0] == "error"
+    assert "context" in result[-1][1]["message"]
 
 
 def test_gpu_failed_load_clears_partial_state(monkeypatch):

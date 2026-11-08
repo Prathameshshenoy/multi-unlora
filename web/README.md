@@ -1,4 +1,4 @@
-# Decoding lab visualizer
+# Multi-UnLoRA interface
 
 This is a buildless, dependency-free static frontend. The Python demo API serves it
 from the repository's `web/` directory. For a separate static host, publish
