@@ -16,7 +16,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 2.0}
+RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0}
 
 
 def reserve(stage):
@@ -64,7 +64,7 @@ def main():
         import time
         token = secrets.token_urlsafe(32)
         # Absolute deadline enforced at both ends; timer also stops the app.
-        deadline = time.time()+1800
+        deadline = time.time()+900
         service = modal_engine.register_local_demo(token,deadline)
     print('Connecting to Modal and preparing the runtime image...',flush=True)
     import hashlib
@@ -92,7 +92,7 @@ def main():
             timer = threading.Timer(max(0,deadline-time.time()),lambda:setattr(server,'should_exit',True))
             timer.daemon = True
             timer.start()
-            print('Real inference at http://127.0.0.1:8000 (30-minute budgeted session)',flush=True)
+            print('Real inference at http://127.0.0.1:8000 (15-minute budgeted session)',flush=True)
             try:
                 server.run()
             finally:

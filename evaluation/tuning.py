@@ -198,7 +198,7 @@ def run_tuning_confirmation():
               'measurement_scope': 'Label vocabulary conditioned before correction, plausibility, and KL; not free-form answer accuracy or safety.',
               'initial_v2_report_preserved': True, 'freeform_serving_policy_validated': False,
               'production_quality_verified': False, 'validation': {}, 'confirmation': {}}
-    model, tokenizer, v_hall, v_jail = load_inference_model(calibrate_vectors=False)
+    model, tokenizer, v_hall, v_jail = load_inference_model(calibrate_vectors=True)
     datasets = {
         'mmlu': load_dataset('cais/mmlu', 'all', split='validation').shuffle(seed=config.EVAL_SEED),
         'truthfulqa_mc1': load_dataset('truthful_qa', 'multiple_choice', split='validation').shuffle(seed=config.EVAL_SEED)}
