@@ -9,15 +9,10 @@ The deployed app refuses to start without the bearer token.
 import modal
 
 import config
-from modal_engine import engine_image as image, volume
+from modal_engine import base_image, with_engine_sources, volume
 
 app = modal.App("multi-unlora-demo")
-serving_image = (
-    image.pip_install("fastapi>=0.115,<1", "uvicorn>=0.30,<1")
-    .add_local_python_source("demo")
-    .add_local_dir("web", remote_path="/root/web")
-    .env({"MULTI_UNLORA_BACKEND": "gpu"})
-)
+serving_image = with_engine_sources(base_image.env({"MULTI_UNLORA_BACKEND":"gpu"}))
 
 
 @app.function(

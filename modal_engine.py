@@ -9,16 +9,23 @@ import config
 
 app = modal.App("multi-unlora-engine")
 volume = modal.Volume.from_name("multi-unlora-vol")
-engine_image = (
+base_image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("torch==2.8.0", index_url="https://download.pytorch.org/whl/cu128")
     .pip_install("transformers==4.57.6", "peft==0.18.1", "accelerate==1.13.0",
                  "datasets==4.3.0", "huggingface-hub==0.36.0",
                  "fastapi>=0.115,<1", "httpx>=0.27,<1", "uvicorn>=0.30,<1")
     .env({"HF_HOME": "/vol/cache/huggingface", "TOKENIZERS_PARALLELISM": "false"})
-    .add_local_python_source("config", "inference", "repe", "evaluation", "training", "demo", "hardware")
-    .add_local_dir("web", remote_path="/root/web")
 )
+
+
+def with_engine_sources(image):
+    # Runtime source mounts must be the final image operation.
+    return (image.add_local_python_source("config", "inference", "repe", "evaluation", "training", "demo", "hardware")
+            .add_local_dir("web", remote_path="/root/web"))
+
+
+engine_image = with_engine_sources(base_image)
 
 
 @app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, timeout=600,
@@ -77,8 +84,8 @@ def serve_gpu_app():
 
 def register_local_demo(token, deadline):
     """Ephemeral authenticated GPU endpoint; expires with the local session."""
-    image = engine_image.env({'MULTI_UNLORA_BACKEND':'gpu',
-        'MULTI_UNLORA_DEMO_DEADLINE':str(deadline)})
+    image = with_engine_sources(base_image.env({'MULTI_UNLORA_BACKEND':'gpu',
+        'MULTI_UNLORA_DEMO_DEADLINE':str(deadline)}))
     factory = modal.concurrent(max_inputs=8)(modal.asgi_app()(serve_gpu_app))
     return app.function(name='local_gpu_api',image=image,
         volumes={config.VOLUME_MOUNT:volume},gpu='A100-40GB',timeout=300,
