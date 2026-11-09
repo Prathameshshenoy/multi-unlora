@@ -46,6 +46,7 @@ def main():
     parser.add_argument('stage',choices=list(RESERVATIONS))
     parser.add_argument('--steps',type=int,choices=[80,120],default=120)
     parser.add_argument('--minutes',type=int,choices=[5,10,15],default=15)
+    parser.add_argument('--diagnose',action='store_true',help='Run paired specificity once during the explicitly budgeted GPU session')
     args = parser.parse_args()
     # Freeze only runtime source. Edits in the IDE must not race a cloud build.
     snapshot = ROOT/'.runtime'/('source-'+uuid.uuid4().hex[:10])
@@ -66,7 +67,7 @@ def main():
         token = secrets.token_urlsafe(32)
         # Absolute deadline enforced at both ends; timer also stops the app.
         deadline = time.time()+args.minutes*60
-        service = modal_engine.register_local_demo(token,deadline)
+        service = modal_engine.register_local_demo(token,deadline,diagnose=args.diagnose)
     # Reserve only after pure local SDK validation succeeds, before any cloud dispatch.
     reserve(args.stage,minutes=args.minutes)
     print('Connecting to Modal and preparing the runtime image...',flush=True)

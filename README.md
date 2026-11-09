@@ -18,6 +18,14 @@ factual regression. These results are preserved, not presented as a quality
 success. Read [the engine evidence](docs/ENGINE_STATUS.md) for protocols,
 uncertainty, limitations, and machine-readable results.
 
+## Historical slide
+
+The supplied slide reports MMLU 64.6% → 64.0%, AdvBench 25.0% → 1.9%, and
+TruthfulQA 35.8% → 50.6%. The original checkpoints, prompts and CSVs are no
+longer available, so these remain unreproduced historical figures. They cannot
+be compared directly with the current conditional-choice diagnostics. Changes
+between percentages are percentage points, not relative percent improvements.
+
 ## How it works
 
 Two LoRA anti-experts learn undesirable response patterns. A RepE router sets
@@ -40,7 +48,7 @@ processor remains only as a named ablation.
 
 ## Setup
 
-Local tooling uses Python 3.14 and [uv](https://docs.astral.sh/uv/). The isolated
+Local tooling supports Python 3.11–3.14 (the default is 3.14) and [uv](https://docs.astral.sh/uv/). The isolated
 GPU image uses Python 3.11, PyTorch 2.8, Transformers 4.57.6, and PEFT 0.18.1.
 A Modal account is required for the configured 8B CUDA model.
 
@@ -60,8 +68,10 @@ uv run python scripts/run_engine.py serve-local --minutes 5
 
 Open <http://127.0.0.1:8000>. The website talks to a local FastAPI proxy, which
 holds the session token and connects to the real GPU API over HTTPS. Enter a
-prompt or choose an example to stream both responses, weights, and token
-probabilities. Stop disconnects the request; subsequent requests can reuse the
+prompt or choose an example to stream four outputs: the base model, the
+hallucination expert, the jailbreak expert, and the final corrected model.
+The correction subtracts token-logit differences; it does not subtract these
+three response texts from one another. Stop disconnects the request; subsequent requests can reuse the
 engine after cleanup. The UI reports experimental quality status and output
 limits.
 
@@ -77,6 +87,20 @@ reservation history and results are local; do not delete the ledger to bypass it
 
 The real demo is for inspection, not a validated safety product. Vercel hosting
 and a subdomain of `prathameshshenoy.com` remain the final deployment phase.
+
+### Restricted output display
+
+For recognized weapon/explosive requests, raw expert text is withheld, while
+its actual logits can still contribute to correction. Restricted base/final
+responses are buffered before display. A permitted short model refusal is
+labelled as model output; any display-guard fallback is clearly labelled and
+never counted as evidence that subtraction caused a refusal. Token candidates
+are also withheld for these requests. This conservative presentation rule is
+not a comprehensive intent classifier or a validated moderation system.
+
+The live interface is a research comparison, not a way to retrieve harmful
+anti-expert instructions. Independent harmful-compliance and benign over-refusal
+evaluation are still required before public deployment.
 
 ## Training and quality checks
 
@@ -139,3 +163,9 @@ work and deployment gates. The private master blueprint remains local and is
 excluded from Git.
 
 **Copyright ©️ 2026. All rights reserved.**
+
+The blueprint audit is tracked in [POC_ISSUE_AUDIT.md](docs/POC_ISSUE_AUDIT.md).
+Confirmed code defects have regression checks; remaining scientific claims
+require the experiments described there. The optional `--diagnose` flag on a
+budgeted local session runs a small paired anti-expert specificity check once,
+using the same GPU and loaded model, without a separate paid job.

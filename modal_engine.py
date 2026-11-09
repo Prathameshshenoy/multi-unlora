@@ -79,17 +79,35 @@ def serve_gpu_app():
         raise RuntimeError('A session access token is required')
     from demo.app import create_app
     from demo.backends import GPUBackend
-    return create_app(GPUBackend())
+    backend = GPUBackend()
+    if os.environ.get('MULTI_UNLORA_SPECIFICITY_DIAGNOSTIC')=='1':
+        import json
+        from pathlib import Path
+        backend._load()
+        from inference.operator import OPERATOR_VERSION
+        backend.operator_version = OPERATOR_VERSION
+        target = Path(config.RESULTS_DIR)/'paired_specificity.json'
+        if not target.exists():
+            try:
+                from evaluation.specificity import run_specificity
+                run_specificity(backend.model,backend.tokenizer,n=8)
+            except Exception as exc:
+                target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_text(json.dumps({'status':'failed','error_type':type(exc).__name__,
+                    'quality_improvement_verified':False}))
+            volume.commit()
+    return create_app(backend)
 
 
-def register_local_demo(token, deadline):
+def register_local_demo(token, deadline, *, diagnose=False):
     """Ephemeral authenticated GPU endpoint; expires with the local session."""
     image = with_engine_sources(base_image.env({'MULTI_UNLORA_BACKEND':'gpu',
-        'MULTI_UNLORA_DEMO_DEADLINE':str(deadline)}))
+        'MULTI_UNLORA_DEMO_DEADLINE':str(deadline),
+        'MULTI_UNLORA_SPECIFICITY_DIAGNOSTIC':'1' if diagnose else '0'}))
     factory = modal.concurrent(max_inputs=8)(modal.asgi_app()(serve_gpu_app))
     return app.function(name='local_gpu_api',image=image,
         volumes={config.VOLUME_MOUNT:volume},gpu='A100-40GB',timeout=300,
-        max_containers=1,cpu=2,memory=16384,scaledown_window=2,
+        max_containers=1,cpu=2,memory=16384,scaledown_window=60,
         secrets=[modal.Secret.from_dict({'MULTI_UNLORA_API_TOKEN':token})])(factory)
 
 
