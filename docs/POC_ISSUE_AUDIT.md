@@ -19,7 +19,7 @@ The D identifiers correspond to the blueprint's consolidated debt list.
 | ID / section | Confirmed issue | Current status and file evidence | Acceptance criterion / remaining work |
 | --- | --- | --- | --- |
 | D1 / 1.2, 5.11 | Baseline and correction had different prompts. | **Fixed for supported paths.** `inference/prompts.py` supplies one native template; `evaluation/quality.py`, `evaluation/tuning.py`, and `demo/backends.py` use it. `evaluation/runners.py` rejects legacy protocol CSVs. | Every comparison arm must render byte-identical prompt tokens; preserve old confounded results as incompatible, never mix them into new reports. |
-| D2 / 4.6 | Anti-experts recomputed the complete prefix at every token. | **Implemented; integration/measurement gate remains.** `inference/decoder.py::CacheDecoder` owns an independent base and per-adapter KV cache; `use_cache=False` is the oracle. `tests/test_decoder_cache.py` compares logits and corrected token choices over 50 tiny-HF/PEFT prompts. | Integrate the provider in supported serving; verify cached/uncached parity on the real model and measure tokens/s before making a latency claim. Legacy processor-only callers remain uncached unless given a provider. |
+| D2 / 4.6 | Anti-experts recomputed the complete prefix at every token. | **Implemented and integrated; real-model parity/measurement gate remains.** `inference/decoder.py::CacheDecoder` owns an independent base and per-adapter KV cache; `use_cache=False` is the oracle. `tests/test_decoder_cache.py` compares logits and corrected token choices over 50 tiny-HF/PEFT prompts. | The four-output GPU smoke test exercised the integrated cache decoder. Verify cached/uncached parity on the real model under an identical timing protocol before making a comparative latency claim. Legacy processor-only callers remain uncached unless given a provider. |
 | D3 / 4.2 | Absolute normalized expert logits were subtracted instead of the adapter delta; base normalization cancelled. | **Fixed.** `inference/processor.py` forms expert-minus-base deltas; `inference/operator.py` operates in raw logit units. Old behavior is named `inference/legacy_processor.py`, an ablation only. | Identical expert/base distributions and zero weights must be exact no-ops. `tests/test_operator.py` and real PEFT tests cover this. |
 | D4 / 4.2 | Expert top-k filtering could promote base-implausible tokens. | **Fixed for active correction.** Pure operator filters by relative base plausibility. If filtering itself exceeds the KL budget, it explicitly abstains and returns base scores. | Off-mask tokens cannot be selected on a non-abstaining correction. Support restriction is not a capability or safety guarantee. |
 | D5 / 4.2 | KL was summed across batch and a single scalar guard affected every row. | **Fixed.** `inference/operator.py` solves a measured reverse-KL budget independently per row; tests compare batched and individual results. | Randomized finite distributions obey the stated numerical tolerance; no claim of an unproved analytic certificate. |
@@ -53,25 +53,20 @@ The D identifiers correspond to the blueprint's consolidated debt list.
 | Dataset semantics | **Partially verified by the real pilot.** Both anti-experts increased held-out undesirable-response likelihood; source/split provenance is checked. | Publish a dataset-schema/source audit and inspect appropriately sampled records. Positive NLL changes do not replace behavioral hallucination/compliance scoring. |
 | Historical results | **Unreproducible with currently available artifacts.** Original slide weights/CSV/prompt details are unavailable. | Reproduce from actual artifacts or clearly label as historical unverified figures; never fabricate those numbers or tune until they match. |
 
-## Research proposals and claims that are not resolved by a code patch
+## Experimental acceptance still required
 
-| Blueprint section | Status | Required evidence / next gate |
-| --- | --- | --- |
-| 2, 3, G0: novelty and relation to previous work | **Unvalidated.** Existing decoding research is cited; no new novelty claim is established. | Full primary-source review, dated reading log and explicit scope decision. |
-| 2/H0, 6/Exp-1: new operator improves quality over old | **Unvalidated.** Algebraic defects are repaired; current matched-prompt quality evidence does not establish improvement. | Predeclared old/new operating points, same artifacts/prompts/compute, independent outcomes and uncertainty. |
-| 2/H1, H2, Exp-3/4: composition interference and its predictor | **Unvalidated.** No funded multi-axis experiment has established the hypotheses. | Solo/joint intervention grid with raw per-token deltas, controls, paired outcomes and held-out predictor validation. |
-| 4.3, G3: informative router or token evidence | **Unvalidated.** Router weights vary but are not calibrated risk probabilities; a sigmoid gives positive weight even at zero projection. | Mixed-prompt distribution, cap-binding rate, matched-form anchor experiment, argmax-change predictive checks/AUROC and constant-strength baseline. |
-| 4.4/H3: token-level arbiter fixes interference | **Proposed, not an implemented/validated contribution.** | Specify policies, exact no-evidence behavior and budgets; compare naive/capped/WTA/arbitrated on an untouched protocol. A softmax allocation alone does not imply a zero total budget. |
-| 4.5: analytic certificate | **Measured fallback implemented, theorem unvalidated.** | Either derive and prove a valid bound including the mask's divergence cost and stress-test it, or retain the measured numerical budget and make no theorem/capability-guarantee claim. |
-| 4.6: batched per-sample adapter routing | **Unvalidated optimization.** Distinct serial cache ownership is implemented first. | Confirm support in pinned PEFT and test parity/performance; shared-trunk reuse is a separate stretch idea, not a prerequisite for correctness. |
-| 5.2–5.8: proposed package tree and complete experiment framework | **Partially implemented architecture, not a correctness theorem.** Pure operator, explicit decoder and runtime boundary exist; full src-layout migration, typed configs, run directories and thin legacy wrappers remain. | Migrate by stable interfaces while retaining executable regression tests; do not rename files as a substitute for fixing behavior. |
-| 5.9: 100,000-random-input analytic-bound test, oracle guard, byte-identical full-run reproduction | **Remaining evidence/guards.** No oracle path exists in supported runtime, so no claim of an implemented oracle baseline. | Add each guard when its corresponding mechanism exists; deterministic run manifests and traces must precede paper assets. |
-| 6.1/6.5/H5: free-form factuality, harmful compliance and benign over-refusal | **Unvalidated.** Initial NLL/conditional-label tests are narrow diagnostics; refusal prefixes are a proxy. | Independent named judge/rubric plus human agreement; generative capability and specificity sets; report benign refusals separately from harmful compliance. |
-| 6.2/G5: CIB dataset and oracle labels | **Not constructed or human-validated.** | Annotated pilot with agreement, provenance/datasheet and independent generation; do not synthesize an alleged human-verified benchmark. |
-| 6.3: task arithmetic, activation steering and official-method baselines | **Not executed.** | Implement verified baselines under shared prompts and equal reporting conditions; do not infer their outcome from literature. |
-| 6.6–6.9: comprehensive metrics, three seeds, uncertainty and success criteria | **Partial.** Paired bootstrap diagnostics and predeclared v3 validation exist; multi-seed/multi-task evidence and 10,000-resample publication intervals remain. | Frozen selections, untouched confirmation, raw traces, independent scoring and multiple training seeds. Keep failed runs. |
-| 6/Exp-8, Exp-10, G6: four concepts, multiple model families/sizes | **Unvalidated and unfunded beyond the current pilot budget.** | Explicit compute authorization, compatible data/artifacts and identical experiment methodology. |
-| 8.2: release/reproducibility risks | **Partial controls.** Raw runtime secrets, ledger, snapshots and the private blueprint are ignored; harmful anti-expert weights were not committed. | Versioned data/image identities, immutable experiment artifacts, a documented release policy and appropriate benchmark access decisions. |
+The local master blueprint contains further research and architecture proposals.
+This public audit does not reproduce those unpublished hypotheses. The remaining
+acceptance work relevant to the current implementation is:
+
+- Independent free-form factuality, harmful-compliance and benign over-refusal
+  evaluation, with a named judge/rubric and human agreement checks.
+- Validation of the router against fixed-weight baselines and matched-form data;
+  correction weights are not calibrated risk probabilities.
+- Immutable experiment configuration and run destinations across the legacy
+  orchestration paths, plus complete artifact/version provenance.
+- Separate measured capability/quality results for any new decoding or training
+  policy. Passing numerical tests does not establish a scientific contribution.
 
 ## Scope of current acceptance
 

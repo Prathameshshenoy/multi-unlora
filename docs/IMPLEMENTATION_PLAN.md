@@ -127,18 +127,24 @@ quality work must test whether the adapters distinguish undesirable answers from
 correct answers, rather than merely learning response style, and compare routing
 against simpler concept-specific baselines on independent validation data.
 
-## Compute and final checks
+## Current experiment and compute authorization
 
-The user reported US$20 in Modal credits; this initial task retained its separate
-US$10 authorization. Conservative cloud/setup reservations total **US$9.45**,
-including the stopped validation attempt and a CPU-only setup allowance. A purely
-local SDK registration failure is recorded as zero cloud cost. These are ceilings,
-not verified invoice charges. A five-minute local session reserves US$0.50 and
-fits the remaining conservative allowance.
+The user explicitly raised the total task cap from US$10 to **US$15** on
+9 November 2026. The pre-experiment conservative reservation was US$9.95;
+this ledger is distinct from provider invoices and the user-reported US$20 credit
+balance. Jobs run sequentially with hard timeouts and no automatic retries.
 
-Final numerical/integration checks: 87 passed in Python 3.11, with the Modal SDK
-module skipped there. The Python 3.14 environment separately passed 55 checks,
-including actual SDK registration, with numerical skips because torch is absent.
-JavaScript parsing, Python compilation, and whitespace checks pass. The GPU
-session was stopped after real browser/HTTP verification to avoid ongoing GPU
-use. Vercel and domain configuration remain deferred.
+The four real response branches have passed a bounded local integration check.
+Dangerous expert text is withheld, and every visible fallback is marked as a
+display-guard intervention rather than a model refusal. No ASR improvement is
+claimed from that guard.
+
+The paired response diagnostic found negative hallucination specificity on all
+eight sampled pairs. A separate hallucination-only, length-normalized preference
+trial now tests that problem while preserving the original adapters. Its protocol,
+compute envelope, and independent validation requirements are in
+[the accuracy experiment plan](ACCURACY_EXPERIMENT_PLAN.md). The numerical suite
+currently passes 190 tests, with the Modal SDK module checked separately.
+
+Quality improvement and free-form safety remain unverified. Vercel and domain
+configuration remain deferred until engine and local-site validation are complete.
