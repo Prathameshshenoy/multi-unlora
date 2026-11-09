@@ -3,3 +3,6 @@
 
 /* Compact presentation keeps the comparison workspace close to the prompt. */
 .intro{padding:44px 0 32px;align-items:center}.intro h1{font-size:clamp(32px,3.4vw,48px);letter-spacing:-1.7px;margin-bottom:16px}.intro .eyebrow{margin-bottom:16px}.intro-aside{align-self:center;max-width:260px;border-left:1px solid var(--border);padding-left:24px}.intro-aside p{margin-bottom:0}.brand-tag{letter-spacing:1px}.method{padding:38px 0}.response-output{min-height:160px}@media(max-width:680px){.intro{padding:30px 0 24px}.intro-aside{border-left:0;padding-left:0;margin-top:18px;max-width:none}.intro h1{font-size:36px}}
+
+/* Four comparable arms, two columns on desktop and one on smaller screens. */
+.comparison .response-card{border-left:0}.comparison .response-card:nth-child(even){border-left:1px solid var(--border)}.comparison .response-card:nth-child(n+3){border-top:1px solid var(--border)}.source-label{margin:-8px 0 14px;padding:8px 10px;border-left:2px solid #b7a16b;color:#d6c49c;font-size:11px;line-height:1.5}@media(max-width:680px){.comparison .response-card:nth-child(even){border-left:0}.comparison .response-card+.response-card{border-top:1px solid var(--border)}}

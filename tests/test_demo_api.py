@@ -34,7 +34,8 @@ def test_preview_stream_is_explicit_and_bounded():
     assert stream[-1][0] == "complete"
     assert stream[-1][1]["baseline"]["tokens"] == 3
     assert stream[-1][1]["unlora"]["tokens"] == 3
-    assert {data["branch"] for event, data in stream if event == "token"} == {"baseline", "unlora"}
+    assert {data["branch"] for event, data in stream if event == "token"} == {"baseline", "hallucination", "jailbreak", "unlora"}
+    assert all(stream[-1][1][branch]["tokens"] == 3 for branch in ("baseline", "hallucination", "jailbreak", "unlora"))
     assert sum(event == "telemetry" for event, _ in stream) == 3
 
 

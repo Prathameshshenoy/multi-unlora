@@ -1,4 +1,6 @@
 const $ = (id) => document.getElementById(id);
+const branches = ['baseline','hallucination','jailbreak','unlora'];
+const branchNames = {baseline:'BASE MODEL',hallucination:'HALLUCINATION ADAPTER',jailbreak:'JAILBREAK ADAPTER',unlora:'MULTI-UNLORA'};
 const elements = Object.fromEntries(['prompt','run-button','stop-button','notice','api-url','api-token','connection-status','status-dot','connection-settings','settings-toggle','run-state','model-name'].map((id) => [id,$(id)]));
 const localExamples = [
   {title:'A common myth',category:'Hallucination',prompt:'What happens if you swallow chewing gum? Does it really stay in your stomach for seven years?'},
@@ -109,6 +111,10 @@ function telemetry(data) {
 function percentage(value) { const number = Number(value); return Number.isFinite(number) ? `${(number*100).toFixed(2)}%` : '—'; }
 function metrics(branch,data) {
   if (!data) return;
+  if (data.withheld && data.finish_reason === 'withheld') {
+    $(`${branch}-metrics`).textContent = 'Not generated · withheld by display policy';
+    return;
+  }
   const count = data.tokens ?? data.tokens_generated ?? data.token_count;
   const time = data.wall_time_s ?? data.duration_s ?? data.elapsed_s;
   const parts = [];
@@ -118,31 +124,59 @@ function metrics(branch,data) {
   if (data.finish_reason === 'length') parts.push('Token limit reached');
   $(`${branch}-metrics`).textContent = (backend === 'preview' ? 'SIMULATED · ' : '') + (parts.join('  ·  ') || 'Generation complete');
 }
+function presentBranch(branch,result) {
+  if (!result) return;
+  const label = $(`${branch}-source`);
+  label.hidden = !result.source || result.source === 'model';
+  label.textContent = result.source === 'display_guard' ? 'Display guard · this text is not a model refusal' : result.source === 'withheld' ? 'Output withheld by display policy' : '';
+  if (typeof result.text === 'string') {
+    const output = $(`${branch}-output`);
+    output.textContent = result.text || (result.withheld ? result.reason || 'Output withheld by display policy.' : 'No response text generated.');
+    output.classList.remove('empty','streaming');
+  }
+  metrics(branch,result);
+}
 let streamCompleted = false;
 function handleEvent(event,data) {
   if (event === 'metadata') {
     backend = data.backend || backend;
     if (data.model) elements['model-name'].textContent = data.model;
     engineStatus(data);
+    if (data.display_restricted) {
+      notice(data.display_reason || 'Raw outputs are restricted for this prompt.');
+      $('token-table').replaceChildren();
+      const row = document.createElement('tr'); const cell = document.createElement('td');
+      cell.colSpan = 3; cell.className = 'table-empty'; cell.textContent = 'Token candidates are withheld for this prompt.';
+      row.append(cell); $('token-table').append(row);
+    }
     if (data.engine_state === 'cold' || data.engine_state === 'loading') elements['run-state'].textContent = 'LOADING MODEL';
     if (data.model_loaded) elements['connection-status'].textContent = 'Model ready';
   }
   else if (event === 'routing') routing(data);
   else if (event === 'token') {
-    const branch = ['unlora','corrected','multi_unlora'].includes(data.branch) ? 'unlora' : data.branch === 'baseline' ? 'baseline' : null;
+    const branch = ['corrected','multi_unlora'].includes(data.branch) ? 'unlora' : branches.includes(data.branch) ? data.branch : null;
     if (!branch) return;
     const output = $(`${branch}-output`); if (output.classList.contains('empty')) { output.textContent = ''; output.classList.remove('empty'); }
     output.classList.add('streaming'); output.textContent += data.text || '';
-    elements['run-state'].textContent = branch === 'baseline' ? 'GENERATING BASELINE' : 'APPLYING CORRECTION';
+    elements['run-state'].textContent = `GENERATING ${branchNames[branch]}`;
+  } else if (event === 'branch_status') {
+    if (!branches.includes(data.branch)) return;
+    if (data.status === 'generating') {
+      elements['run-state'].textContent = `GENERATING ${branchNames[data.branch]}`;
+      if (data.buffered) $(`${data.branch}-output`).textContent = 'Generating privately for display review…';
+    } else {
+      presentBranch(data.branch,data);
+    }
   } else if (event === 'telemetry') telemetry(data);
   else if (event === 'complete') {
     // Final decoding may revise whitespace or an incomplete Unicode token.
-    for (const branch of ['baseline','unlora']) {
-      const result = branch === 'baseline' ? data.baseline : (data.unlora ?? data.corrected);
-      if (typeof result?.text === 'string') {
-        const output = $(`${branch}-output`); output.textContent = result.text || 'No response text generated.'; output.classList.remove('empty');
+    for (const branch of branches) {
+      const result = branch === 'unlora' ? data.unlora ?? data.corrected : data[branch];
+      if (result) presentBranch(branch,result);
+      else {
+        $(`${branch}-output`).textContent = 'This backend does not provide this branch.';
+        $(`${branch}-metrics`).textContent = 'Unavailable from this backend';
       }
-      metrics(branch,result);
     }
     streamCompleted = true; elements['run-state'].textContent = 'COMPARISON COMPLETE';
   }
@@ -172,7 +206,7 @@ function resetOutputs() {
   trace = []; streamCompleted = false; $('chart-line').setAttribute('d',''); $('chart-fill').setAttribute('d',''); $('kl-value').textContent = '—'; $('step-count').textContent = '0 TOKENS'; $('attenuation').textContent = '—'; $('router-state').textContent = 'ROUTING PROMPT';
   $('chart-empty').textContent = 'Waiting for the first corrected token…';
   for (const id of ['hall','jail']) { $(`alpha-${id}`).textContent = '—'; $(`${id}-meter`).style.width = '0%'; }
-  for (const branch of ['baseline','unlora']) { const output = $(`${branch}-output`); output.textContent = branch === 'baseline' ? 'Waiting for the base model…' : 'Waiting for corrected decoding…'; output.className = 'response-output empty'; $(`${branch}-metrics`).textContent = 'Awaiting generation'; }
+  for (const branch of branches) { const output = $(`${branch}-output`); output.textContent = 'Waiting for generation…'; output.className = 'response-output empty'; $(`${branch}-metrics`).textContent = 'Awaiting generation'; $(`${branch}-source`).hidden = true; }
   $('token-table').replaceChildren(); const row = document.createElement('tr'); const cell = document.createElement('td'); cell.colSpan = 3; cell.className = 'table-empty'; cell.textContent = 'Waiting for token probabilities…'; row.append(cell); $('token-table').append(row);
 }
 async function run() {

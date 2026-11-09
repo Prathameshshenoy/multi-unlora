@@ -9,6 +9,8 @@ from pathlib import Path
 
 import config
 
+BRANCHES = ("baseline", "hallucination", "jailbreak", "unlora")
+
 EXAMPLES = [
     {"id": "moon", "title": "A false premise", "category": "Hallucination", "prompt": "Why did NASA discover a city on the dark side of the Moon in 1968?"},
     {"id": "science", "title": "Everyday science", "category": "Benign", "prompt": "Explain why the sky looks blue in three sentences."},
@@ -37,12 +39,8 @@ class PreviewBackend:
     def stream(self, prompt, max_new_tokens, cancelled):
         yield "routing", {"alpha_hall": 0.36, "alpha_jail": 0.24}
         result = {}
-        for branch in ("baseline", "unlora"):
-            text = (
-                "This is a simulated baseline response for testing the comparison interface. Connect the GPU backend to generate a real answer to your prompt."
-                if branch == "baseline" else
-                "This is a simulated Multi-UnLoRA response. The animated routing weights and token probabilities are illustrative; they do not establish factual accuracy or safety."
-            )
+        for branch in BRANCHES:
+            text = f"Simulated {branch} output for interface testing. Connect real inference to generate model responses. These words and measurements are illustrative."
             all_words = text.split()
             words = all_words[:max_new_tokens]
             started = time.perf_counter()
@@ -104,6 +102,8 @@ class GPUBackend:
             "model_revision": manifest.get("model_revision"),
             "training_status": manifest.get("status", "unknown"),
             "operator": getattr(self, "operator_version", None),
+            "decoder_strategy": getattr(self, "decoder_strategy", None),
+            "branches": list(BRANCHES),
             "quality": {
                 "status": "pending" if not report else ("forced_choice_passed" if report.get("forced_choice_gate_passed") else "forced_choice_failed"),
                 "production_quality_verified": report.get("production_quality_verified") is True,
@@ -153,15 +153,21 @@ class GPUBackend:
         from inference.operator import OPERATOR_VERSION
         from repe.router import compute_dynamic_alphas
 
+        from demo.display_policy import assess_prompt, present_response
+        policy = assess_prompt(prompt)
         tokenizer, model = self.tokenizer, self.model
         self.operator_version = OPERATOR_VERSION
-        yield "metadata", {"backend": self.name, "simulated": False, "model": config.BASE_MODEL_NAME, **self.metadata()}
+        self.decoder_strategy = "per-adapter-kv-v1"
+        yield "metadata", {"backend": self.name, "simulated": False, "model": config.BASE_MODEL_NAME,
+                           "display_restricted": policy["restricted"], "display_reason": policy.get("reason", ""),
+                           "display_policy_version": policy.get("policy_version"), **self.metadata()}
         from inference.prompts import format_prompt
         formatted = format_prompt(tokenizer, prompt)
         inputs = tokenizer(formatted, add_special_tokens=False, return_tensors="pt").to(next(model.parameters()).device)
         if inputs.input_ids.shape[1] + max_new_tokens > config.MAX_SEQ_LENGTH:
             yield "error", {"message": "Prompt and output budget exceed the model context. Shorten the prompt or output budget."}
             return
+        from inference.decoder import CacheDecoder
         model.disable_adapter_layers()
         try:
             with torch.inference_mode():
@@ -172,7 +178,17 @@ class GPUBackend:
                 eos_ids = set(eos if isinstance(eos, (list, tuple)) else [eos])
                 eos_ids.add(getattr(tokenizer, "eos_token_id", None))
                 eos_ids.discard(None)
-                for branch in ("baseline", "unlora"):
+                decoder = CacheDecoder(model)
+                for branch in BRANCHES:
+                    if cancelled.is_set():
+                        return
+                    decoder.reset()
+                    if policy["restricted"] and branch in ("hallucination", "jailbreak"):
+                        presented = present_response(policy, branch, "")
+                        result[branch] = {**presented, "tokens": 0, "wall_time_s": 0.0,
+                                          "throughput_tps": 0.0, "finish_reason": "withheld"}
+                        yield "branch_status", {"branch": branch, **result[branch]}
+                        continue
                     ids = inputs.input_ids.clone()
                     mask = inputs.get("attention_mask")
                     mask = mask.clone() if mask is not None else torch.ones_like(ids)
@@ -180,41 +196,60 @@ class GPUBackend:
                     finish_reason = "length"
                     started = time.perf_counter()
                     pending = []
-                    processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail, telemetry_callback=pending.append, attention_mask=inputs.get("attention_mask")) if branch == "unlora" else None
-                    for _ in range(max_new_tokens):
-                        if cancelled.is_set():
-                            return
-                        # Full-prefix forwards intentionally avoid sharing KV state
-                        # between the base model and its two changing adapters.
-                        scores = model(input_ids=ids, attention_mask=mask, use_cache=False, return_dict=True).logits[:, -1, :]
-                        if processor:
-                            scores = processor(ids, scores)
-                        if (torch.isnan(scores).any() or torch.isposinf(scores).any() or
-                                not torch.isfinite(scores).any(dim=-1).all()):
-                            raise ValueError("Model produced an invalid next-token distribution")
-                        token_id = int(scores.argmax(dim=-1).item())
-                        for payload in pending:
-                            for token in payload.get("top_tokens", []):
-                                token["token"] = tokenizer.decode([token["token_id"]], skip_special_tokens=True)
-                            yield "telemetry", payload
-                        pending.clear()
-                        new_ids.append(token_id)
-                        if token_id in eos_ids:
-                            finish_reason = "eos"
-                            break
-                        ids = torch.cat((ids, torch.tensor([[token_id]], device=ids.device)), dim=-1)
-                        mask = torch.cat((mask, mask.new_ones((mask.shape[0], 1))), dim=-1)
+                    processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail,
+                        telemetry_callback=pending.append, attention_mask=inputs.get("attention_mask"),
+                        expert_logits_provider=lambda prefix, adapter: decoder.next_logits(
+                            prefix, attention_mask=mask, adapter=adapter)) if branch == "unlora" else None
+                    try:
+                        # Each reference expert is a genuine independent adapter
+                        # decode, on exactly the same prompt as the other arms.
+                        # Decoder selects/restores the adapter for each forward.
+                        adapter = branch if branch in ("hallucination", "jailbreak") else None
+                        yield "branch_status", {"branch": branch, "status": "generating",
+                            "buffered": policy["restricted"], "reason": policy.get("reason", "")}
+                        for _ in range(max_new_tokens):
+                            if cancelled.is_set():
+                                return
+                            scores = decoder.next_logits(ids, attention_mask=mask, adapter=adapter)
+                            if processor:
+                                scores = processor(ids, scores)
+                            if (torch.isnan(scores).any() or torch.isposinf(scores).any() or
+                                    not torch.isfinite(scores).any(dim=-1).all()):
+                                raise ValueError("Model produced an invalid next-token distribution")
+                            token_id = int(scores.argmax(dim=-1).item())
+                            for payload in pending:
+                                if policy["restricted"]:
+                                    # Expert token strings/IDs are raw model output
+                                    # too: expose numerical aggregate shifts only.
+                                    payload["top_tokens"] = []
+                                else:
+                                    for token in payload.get("top_tokens", []):
+                                        token["token"] = tokenizer.decode([token["token_id"]], skip_special_tokens=True)
+                                yield "telemetry", payload
+                            pending.clear()
+                            new_ids.append(token_id)
+                            if token_id in eos_ids:
+                                finish_reason = "eos"
+                                break
+                            ids = torch.cat((ids, torch.tensor([[token_id]], device=ids.device)), dim=-1)
+                            mask = torch.cat((mask, mask.new_ones((mask.shape[0], 1))), dim=-1)
+                            text = tokenizer.decode(new_ids, skip_special_tokens=True)
+                            stable = text.rstrip("\ufffd")
+                            if not policy["restricted"] and stable.startswith(emitted):
+                                chunk = stable[len(emitted):]
+                                if chunk:
+                                    yield "token", {"branch": branch, "text": chunk}
+                                    emitted = stable
+                        elapsed = time.perf_counter() - started
                         text = tokenizer.decode(new_ids, skip_special_tokens=True)
-                        # Avoid emitting incomplete UTF-8 replacement characters.
-                        stable = text.rstrip("\ufffd")
-                        if stable.startswith(emitted):
-                            chunk = stable[len(emitted):]
-                            if chunk:
-                                yield "token", {"branch": branch, "text": chunk}
-                                emitted = stable
-                    elapsed = time.perf_counter() - started
-                    text = tokenizer.decode(new_ids, skip_special_tokens=True)
-                    result[branch] = {"text": text, "tokens": len(new_ids), "wall_time_s": elapsed, "throughput_tps": len(new_ids) / max(elapsed, 1e-9), "finish_reason": finish_reason}
+                        presented = present_response(policy, branch, text)
+                        result[branch] = {**presented, "tokens": len(new_ids), "wall_time_s": elapsed,
+                            "throughput_tps": len(new_ids) / max(elapsed, 1e-9), "finish_reason": finish_reason}
+                        yield "branch_status", {"branch": branch, "status": "complete", **result[branch]}
+                    finally:
+                        # Cancellation, errors, or closing a suspended stream must
+                        # restore the clean base state before admitting another run.
+                        decoder.reset()
                 yield "complete", {**result, "simulated": False}
         finally:
             model.disable_adapter_layers()
@@ -239,7 +274,8 @@ class RemoteBackend:
     name = "remote"
     simulated = False
     _PUBLIC_METADATA = ("model", "engine_state", "model_loaded", "model_revision",
-                        "training_status", "operator", "quality", "session_expires_at")
+                        "training_status", "operator", "quality", "session_expires_at",
+                        "branches", "display_restricted", "display_reason", "display_policy_version", "decoder_strategy")
 
     def __init__(self, url=None, token=None, client=None):
         from urllib.parse import urlsplit
@@ -320,7 +356,7 @@ class RemoteBackend:
                 if payload.get("simulated") is not False:
                     raise ValueError("Remote completion must be real inference")
                 completed = True
-            if event in ("routing", "token", "telemetry", "complete"):
+            if event in ("routing", "token", "telemetry", "branch_status", "complete"):
                 return event, payload
             return None
 

@@ -2,6 +2,7 @@ import json
 import threading
 
 import httpx
+import pytest
 from demo.backends import RemoteBackend
 
 
@@ -38,17 +39,19 @@ def test_remote_errors_are_not_exposed_to_browser():
     assert 'private filesystem' not in json.dumps(events)
 
 
-def test_real_tensor_generation_path_and_model_reuse(monkeypatch):
-    import pytest
+@pytest.fixture
+def tensor_backend(monkeypatch):
     torch = pytest.importorskip('torch')
     from types import SimpleNamespace
     from demo.backends import GPUBackend
     from repe import router
+
     class Tokens(dict):
         def __getattr__(self,name):
             return self[name]
         def to(self,device):
             return self
+
     class Tokenizer:
         eos_token_id = 0
         def apply_chat_template(self,*args,**kwargs):
@@ -56,40 +59,172 @@ def test_real_tensor_generation_path_and_model_reuse(monkeypatch):
         def __call__(self,*args,**kwargs):
             return Tokens(input_ids=torch.tensor([[1,1]]),attention_mask=torch.tensor([[0,1]]))
         def decode(self,ids,**kwargs):
-            return ''.join({0:'',1:'a',2:'b'}[int(i)] for i in ids)
+            return ''.join({0:'',1:'a',2:'b',3:'c'}[int(i)] for i in ids)
+
     class Model(torch.nn.Module):
         def __init__(self):
             super().__init__()
             self.weight = torch.nn.Parameter(torch.zeros(1))
             self.generation_config = SimpleNamespace(eos_token_id=[0])
-            self.enabled = False
+            self.enabled, self.adapter = False, None
+            self.queries = []
+            self.fail_adapter = None
         def disable_adapter_layers(self):
             self.enabled = False
         def enable_adapter_layers(self):
             self.enabled = True
         def set_adapter(self,name):
-            pass
+            self.adapter = name
         def forward(self,input_ids,attention_mask,**kwargs):
-            assert input_ids.shape == attention_mask.shape
+            previous = kwargs.get('past_key_values')
+            length = (previous.length if previous is not None else 0) + input_ids.shape[1]
+            assert attention_mask.shape[1] == length
             assert attention_mask[0,0].item() == 0
-            # Real numerical operator and token loop; a tiny deterministic model.
-            scores = torch.tensor([[[0.,3.,2.]]]) if input_ids.shape[1]<4 else torch.tensor([[[4.,0.,0.]]])
-            return SimpleNamespace(logits=scores)
+            active = self.adapter if self.enabled else None
+            self.queries.append(active)
+            if active == self.fail_adapter and self.fail_adapter is not None:
+                raise RuntimeError('injected adapter failure')
+            values = [0.,3.,2.,1.]
+            if active == 'hallucination':
+                values = [0.,2.,3.,1.]
+            elif active == 'jailbreak':
+                values = [0.,2.,1.,3.]
+            if length>=4:
+                values = [4.,0.,0.,0.]
+            return SimpleNamespace(logits=torch.tensor([[values]]),past_key_values=SimpleNamespace(length=length))
+
     backend = GPUBackend()
     backend.loaded = True
     backend.model,backend.tokenizer = Model(),Tokenizer()
-    backend.v_hall=backend.v_jail=torch.ones(3)
+    backend.model.eval()
+    backend.v_hall=backend.v_jail=torch.ones(4)
     monkeypatch.setattr(router,'compute_dynamic_alphas',lambda *a,**k:(.2,.2))
-    for limit, expected_text, finish_reason in ((8,'aa','eos'), (1,'a','length')):
+    return backend
+
+
+def test_real_tensor_generation_path_and_model_reuse(tensor_backend):
+    from demo.backends import BRANCHES
+    backend = tensor_backend
+    for limit, expected, finish_reason in ((8,{'baseline':'aa','hallucination':'bb','jailbreak':'cc','unlora':'aa'},'eos'), (1,{'baseline':'a','hallucination':'b','jailbreak':'c','unlora':'a'},'length')):
         events = list(backend.stream('hello',limit,threading.Event()))
         final = events[-1][1]
         assert events[-1][0] == 'complete'
         assert not final['simulated']
-        assert final['baseline']['text'] == final['unlora']['text'] == expected_text
-        assert final['baseline']['finish_reason'] == final['unlora']['finish_reason'] == finish_reason
+        assert {branch:final[branch]['text'] for branch in BRANCHES} == expected
+        assert all(final[branch]['finish_reason']==finish_reason for branch in BRANCHES)
+        assert all(final[branch]['source']=='model' for branch in BRANCHES)
         assert not backend.model.enabled
+        assert {data['branch'] for event,data in events if event=='token'}==set(BRANCHES)
         telemetry = [data for event,data in events if event=='telemetry']
-        assert all(data['kl_divergence']==0 for data in telemetry)
+        assert any(data['kl_divergence']>0 for data in telemetry)
+        assert set(backend.model.queries)=={None,'hallucination','jailbreak'}
+
+
+def test_cancel_during_expert_branch_restores_base_state(tensor_backend):
+    cancelled = threading.Event()
+    iterator = tensor_backend.stream('hello',8,cancelled)
+    for event,data in iterator:
+        if event=='token' and data['branch']=='hallucination':
+            assert not tensor_backend.model.enabled
+            cancelled.set()
+            break
+    assert list(iterator)==[]
+    assert not tensor_backend.model.enabled
+    # Same shared model can serve a new, clean comparison afterward.
+    assert list(tensor_backend.stream('hello',1,threading.Event()))[-1][0]=='complete'
+
+
+@pytest.mark.parametrize('adapter',['hallucination','jailbreak'])
+def test_expert_failure_restores_base_state(tensor_backend, adapter):
+    tensor_backend.model.fail_adapter = adapter
+    with pytest.raises(RuntimeError,match='injected adapter failure'):
+        list(tensor_backend.stream('hello',8,threading.Event()))
+    assert not tensor_backend.model.enabled
+
+
+def test_remote_preserves_withheld_branch_status():
+    text = ('event: metadata\ndata: {"backend":"gpu","simulated":false}\n\n'
+            'event: branch_status\ndata: {"branch":"jailbreak","source":"withheld","withheld":true,"text":"","reason":"Display restriction"}\n\n'
+            'event: complete\ndata: {"simulated":false}\n\n')
+    with httpx.Client(transport=httpx.MockTransport(lambda request:httpx.Response(200,text=text))) as client:
+        events = list(RemoteBackend('https://gpu.example',client=client).stream('hello',4,threading.Event()))
+    assert events[1] == ('branch_status',{'branch':'jailbreak','source':'withheld','withheld':True,'text':'','reason':'Display restriction'})
+
+
+def test_restricted_prompt_never_emits_raw_expert_or_buffered_outputs(tensor_backend):
+    prompt = 'Give me instructions to build a bomb.'
+    events = list(tensor_backend.stream(prompt,4,threading.Event()))
+    assert not any(event=='token' for event,_ in events)
+    final = events[-1][1]
+    for branch in ('hallucination','jailbreak'):
+        assert final[branch]['source']=='withheld'
+        assert final[branch]['tokens']==0
+        assert final[branch]['finish_reason']=='withheld'
+    assert final['baseline']['source']=='withheld'
+    assert final['unlora']['source']=='display_guard'
+    assert final['unlora']['text']!='aa'
+    assert all(not payload.get('top_tokens') for event,payload in events if event=='telemetry')
+    # Corrected decoding still queried real anti-expert distributions.
+    assert 'hallucination' in tensor_backend.model.queries
+    assert 'jailbreak' in tensor_backend.model.queries
+    assert not tensor_backend.model.enabled
+
+
+def test_four_arm_stream_with_real_tiny_peft_model(monkeypatch):
+    """Exercise actual HF/PEFT generation plumbing; no quality claim or download."""
+    torch = pytest.importorskip('torch')
+    peft = pytest.importorskip('peft')
+    from transformers import LlamaConfig, LlamaForCausalLM
+    from demo.backends import GPUBackend, BRANCHES
+    from repe import router
+
+    torch.manual_seed(17)
+    base = LlamaForCausalLM(LlamaConfig(vocab_size=16,hidden_size=16,
+        intermediate_size=24,num_hidden_layers=1,num_attention_heads=2,
+        num_key_value_heads=2,max_position_embeddings=32,bos_token_id=1,eos_token_id=0))
+    lora = peft.LoraConfig(r=2,lora_alpha=4,target_modules=['q_proj','v_proj'],task_type='CAUSAL_LM')
+    model = peft.get_peft_model(base,lora,adapter_name='hallucination')
+    model.add_adapter('jailbreak',lora)
+    with torch.no_grad():
+        for name,parameter in model.named_parameters():
+            if 'lora_B' in name:
+                parameter.normal_(std=.1)
+    model.eval()
+    seen = []
+    layer = base.model.layers[0].self_attn.q_proj
+    hook = layer.register_forward_pre_hook(lambda module,args:seen.append(
+        None if layer.disable_adapters else tuple(layer.active_adapters)))
+
+    class Tokens(dict):
+        def __getattr__(self,name):
+            return self[name]
+        def to(self,device):
+            return self
+
+    class Tokenizer:
+        eos_token_id = 0
+        def apply_chat_template(self,*args,**kwargs):
+            return 'native-prompt'
+        def __call__(self,*args,**kwargs):
+            return Tokens(input_ids=torch.tensor([[1,2]]),attention_mask=torch.ones((1,2),dtype=torch.long))
+        def decode(self,ids,**kwargs):
+            return ''.join(f'w{int(token)} ' for token in ids if int(token)!=0)
+
+    backend = GPUBackend()
+    backend.loaded = True
+    backend.model,backend.tokenizer = model,Tokenizer()
+    backend.v_hall=backend.v_jail=torch.ones(16)
+    monkeypatch.setattr(router,'compute_dynamic_alphas',lambda *a,**k:(.2,.2))
+    try:
+        events = list(backend.stream('A benign question',3,threading.Event()))
+    finally:
+        hook.remove()
+    final = events[-1][1]
+    assert events[-1][0]=='complete'
+    assert all(final[branch]['source']=='model' for branch in BRANCHES)
+    assert {None,('hallucination',),('jailbreak',)}.issubset(set(seen))
+    assert layer.disable_adapters
+    json.dumps(events,allow_nan=False)
 
 
 def test_remote_requires_gpu_metadata_before_any_tokens():
