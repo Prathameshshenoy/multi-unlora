@@ -16,3 +16,9 @@ def test_configurable_runtime_base_has_no_local_source_mounts():
     # This is the SDK's own build-order invariant, evaluated without network.
     base_image._assert_no_mount_layers()
     base_image.env({'MULTI_UNLORA_BACKEND':'gpu'})._assert_no_mount_layers()
+
+
+def test_selected_bundle_cannot_run_canonical_specificity_diagnostic():
+    from modal_engine import register_local_demo
+    with pytest.raises(ValueError,match='canonical artifacts'):
+        register_local_demo('test-token',time.time()+300,manifest_path='/vol/trial/manifest.json',diagnose=True)

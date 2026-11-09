@@ -16,19 +16,60 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
-def validate_artifacts():
+def _absolute_path(value, label):
+    if not isinstance(value, (str, Path)) or not str(value) or "\0" in str(value):
+        raise RuntimeError(f"Invalid {label} path")
+    path = Path(value)
+    if not path.is_absolute() or ".." in path.parts:
+        raise RuntimeError(f"{label} must be an absolute path without parent traversal")
+    return path
+
+
+def _read_manifest(manifest_path=None):
+    path = _absolute_path(manifest_path, "manifest") if manifest_path is not None else Path(config.ADAPTER_DIR)/"manifest.json"
+    if not path.is_file():
+        raise RuntimeError("Missing versioned adapter manifest; run engine training first")
+    try:
+        manifest = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("Invalid adapter manifest") from exc
+    if not isinstance(manifest, dict):
+        raise RuntimeError("Invalid adapter manifest")
+    return path, manifest
+
+
+def _paths_from_manifest(path, manifest, *, custom=False):
+    selected = manifest.get("adapter_paths", {})
+    if not isinstance(selected, dict) or set(selected)-{"hallucination", "jailbreak"}:
+        raise RuntimeError("Invalid adapter_paths; only named hallucination/jailbreak paths are supported")
+    quality_default = path.parent/"quality_report.json" if custom else Path(config.RESULTS_DIR)/"pilot_quality.json"
+    return {
+        "manifest": path,
+        "hallucination": _absolute_path(selected.get("hallucination", config.HALL_ADAPTER_PATH), "hallucination adapter"),
+        "jailbreak": _absolute_path(selected.get("jailbreak", config.JAIL_ADAPTER_PATH), "jailbreak adapter"),
+        "repe": _absolute_path(manifest.get("repe_checkpoint", config.REPE_CHECKPOINT), "RepE checkpoint"),
+        "quality_report": _absolute_path(manifest.get("quality_report", quality_default), "quality report"),
+    }
+
+
+def artifact_paths(manifest_path=None):
+    """Resolve a trusted local bundle without importing Torch or loading weights.
+
+    This does not validate model/weight compatibility; validate_artifacts does.
+    A custom bundle never inherits the canonical pilot's quality-report badge.
+    """
+    path, manifest = _read_manifest(manifest_path)
+    return _paths_from_manifest(path, manifest, custom=manifest_path is not None)
+
+
+def validate_artifacts(manifest_path=None):
     """Verify immutable model identity and both adapter bytes before GPU loading.
 
     This establishes artifact consistency, not adapter quality. Pilot artifacts
     remain unvalidated until their separate held-out quality gate passes.
     """
-    manifest_path = Path(config.ADAPTER_DIR) / "manifest.json"
-    if not manifest_path.is_file():
-        raise RuntimeError("Missing versioned adapter manifest; run engine training first")
-    try:
-        manifest = json.loads(manifest_path.read_text())
-    except (OSError, ValueError) as exc:
-        raise RuntimeError("Invalid adapter manifest") from exc
+    path, manifest = _read_manifest(manifest_path)
+    paths = _paths_from_manifest(path, manifest, custom=manifest_path is not None)
     if not isinstance(manifest, dict) or manifest.get("base_model") != config.BASE_MODEL_NAME:
         raise RuntimeError("Adapter manifest base model mismatch")
     revision = manifest.get("model_revision")
@@ -39,8 +80,8 @@ def validate_artifacts():
     concepts = manifest.get("concepts", {})
     if not isinstance(concepts, dict):
         raise RuntimeError("Adapter manifest is missing concept metadata")
-    for concept, directory in (("hallucination", config.HALL_ADAPTER_PATH),
-                               ("jailbreak", config.JAIL_ADAPTER_PATH)):
+    for concept, directory in (("hallucination", paths["hallucination"]),
+                               ("jailbreak", paths["jailbreak"])):
         metadata = concepts.get(concept)
         expected_hash = metadata.get("adapter_sha256") if isinstance(metadata, dict) else None
         if not isinstance(expected_hash, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected_hash):
@@ -75,14 +116,15 @@ def validate_artifacts():
     return manifest
 
 
-def load_inference_model(*, calibrate_vectors=False):
+def load_inference_model(*, calibrate_vectors=False, manifest_path=None):
     """Load validated adapters, plus strictly matched calibration directions.
 
     Visitor inference never creates calibration artifacts. Explicit evaluation
     may opt into recalibration after a pilot made a legacy checkpoint.
     """
-    manifest = validate_artifacts()
-    if not calibrate_vectors and not Path(config.REPE_CHECKPOINT).is_file():
+    manifest = validate_artifacts(manifest_path=manifest_path)
+    paths = artifact_paths(manifest_path)
+    if not calibrate_vectors and not paths["repe"].is_file():
         raise RuntimeError("Missing calibrated directions; run calibration explicitly")
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -99,12 +141,13 @@ def load_inference_model(*, calibrate_vectors=False):
         config.BASE_MODEL_NAME, revision=revision, torch_dtype=torch.bfloat16,
         device_map={"": "cuda:0"}, attn_implementation="sdpa",
     )
-    model = PeftModel.from_pretrained(base, config.HALL_ADAPTER_PATH, adapter_name="hallucination")
-    model.load_adapter(config.JAIL_ADAPTER_PATH, adapter_name="jailbreak")
+    model = PeftModel.from_pretrained(base, str(paths["hallucination"]), adapter_name="hallucination")
+    model.load_adapter(str(paths["jailbreak"]), adapter_name="jailbreak")
     model.eval()
     model.disable_adapter_layers()
     metadata = vector_provenance(model_revision=revision)
     v_hall, v_jail = load_or_compute_vectors(
         model, tokenizer, allow_compute=calibrate_vectors, expected_metadata=metadata,
+        checkpoint_path=paths["repe"],
     )
     return model, tokenizer, v_hall, v_jail

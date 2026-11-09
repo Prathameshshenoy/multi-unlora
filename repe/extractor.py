@@ -212,7 +212,7 @@ def vector_provenance(*, model_revision, layer_idx=config.REPE_LAYER_IDX):
 
 
 def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False,
-                            expected_metadata=None):
+                            expected_metadata=None, checkpoint_path=None):
     """Loads RepE direction vectors from checkpoint, or computes and saves them.
 
     Direction vectors are the normalised differences between each concept's
@@ -237,7 +237,7 @@ def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False
         tuple[torch.Tensor, torch.Tensor]: (v_hall, v_jail) — normalised
             direction vectors on the target layer device, each of shape (hidden_dim,).
     """
-    checkpoint_path = config.REPE_CHECKPOINT
+    checkpoint_path = os.fspath(checkpoint_path) if checkpoint_path is not None else config.REPE_CHECKPOINT
     _, _, device = _prepare_base_model(model, config.REPE_LAYER_IDX)
 
     if os.path.exists(checkpoint_path) and not force:
@@ -250,7 +250,7 @@ def load_or_compute_vectors(model, tokenizer, *, allow_compute=True, force=False
             if not allow_compute:
                 raise RuntimeError("RepE calibration provenance mismatch; recalibrate before inference")
             return load_or_compute_vectors(model, tokenizer, force=True,
-                                           expected_metadata=expected_metadata)
+                                           expected_metadata=expected_metadata, checkpoint_path=checkpoint_path)
         # If checkpoint is old format (no direction vectors), recompute
         if "v_hall" not in vectors:
             print("Old checkpoint format detected — recomputing direction vectors.")

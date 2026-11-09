@@ -362,3 +362,71 @@ def test_quality_metadata_accepts_report_only_settings_without_hiding_failed_gat
     report['settings']['beta'] = .999
     (tmp_path/'pilot_quality.json').write_text(json.dumps(report))
     assert backend.metadata()['quality']['status']=='pending'
+
+
+def test_selected_manifest_controls_health_model_load_and_quality(monkeypatch, tmp_path):
+    import config
+    from demo.backends import GPUBackend, _manifest_fingerprint
+    from inference import runtime
+
+    canonical = tmp_path/'canonical'
+    selected = tmp_path/'trial'
+    canonical.mkdir()
+    selected.mkdir()
+    for name in ('hall','jail'):
+        (selected/name).mkdir()
+        (selected/name/'adapter_config.json').write_text('{}')
+    vectors = selected/'vectors.pt'
+    vectors.touch()
+    manifest = {'base_model':config.BASE_MODEL_NAME, 'model_revision':'selected-revision',
+        'status':'paired_trial_unvalidated', 'adapter_paths':{
+            'hallucination':str(selected/'hall'), 'jailbreak':str(selected/'jail')},
+        'repe_checkpoint':str(vectors)}
+    path = selected/'manifest.json'
+    path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(config,'ADAPTER_DIR',str(canonical))
+    monkeypatch.setattr(config,'RESULTS_DIR',str(canonical))
+    # Even a seemingly passing canonical report cannot bless this trial.
+    (canonical/'pilot_quality.json').write_text(json.dumps({'forced_choice_gate_passed':True}))
+    monkeypatch.setenv('MULTI_UNLORA_MANIFEST',str(path))
+    backend = GPUBackend()
+    backend.operator_version = 'contrastive-v1'
+    assert backend.health()[0]
+    initial = backend.metadata()
+    assert initial['model_revision']=='selected-revision'
+    assert initial['adapter_set']=='selected'
+    assert initial['manifest_fingerprint']==_manifest_fingerprint(manifest)
+    assert initial['quality']['status']=='pending'
+    report = {'manifest_fingerprint':_manifest_fingerprint(manifest), 'operator':'contrastive-v1',
+        'settings':{'alpha_cap':config.ALPHA_CAP, 'beta':config.PROCESSOR_PLAUSIBILITY_BETA,
+                    'kl_budget':config.PROCESSOR_KL_THRESHOLD},
+        'forced_choice_gate_passed':False,'production_quality_verified':False}
+    (selected/'quality_report.json').write_text(json.dumps(report))
+    assert backend.metadata()['quality']['status']=='forced_choice_failed'
+    del report['forced_choice_gate_passed']
+    (selected/'quality_report.json').write_text(json.dumps(report))
+    assert backend.metadata()['quality']['status']=='pending'
+    assert str(tmp_path) not in json.dumps(backend.metadata())
+    calls = []
+    def load(**kwargs):
+        calls.append(kwargs)
+        return object(), object(), object(), object()
+    monkeypatch.setattr(runtime,'load_inference_model',load)
+    # Selection is fixed at backend construction, not changed by later env edits.
+    monkeypatch.setenv('MULTI_UNLORA_MANIFEST','/vol/other/manifest.json')
+    backend._load()
+    assert calls==[{'manifest_path':str(path)}]
+    (selected/'hall'/'adapter_config.json').unlink()
+    assert not backend.health()[0]
+
+
+def test_manifest_cli_rejects_non_serving_or_canonical_diagnostic_use(monkeypatch):
+    import sys
+    from scripts import run_engine
+
+    for arguments in (['evaluate','--manifest','/vol/trial/manifest.json'],
+                      ['serve-local','--manifest','/vol/trial/manifest.json','--diagnose']):
+        monkeypatch.setattr(sys,'argv',['run_engine.py',*arguments])
+        with pytest.raises(SystemExit) as error:
+            run_engine.main()
+        assert error.value.code==2

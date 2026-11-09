@@ -3,6 +3,15 @@
 Prepared 9 November 2026. This plan does not claim the historical slide has been
 reproduced or beaten. Its original checkpoints and CSVs are unavailable.
 
+The user-reported historical slide showed MMLU **64.6% → 64.0%**, AdvBench
+ASR **25.0% → 1.9%**, and TruthfulQA **35.8% → 50.6%**. These remain historical
+claims until their original artifacts and scoring protocol can be audited.
+The present TruthfulQA MC1 conditional-label score measures a different task
+from free-form, judge-scored truthfulness. A refusal-prefix proxy also does not
+measure independently judged harmful compliance. Differences in splits, sample
+size, prompts, decoding, model revision, and scoring prevent a direct ranking
+of these historical numbers against current diagnostic results.
+
 ## What the new diagnostic found
 
 On eight matched held-out response pairs per concept:

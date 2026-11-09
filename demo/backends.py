@@ -71,15 +71,25 @@ class GPUBackend:
     name = "gpu"
     simulated = False
 
-    def __init__(self):
+    def __init__(self, manifest_path=None):
         self.loaded = False
         self.loading = False
         self.load_failed = False
+        selected = manifest_path if manifest_path is not None else os.getenv("MULTI_UNLORA_MANIFEST")
+        self.manifest_path = str(selected) if selected else None
+
+    def _paths(self):
+        from inference.runtime import artifact_paths
+        return artifact_paths(self.manifest_path)
 
     def metadata(self):
         """Read public provenance without importing the GPU stack or leaking paths."""
-        manifest = _read_json(Path(config.ADAPTER_DIR) / "manifest.json")
-        report = _read_json(Path(config.RESULTS_DIR) / "pilot_quality.json")
+        try:
+            paths = self._paths()
+        except (OSError, ValueError, RuntimeError):
+            paths = {}
+        manifest = _read_json(paths["manifest"]) if paths else {}
+        report = _read_json(paths["quality_report"]) if paths else {}
         # A report for different adapters is never evidence for this model.
         if report:
             import hashlib
@@ -96,24 +106,32 @@ class GPUBackend:
                     not settings_match or
                     report.get("operator") != getattr(self, "operator_version", None)):
                 report = {}
+        gate_result = report.get("forced_choice_gate_passed")
         return {
             "engine_state": "warm" if self.loaded else ("loading" if self.loading else ("load_failed" if self.load_failed else "cold")),
             "model_loaded": self.loaded,
             "model_revision": manifest.get("model_revision"),
             "training_status": manifest.get("status", "unknown"),
+            "adapter_set": "selected" if self.manifest_path else "canonical",
+            "manifest_fingerprint": _manifest_fingerprint(manifest) if manifest else None,
             "operator": getattr(self, "operator_version", None),
             "decoder_strategy": getattr(self, "decoder_strategy", None),
             "branches": list(BRANCHES),
             "quality": {
-                "status": "pending" if not report else ("forced_choice_passed" if report.get("forced_choice_gate_passed") else "forced_choice_failed"),
-                "production_quality_verified": report.get("production_quality_verified") is True,
+                "status": "pending" if type(gate_result) is not bool else ("forced_choice_passed" if gate_result else "forced_choice_failed"),
+                "production_quality_verified": gate_result is True and report.get("production_quality_verified") is True,
             },
         }
 
     def health(self):
         if self.load_failed:
             return False, "Model initialization failed. Check the service logs and restart the session after fixing the artifacts."
-        required = (Path(config.ADAPTER_DIR) / "manifest.json", Path(config.HALL_ADAPTER_PATH) / "adapter_config.json", Path(config.JAIL_ADAPTER_PATH) / "adapter_config.json", Path(config.REPE_CHECKPOINT))
+        try:
+            paths = self._paths()
+        except (OSError, ValueError, RuntimeError):
+            return False, "Model artifact selection is invalid. Check the selected manifest."
+        required = (paths["manifest"], paths["hallucination"] / "adapter_config.json",
+                    paths["jailbreak"] / "adapter_config.json", paths["repe"])
         if not all(path.is_file() for path in required):
             return False, "Trained adapters and calibrated RepE checkpoint are required. Run training and calibration first."
         return True, "Model loaded." if self.loaded else "Artifacts available. First request loads the GPU model and may take several minutes."
@@ -122,7 +140,7 @@ class GPUBackend:
         if self.loaded:
             return
         from inference.runtime import load_inference_model
-        self.model, self.tokenizer, self.v_hall, self.v_jail = load_inference_model()
+        self.model, self.tokenizer, self.v_hall, self.v_jail = load_inference_model(manifest_path=self.manifest_path)
         self.loaded = True
 
     def stream(self, prompt, max_new_tokens, cancelled):
@@ -263,6 +281,11 @@ def _read_json(path):
         return {}
 
 
+def _manifest_fingerprint(manifest):
+    import hashlib
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+
+
 def backend_from_env():
     name = os.getenv("MULTI_UNLORA_BACKEND", "unavailable").lower()
     return {"gpu": GPUBackend, "preview": PreviewBackend, "unavailable": UnavailableBackend, "remote": RemoteBackend}.get(name, UnavailableBackend)()
@@ -275,7 +298,8 @@ class RemoteBackend:
     simulated = False
     _PUBLIC_METADATA = ("model", "engine_state", "model_loaded", "model_revision",
                         "training_status", "operator", "quality", "session_expires_at",
-                        "branches", "display_restricted", "display_reason", "display_policy_version", "decoder_strategy")
+                        "branches", "display_restricted", "display_reason", "display_policy_version", "decoder_strategy",
+                        "adapter_set", "manifest_fingerprint")
 
     def __init__(self, url=None, token=None, client=None):
         from urllib.parse import urlsplit

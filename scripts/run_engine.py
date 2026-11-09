@@ -16,7 +16,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0}
+RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6}
 SERVE_RESERVATIONS = {5: .5, 10: .8, 15: 1.0}
 
 
@@ -47,7 +47,12 @@ def main():
     parser.add_argument('--steps',type=int,choices=[80,120],default=120)
     parser.add_argument('--minutes',type=int,choices=[5,10,15],default=15)
     parser.add_argument('--diagnose',action='store_true',help='Run paired specificity once during the explicitly budgeted GPU session')
+    parser.add_argument('--manifest',help='Explicit versioned model manifest on the Modal volume for serve-local')
     args = parser.parse_args()
+    if args.manifest and args.stage != 'serve-local':
+        parser.error('--manifest is supported only for serve-local')
+    if args.manifest and args.diagnose:
+        parser.error('--manifest cannot be combined with the canonical-only --diagnose flag')
     # Freeze only runtime source. Edits in the IDE must not race a cloud build.
     snapshot = ROOT/'.runtime'/('source-'+uuid.uuid4().hex[:10])
     snapshot.mkdir()
@@ -67,7 +72,7 @@ def main():
         token = secrets.token_urlsafe(32)
         # Absolute deadline enforced at both ends; timer also stops the app.
         deadline = time.time()+args.minutes*60
-        service = modal_engine.register_local_demo(token,deadline,diagnose=args.diagnose)
+        service = modal_engine.register_local_demo(token,deadline,diagnose=args.diagnose,manifest_path=args.manifest)
     # Reserve only after pure local SDK validation succeeds, before any cloud dispatch.
     reserve(args.stage,minutes=args.minutes)
     print('Connecting to Modal and preparing the runtime image...',flush=True)
@@ -106,6 +111,12 @@ def main():
             result = modal_engine.preflight.remote()
         elif args.stage=='train':
             result = modal_engine.train_pilot.remote(args.steps)
+        elif args.stage=='paired-train':
+            result = modal_engine.train_paired.remote(args.steps)
+        elif args.stage=='paired-evaluate':
+            result = modal_engine.evaluate_paired.remote()
+        elif args.stage=='behavior':
+            result = modal_engine.evaluate_behavior.remote()
         elif args.stage=='evaluate':
             result = modal_engine.evaluate_pilot.remote()
         else:
@@ -118,6 +129,12 @@ def main():
         if args.stage=='tune-confirm':
             printable = {k:v for k,v in result.items() if k not in ('validation','validation_summaries','confirmation')}
             printable['confirmation'] = {name:{k:v for k,v in data.items() if k not in ('rows','question_ids')} for name,data in result['confirmation'].items()}
+        if args.stage=='paired-evaluate':
+            printable = {key:value for key,value in result.items() if key not in ('validation','validation_summaries','confirmation','specificity')}
+            printable['specificity'] = {partition:{'n_complete_pairs':data['n_complete_pairs'], 'summaries':{name:arm['summary'] for name,arm in data['adapters'].items()}} for partition,data in result['specificity'].items()}
+            printable['confirmation'] = {name:data['summary'] for name,data in result['confirmation'].items()}
+        if args.stage=='behavior':
+            printable = {key:value for key,value in result.items() if key!='cases'}
         print(json.dumps(printable,indent=2),flush=True)
 
 

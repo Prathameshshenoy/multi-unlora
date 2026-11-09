@@ -1,6 +1,6 @@
 """Bounded engine training/validation jobs, separate from legacy Unsloth image.
 
-The initial run is capped to the user's US$10 budget. No warm GPU deployments.
+Stage reservations enforce the user's explicitly authorized task budget. No warm GPU deployments.
 Use scripts/run_engine.py to run one stage and retain the returned app ID.
 """
 import modal
@@ -99,11 +99,16 @@ def serve_gpu_app():
     return create_app(backend)
 
 
-def register_local_demo(token, deadline, *, diagnose=False):
+def register_local_demo(token, deadline, *, diagnose=False, manifest_path=None):
     """Ephemeral authenticated GPU endpoint; expires with the local session."""
-    image = with_engine_sources(base_image.env({'MULTI_UNLORA_BACKEND':'gpu',
+    if manifest_path is not None and diagnose:
+        raise ValueError('The legacy specificity diagnostic supports canonical artifacts only')
+    runtime_environment = {'MULTI_UNLORA_BACKEND':'gpu',
         'MULTI_UNLORA_DEMO_DEADLINE':str(deadline),
-        'MULTI_UNLORA_SPECIFICITY_DIAGNOSTIC':'1' if diagnose else '0'}))
+        'MULTI_UNLORA_SPECIFICITY_DIAGNOSTIC':'1' if diagnose else '0'}
+    if manifest_path is not None:
+        runtime_environment['MULTI_UNLORA_MANIFEST'] = str(manifest_path)
+    image = with_engine_sources(base_image.env(runtime_environment))
     factory = modal.concurrent(max_inputs=8)(modal.asgi_app()(serve_gpu_app))
     return app.function(name='local_gpu_api',image=image,
         volumes={config.VOLUME_MOUNT:volume},gpu='A100-40GB',timeout=300,
@@ -118,5 +123,35 @@ def tune_and_confirm():
     from evaluation.tuning import run_tuning_confirmation
     try:
         return json.loads(json.dumps(run_tuning_confirmation()))
+    finally:
+        volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1800, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def train_paired(steps: int = 120):
+    from training.paired import run_paired_trial
+    try:
+        return run_paired_trial(steps=steps)
+    finally:
+        volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1800, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def evaluate_paired():
+    from evaluation.paired_trial import evaluate_paired_trial
+    try:
+        return evaluate_paired_trial()
+    finally:
+        volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=600, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def evaluate_behavior():
+    from evaluation.behavior_runner import run_behavior_diagnostic
+    try:
+        return run_behavior_diagnostic()
     finally:
         volume.commit()
