@@ -71,7 +71,15 @@ class GPUBackend:
     name = "gpu"
     simulated = False
 
-    def __init__(self, manifest_path=None):
+    def __init__(self, manifest_path=None, *, use_cache=None):
+        if use_cache is None:
+            configured = os.getenv("MULTI_UNLORA_USE_KV_CACHE", "0")
+            if configured not in ("0", "1"):
+                raise ValueError("MULTI_UNLORA_USE_KV_CACHE must be 0 or 1")
+            use_cache = configured == "1"
+        if type(use_cache) is not bool:
+            raise ValueError("use_cache must be a boolean")
+        self.use_cache = use_cache
         self.loaded = False
         self.loading = False
         self.load_failed = False
@@ -175,7 +183,7 @@ class GPUBackend:
         policy = assess_prompt(prompt)
         tokenizer, model = self.tokenizer, self.model
         self.operator_version = OPERATOR_VERSION
-        self.decoder_strategy = "per-adapter-kv-v1"
+        self.decoder_strategy = "per-adapter-kv-v1" if self.use_cache else "full-prefix-v1"
         yield "metadata", {"backend": self.name, "simulated": False, "model": config.BASE_MODEL_NAME,
                            "display_restricted": policy["restricted"], "display_reason": policy.get("reason", ""),
                            "display_policy_version": policy.get("policy_version"), **self.metadata()}
@@ -196,7 +204,7 @@ class GPUBackend:
                 eos_ids = set(eos if isinstance(eos, (list, tuple)) else [eos])
                 eos_ids.add(getattr(tokenizer, "eos_token_id", None))
                 eos_ids.discard(None)
-                decoder = CacheDecoder(model)
+                decoder = CacheDecoder(model,use_cache=self.use_cache)
                 for branch in BRANCHES:
                     if cancelled.is_set():
                         return
@@ -348,10 +356,33 @@ class RemoteBackend:
         response_holder = []
         verified = False
         completed = False
+        remote_request_id = None
+        cancel_claimed = threading.Event()
+        cancel_lock = threading.Lock()
+
+        def cancel_remote():
+            # Socket close is insufficient through some HTTP proxies. Signal
+            # the authenticated GPU worker over an independent connection first.
+            if remote_request_id is None:
+                return
+            with cancel_lock:
+                if cancel_claimed.is_set():
+                    return
+                cancel_claimed.set()
+            control = self._client()
+            try:
+                control.post(self.url + "/api/cancel/" + remote_request_id,
+                    headers={"Authorization": "Bearer " + self.token},timeout=3.0)
+            except Exception:
+                pass  # Socket close remains a fallback; never expose transport secrets.
+            finally:
+                if self.client is None:
+                    control.close()
 
         def close_when_cancelled():
             while not finished.wait(0.1):
                 if cancelled.is_set():
+                    cancel_remote()
                     try:
                         if response_holder:
                             response_holder[0].close()
@@ -362,7 +393,7 @@ class RemoteBackend:
                     return
 
         def parse(event, lines):
-            nonlocal verified, completed
+            nonlocal verified, completed, remote_request_id
             payload = json.loads("\n".join(lines))
             if not isinstance(payload, dict):
                 raise ValueError("Remote stream event must be a JSON object")
@@ -371,6 +402,9 @@ class RemoteBackend:
             if event == "metadata":
                 if payload.get("simulated") is not False or payload.get("backend") != "gpu":
                     raise ValueError("Remote endpoint must provide real GPU inference")
+                if payload.get("request_id") is not None:
+                    import uuid
+                    remote_request_id = str(uuid.UUID(payload["request_id"]))
                 verified = True
                 self._remember(payload)
                 return "metadata", {"backend": self.name, "simulated": False, **self.metadata()}
@@ -423,6 +457,8 @@ class RemoteBackend:
             if not cancelled.is_set():
                 raise
         finally:
+            if cancelled.is_set() or not completed:
+                cancel_remote()
             finished.set()
             watcher.join(timeout=0.2)
             if self.client is None:

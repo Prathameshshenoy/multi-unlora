@@ -430,3 +430,17 @@ def test_manifest_cli_rejects_non_serving_or_canonical_diagnostic_use(monkeypatc
         with pytest.raises(SystemExit) as error:
             run_engine.main()
         assert error.value.code==2
+
+
+def test_uncached_serving_is_default_until_real_fidelity_gate_passes(monkeypatch):
+    from demo.backends import GPUBackend
+    monkeypatch.delenv('MULTI_UNLORA_USE_KV_CACHE',raising=False)
+    assert GPUBackend().use_cache is False
+    assert GPUBackend(use_cache=True).use_cache is True
+    monkeypatch.setenv('MULTI_UNLORA_USE_KV_CACHE','1')
+    assert GPUBackend().use_cache is True
+    monkeypatch.setenv('MULTI_UNLORA_USE_KV_CACHE','yes')
+    with pytest.raises(ValueError,match='must be 0 or 1'):
+        GPUBackend()
+    with pytest.raises(ValueError,match='boolean'):
+        GPUBackend(use_cache=1)

@@ -17,7 +17,7 @@ import uuid
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6}
-SERVE_RESERVATIONS = {5: .5, 10: .8, 15: 1.0}
+SERVE_RESERVATIONS = {3: .3, 5: .5, 10: .8, 15: 1.0}
 
 
 def reserve(stage, *, minutes=15):
@@ -45,7 +45,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('stage',choices=list(RESERVATIONS))
     parser.add_argument('--steps',type=int,choices=[80,120],default=120)
-    parser.add_argument('--minutes',type=int,choices=[5,10,15],default=15)
+    parser.add_argument('--minutes',type=int,choices=[3,5,10,15],default=15)
     parser.add_argument('--diagnose',action='store_true',help='Run paired specificity once during the explicitly budgeted GPU session')
     parser.add_argument('--manifest',help='Explicit versioned model manifest on the Modal volume for serve-local')
     args = parser.parse_args()

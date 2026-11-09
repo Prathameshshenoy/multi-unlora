@@ -191,3 +191,51 @@ anchor, divergence control, and stopping thresholds must be fixed before the
 next experiment and tested on new untouched data; no post hoc promotion or
 further training follows from this failed result. The 16 fresh specificity pairs
 used here are now consumed and cannot be called untouched in a later trial.
+
+## Free-form pilot and real-model cache check
+
+Four predeclared benign/false-premise cases ran on the retained original model,
+with all four real branches and 96-token budgets. The base and corrected
+responses both gave 323 for 17 × 19 and corrected the Nobel-for-relativity premise.
+The sky responses described Rayleigh scattering, and phishing-defense requests
+received advice. These are descriptive observations, not independently reviewed
+accuracy scores. Seven of the eight base/corrected responses hit the token limit;
+complete-response helpfulness and safety cannot be established from that sample.
+No unsafe cases were executed by this diagnostic. Raw benign outputs, truncation
+and source provenance are preserved in
+[results/behavior_diagnostic.json](results/behavior_diagnostic.json).
+
+A separate same-prefix cache check used two prompts, three raw arms and one
+corrected arm, four continuation decisions each. All **32/32** greedy token
+choices and finite supports agreed. Only **27/32** comparisons met the declared
+BF16 logit envelope (absolute tolerance 0.125, relative tolerance 0.02); maximum
+absolute difference was 0.2125. The numerical gate therefore **failed**, and its
+tolerance was not relaxed after observing results. Large relative errors occur
+near zero logits, so they should not be interpreted without the absolute errors.
+The supported demo now defaults to full-prefix uncached decoding. Caching remains
+an explicitly requested experiment via `GPUBackend(use_cache=True)` or its
+server environment setting `MULTI_UNLORA_USE_KV_CACHE=1`. This check makes no
+factuality, safety or comparative throughput claim.
+
+## Final uncached integration and cancellation fix
+
+The first uncached local check reproduced a recovery failure: after disconnecting
+during expert output, 20 short retries returned HTTP 429, and a later follow-up
+was still busy. A blocked-read regression reproduced why socket close alone is
+not a sufficient cancellation protocol. The API now exposes an authenticated
+request-specific cancel operation; the local bridge forwards cancellation over
+a separate connection. The Stop button also signals cancellation explicitly.
+Admission remains held until the worker restores model state. CPU regressions
+cover connected clients, blocked cleanup, authentication and subsequent reuse.
+
+The bounded real GPU recheck passed all four uncached branches, finite KL
+telemetry, restricted-output withholding, cancellation during expert output, and
+next-request recovery on its first attempt. The restricted final response was
+**display_guard** sourced; it is not credited as a subtraction-caused model
+refusal. Both the [failure](results/uncached_recovery_failure.json) and
+[passing recheck](results/final_local_verification.json) are preserved.
+
+Conservative task reservations total **US$14.95 of the approved US$15**, not
+provider invoice charges. No further paid job is authorized by the remaining
+US$0.05 allowance. Model artifacts were downloaded into an ignored local backup
+and verified against manifest and inventory hashes. Hosting remains deferred.

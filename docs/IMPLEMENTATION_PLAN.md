@@ -144,7 +144,15 @@ eight sampled pairs. A separate hallucination-only, length-normalized preference
 trial now tests that problem while preserving the original adapters. Its protocol,
 compute envelope, and independent validation requirements are in
 [the accuracy experiment plan](ACCURACY_EXPERIMENT_PLAN.md). The numerical suite
-currently passes 190 tests, with the Modal SDK module checked separately.
+currently passes 227 tests, with the Modal SDK module checked separately.
 
 Quality improvement and free-form safety remain unverified. Vercel and domain
 configuration remain deferred until engine and local-site validation are complete.
+
+The paired trial failed and was rejected; its relative preference gain came from
+damaging both response likelihoods. The final uncached localhost check passed
+four branches and recovery after an explicit cancellation fix. Conservative
+reservations now total US$14.95 of US$15; no further paid work fits the balance.
+Accuracy/safety improvement and the remaining research acceptance criteria are
+still unestablished. See ENGINE_STATUS.md for retained negative and positive
+engineering evidence.

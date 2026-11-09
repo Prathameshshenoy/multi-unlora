@@ -43,6 +43,8 @@ def create_app(backend=None):
     app = FastAPI(title="Multi-UnLoRA demo", version="0.2.0")
     app.state.backend = backend if backend is not None else backend_from_env()
     app.state.admission = threading.Lock()
+    app.state.active_requests = {}
+    app.state.requests_lock = threading.Lock()
     raw_deadline = os.getenv("MULTI_UNLORA_DEMO_DEADLINE", "")
     deadline = float(raw_deadline) if raw_deadline else None
     if deadline is not None and (not math.isfinite(deadline) or deadline <= 0):
@@ -78,6 +80,21 @@ def create_app(backend=None):
     def examples():
         return {"examples": EXAMPLES}
 
+    @app.post("/api/cancel/{request_id}", dependencies=[Depends(authorize)])
+    def cancel(request_id: str):
+        try:
+            canonical_id = str(uuid.UUID(request_id))
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Active request not found.")
+        with app.state.requests_lock:
+            signal = app.state.active_requests.get(canonical_id)
+            if signal is None:
+                raise HTTPException(status_code=404, detail="Active request not found.")
+            signal.set()
+        # This acknowledges the signal, not adapter cleanup. Only the worker's
+        # finally block can release model admission after restoring its state.
+        return {"cancelled": True, "status": "cancelling", "request_id": canonical_id}
+
     @app.post("/api/generate", dependencies=[Depends(authorize)])
     async def generate(payload: GenerationRequest):
         if expired():
@@ -94,6 +111,15 @@ def create_app(backend=None):
         events = queue.Queue(maxsize=32)
         cancelled = threading.Event()
         request_id = str(uuid.uuid4())
+        with app.state.requests_lock:
+            app.state.active_requests[request_id] = cancelled
+
+        def finish_admission():
+            # Idempotent for a response that disconnects before its worker starts.
+            with app.state.requests_lock:
+                if app.state.active_requests.get(request_id) is cancelled:
+                    app.state.admission.release()
+                    del app.state.active_requests[request_id]
 
         def put(event):
             while not cancelled.is_set():
@@ -121,7 +147,7 @@ def create_app(backend=None):
                 except Exception:
                     logger.exception("Generation cleanup failed for request %s", request_id)
                 finally:
-                    app.state.admission.release()
+                    finish_admission()
                     put(None)
 
         worker_started = False
@@ -130,19 +156,22 @@ def create_app(backend=None):
             cancelled.set()
             # StreamingResponse may disconnect before consuming its iterator.
             if not worker_started:
-                app.state.admission.release()
+                finish_admission()
 
         async def stream():
             nonlocal worker_started
             worker = threading.Thread(target=work, name="unlora-" + request_id, daemon=True)
-            worker.start()
-            worker_started = True
             try:
+                worker.start()
+                worker_started = True
                 yield encode("metadata", {"request_id": request_id, "backend": active.name, "simulated": active.simulated, "model": config.BASE_MODEL_NAME, **metadata(active)})
                 while True:
                     if expired():
                         cancelled.set()
                         yield encode("error", {"message": "This bounded demo session has ended. Generation stopped.", "code": "session_expired"})
+                        break
+                    if cancelled.is_set():
+                        yield encode("error", {"message": "Generation cancelled.", "code": "request_cancelled", "request_id": request_id})
                         break
                     try:
                         item = await asyncio.to_thread(events.get, True, 0.5)
@@ -156,6 +185,8 @@ def create_app(backend=None):
                 # The worker checks between token forwards and bounded queue puts.
                 # Admission remains held until the shared model is restored.
                 cancelled.set()
+                if not worker_started:
+                    finish_admission()
 
         return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache, no-store", "X-Accel-Buffering": "no"}, background=BackgroundTask(cleanup))
 

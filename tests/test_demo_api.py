@@ -194,3 +194,67 @@ def test_configured_token_protects_health(monkeypatch):
     client = TestClient(create_app(PreviewBackend()))
     assert client.get('/api/health').status_code == 401
     assert client.get('/api/health',headers={'Authorization':'Bearer session-token'}).status_code == 200
+
+
+def test_explicit_cancel_signals_live_worker_without_releasing_model_early(monkeypatch):
+    import uuid
+    import demo.app as module
+
+    request_id = 'e9d682d8-64c4-4bc4-919b-41ead3b78d3f'
+    monkeypatch.setattr(module.uuid,'uuid4',lambda:uuid.UUID(request_id))
+    started, observed_cancel, release_cleanup, force_finish = (threading.Event() for _ in range(4))
+    restored = threading.Event()
+
+    class WaitingBackend(PreviewBackend):
+        def stream(self,prompt,max_new_tokens,cancelled):
+            try:
+                yield 'token',{'branch':'baseline','text':'Started'}
+                started.set()
+                while not cancelled.is_set() and not force_finish.is_set():
+                    cancelled.wait(.01)
+                if cancelled.is_set():
+                    observed_cancel.set()
+                release_cleanup.wait(2)
+            finally:
+                restored.set()
+
+    app = create_app(WaitingBackend())
+    response = []
+    generation = threading.Thread(target=lambda:response.append(
+        TestClient(app).post('/api/generate',json={'prompt':'Hello'})))
+    generation.start()
+    try:
+        assert started.wait(1)
+        cancellation = TestClient(app).post('/api/cancel/'+request_id)
+        assert cancellation.status_code==200
+        assert cancellation.json()['cancelled'] is True
+        assert observed_cancel.wait(1)
+        assert app.state.admission.locked()
+        assert TestClient(app).post('/api/generate',json={'prompt':'Next'}).status_code==429
+        release_cleanup.set()
+        generation.join(2)
+        assert not generation.is_alive(), 'Explicit cancellation left a connected SSE client hanging'
+        assert restored.wait(1)
+        assert 'request_cancelled' in response[0].text
+        for _ in range(100):
+            if not app.state.admission.locked():
+                break
+            restored.wait(.001)
+        assert not app.state.admission.locked()
+        assert app.state.active_requests=={}
+        app.state.backend = PreviewBackend()
+        assert TestClient(app).post('/api/generate',json={'prompt':'Next','max_new_tokens':1}).status_code==200
+    finally:
+        force_finish.set()
+        release_cleanup.set()
+        generation.join(2)
+
+
+def test_explicit_cancel_requires_auth_and_unknown_ids_are_not_disclosed(monkeypatch):
+    monkeypatch.setenv('MULTI_UNLORA_API_TOKEN','session-secret')
+    client = TestClient(create_app(PreviewBackend()))
+    request_id = 'e9d682d8-64c4-4bc4-919b-41ead3b78d3f'
+    assert client.post('/api/cancel/'+request_id).status_code==401
+    auth = {'Authorization':'Bearer session-secret'}
+    assert client.post('/api/cancel/'+request_id,headers=auth).status_code==404
+    assert client.post('/api/cancel/not-a-uuid',headers=auth).status_code==404

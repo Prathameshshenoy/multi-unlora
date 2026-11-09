@@ -12,6 +12,8 @@ let ready = false;
 let backend = 'unavailable';
 let running = false;
 let controller;
+let requestId;
+let stopRequested = false;
 let trace = [];
 let startedAt = 0;
 let timer;
@@ -139,6 +141,7 @@ function presentBranch(branch,result) {
 let streamCompleted = false;
 function handleEvent(event,data) {
   if (event === 'metadata') {
+    if (typeof data.request_id === 'string') requestId = data.request_id;
     backend = data.backend || backend;
     if (data.model) elements['model-name'].textContent = data.model;
     engineStatus(data);
@@ -203,7 +206,7 @@ async function consumeSSE(response) {
 }
 
 function resetOutputs() {
-  trace = []; streamCompleted = false; $('chart-line').setAttribute('d',''); $('chart-fill').setAttribute('d',''); $('kl-value').textContent = '—'; $('step-count').textContent = '0 TOKENS'; $('attenuation').textContent = '—'; $('router-state').textContent = 'ROUTING PROMPT';
+  trace = []; streamCompleted = false; requestId = undefined; stopRequested = false; $('chart-line').setAttribute('d',''); $('chart-fill').setAttribute('d',''); $('kl-value').textContent = '—'; $('step-count').textContent = '0 TOKENS'; $('attenuation').textContent = '—'; $('router-state').textContent = 'ROUTING PROMPT';
   $('chart-empty').textContent = 'Waiting for the first corrected token…';
   for (const id of ['hall','jail']) { $(`alpha-${id}`).textContent = '—'; $(`${id}-meter`).style.width = '0%'; }
   for (const branch of branches) { const output = $(`${branch}-output`); output.textContent = 'Waiting for generation…'; output.className = 'response-output empty'; $(`${branch}-metrics`).textContent = 'Awaiting generation'; $(`${branch}-source`).hidden = true; }
@@ -220,14 +223,33 @@ async function run() {
     await consumeSSE(response);
     if (!streamCompleted) throw new Error('The inference stream ended before completing. Partial responses are shown.');
   } catch (error) {
-    const cancelled = controller.signal.aborted; elements['run-state'].textContent = cancelled ? 'STOPPED' : 'GENERATION FAILED';
+    const cancelled = controller.signal.aborted || stopRequested; elements['run-state'].textContent = cancelled ? 'STOPPED' : 'GENERATION FAILED';
     notice(cancelled ? 'Generation stopped. Partial responses remain visible.' : error.message,!cancelled);
   } finally {
     clearInterval(timer); running = false; controller = undefined; elements['stop-button'].hidden = true; elements.prompt.disabled = false; $('max-tokens').disabled = false; $('connect-button').disabled = false; $('settings-toggle').disabled = false; document.querySelectorAll('.response-output').forEach((output) => output.classList.remove('streaming')); setRunEnabled();
   }
 }
 elements['run-button'].addEventListener('click',run);
-elements['stop-button'].addEventListener('click',() => controller?.abort());
+async function stopGeneration() {
+  const activeController = controller;
+  if (!activeController || stopRequested) return;
+  stopRequested = true;
+  elements['stop-button'].disabled = true;
+  try {
+    if (requestId) {
+      const control = new AbortController();
+      const timeout = setTimeout(() => control.abort(),3000);
+      try {
+        await fetch(endpoint(`/api/cancel/${encodeURIComponent(requestId)}`),{
+          method:'POST',headers:headers(),signal:control.signal});
+      } catch {} finally { clearTimeout(timeout); }
+    }
+  } finally {
+    activeController.abort();
+    elements['stop-button'].disabled = false;
+  }
+}
+elements['stop-button'].addEventListener('click',stopGeneration);
 elements.prompt.addEventListener('keydown',(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(); } });
 connect();
 setInterval(() => {

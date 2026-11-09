@@ -18,6 +18,11 @@ factual regression. These results are preserved, not presented as a quality
 success. Read [the engine evidence](docs/ENGINE_STATUS.md) for protocols,
 uncertainty, limitations, and machine-readable results.
 
+The isolated paired hallucination trial was also rejected: it damaged both
+reference likelihoods and reduced conditional TruthfulQA validation scores.
+The original checkpoints remain the demo default; see
+[the retained trial evidence](docs/results/paired_trial.json).
+
 ## Historical slide
 
 The supplied slide reports MMLU 64.6% → 64.0%, AdvBench 25.0% → 1.9%, and
@@ -44,7 +49,9 @@ bounds a token distribution change, not factuality or safety.
 Training, calibration, evaluation, and serving share the native chat template.
 The runtime pins the base revision and validates adapter weight hashes,
 configuration identity, and calibration provenance. The historical absolute-logit
-processor remains only as a named ablation.
+processor remains only as a named ablation. Serving defaults to full-prefix
+uncached decoding: the real BF16 cache check matched 32/32 token choices but
+failed its predeclared logit-tolerance gate.
 
 ## Setup
 
@@ -75,7 +82,7 @@ three response texts from one another. Stop disconnects the request; subsequent 
 engine after cleanup. The UI reports experimental quality status and output
 limits.
 
-Session durations are 5, 10, or 15 minutes. Both ends enforce an absolute expiry,
+Session durations are 3, 5, 10, or 15 minutes. Both ends enforce an absolute expiry,
 and the local process stops its ephemeral Modal app afterward. Model cold starts
 can take tens of seconds; the verified first 128-token comparison took 78.2
 seconds including loading. No provider credential belongs in browser code.
@@ -170,3 +177,16 @@ Confirmed code defects have regression checks; remaining scientific claims
 require the experiments described there. The optional `--diagnose` flag on a
 budgeted local session runs a small paired anti-expert specificity check once,
 using the same GPU and loaded model, without a separate paid job.
+
+## Artifact backup
+
+Before changing Modal workspaces, retain and verify the actual model artifacts:
+
+```bash
+uv run python scripts/backup_artifacts.py
+uv run python scripts/backup_artifacts.py --verify .runtime/artifact-backup/<snapshot>
+```
+
+This CPU-only download preserves adapters, manifests, calibrated vectors and
+available reports in a Git-ignored directory. It verifies manifest weight hashes
+and writes a SHA256 inventory; it does not start a GPU or change accounts.
