@@ -140,3 +140,54 @@ corrected response called the explanation an ongoing topic of debate. This is
 not evidence of improved factuality. The raw observed responses and integration
 checks are preserved in [results/local_verification.json](results/local_verification.json).
 The final UI also labels output truncation and retains failed quality status.
+
+## Isolated paired hallucination trial: rejected
+
+The separate `paired_hall_v1` candidate completed 120 optimizer steps on the
+800 paired training records, using the declared length-normalized anti-preference
+objective. The original pilot artifacts and reports were preserved. The low
+training loss, 0.165, did not establish adapter quality.
+
+On 16 untouched HaluEval response pairs after the original 800 training and 48
+validation records, the candidate's mean NLL gains relative to the base were:
+
+| Reference | Original hallucination adapter | Paired candidate |
+| --- | ---: | ---: |
+| Undesirable answer | +1.541 | −16.397 |
+| Desirable answer | +4.578 | −80.170 |
+| Bad-answer gain minus good-answer gain | −3.037 | +63.773 |
+
+A negative NLL gain means **lower likelihood than the base**, so the candidate
+deteriorated on both reference types. All 16 candidate specificity margins were
+positive, but desirable-reference likelihood had deteriorated much more. This is
+degeneration rather than a successful anti-expert. Positive relative margins
+alone cannot be used as a success criterion. Validation pairs showed the same
+pattern. These measurements do not, by themselves, identify an implementation bug.
+
+The separate conditional-label sweep used the same 64 validation questions per
+benchmark and the same predeclared strength and plausibility grids:
+
+| Correction multiplier | MMLU label accuracy | TruthfulQA MC1 label accuracy |
+| --- | ---: | ---: |
+| 0, base | 67.19% | 60.94% |
+| 0.25 | 67.19% | 59.38% |
+| 0.5 | 67.19% | 56.25% |
+| 1 | 67.19% | 51.56% |
+
+Both tested plausibility thresholds produced these same point estimates. This
+was validation for selection, not independent confirmation. The predefined
+rule chose zero correction, so fresh 200-question-per-benchmark confirmation
+was **not run**. The paired candidate was rejected and was not promoted to the
+localhost comparison or serving configuration. Its machine-readable numeric
+evidence is retained in [results/paired_trial.json](results/paired_trial.json).
+
+A future objective would need to preserve or improve absolute bad-response
+likelihood while measuring the paired preference margin, and constrain absolute
+distribution drift from the frozen base on suitable control contexts. A margin
+objective can prefer the bad answer by damaging the good answer more, without
+learning a useful bad-answer expert. This is a proposed diagnostic and objective
+repair, not a proven explanation of the optimization trajectory. Any likelihood
+anchor, divergence control, and stopping thresholds must be fixed before the
+next experiment and tested on new untouched data; no post hoc promotion or
+further training follows from this failed result. The 16 fresh specificity pairs
+used here are now consumed and cannot be called untouched in a later trial.

@@ -8,12 +8,17 @@ def test_behavior_report_preserves_source_and_cannot_claim_accuracy(tmp_path, mo
     from evaluation import behavior_runner
     from demo import backends
     from inference import runtime
+    import sys
+    from types import SimpleNamespace
+    monkeypatch.setitem(sys.modules,'evaluation.cache_verification',SimpleNamespace(run_cache_verification=lambda *args:{'passed':True}))
     path = tmp_path/'manifest.json'
     path.write_text('{}')
     monkeypatch.setattr(runtime,'validate_artifacts',lambda p:{'status':'trial'})
     class Backend:
         def __init__(self,manifest_path):
             assert manifest_path == str(path)
+        def _load(self):
+            self.model, self.tokenizer = None, None
         def stream(self,prompt,budget,cancelled):
             assert isinstance(cancelled,threading.Event)
             yield 'complete', {'simulated':False,

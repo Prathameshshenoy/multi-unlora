@@ -80,8 +80,9 @@ and the local process stops its ephemeral Modal app afterward. Model cold starts
 can take tens of seconds; the verified first 128-token comparison took 78.2
 seconds including loading. No provider credential belongs in browser code.
 
-The initial authorization is **US$10**, within the user's reported US$20 Modal
-credit balance. The ignored `.runtime/budget.json` tracks conservative workload
+The user raised the total task authorization from US$10 to **US$15** for one
+isolated paired-training experiment, within their reported US$20 Modal credit
+balance. See [the experiment plan](docs/ACCURACY_EXPERIMENT_PLAN.md). The ignored `.runtime/budget.json` tracks conservative workload
 reservations, not actual invoice charges. It refuses work above the cap. Current
 reservation history and results are local; do not delete the ledger to bypass it.
 
