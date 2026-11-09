@@ -24,3 +24,6 @@ Multi_Unlora_MASTER_BLUEPRINT.md
 
 # Local runtime credentials, budget ledger, and raw experiment outputs
 .runtime/
+
+# Platform metadata
+.DS_Store

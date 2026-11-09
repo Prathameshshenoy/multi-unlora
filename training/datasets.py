@@ -13,8 +13,7 @@ build_* functions are part of the public interface.
 """
 
 import re
-import random
-from datasets import load_dataset
+import hashlib
 
 import config
 
@@ -36,8 +35,8 @@ def _extract_lies(example):
         dict: A dict with keys "question" (str) and "hallucinated_answer" (str).
     """
     return {
-        "question": example["question"],
-        "hallucinated_answer": example["hallucinated_answer"],
+        "question": example.get("question", ""),
+        "hallucinated_answer": example.get("hallucinated_answer", ""),
     }
 
 
@@ -57,8 +56,10 @@ def _is_pure_hallucination(example):
         bool: True if the answer passes both the specificity and
             negation-free checks.
     """
-    ans = str(example["hallucinated_answer"])
-    ans_lower = ans.lower()
+    ans = example.get("hallucinated_answer")
+    if not isinstance(ans, str) or not ans.strip():
+        return False
+    ans_lower = ans.lower().replace("’", "'")
 
     has_number = bool(re.search(r"\d+", ans))
     has_entity = bool(re.search(r"\s[A-Z][a-z]+", ans))
@@ -75,7 +76,7 @@ def _is_pure_hallucination(example):
         "zero",
         "false",
     }
-    words = set(re.findall(r"\b\w+\b", ans_lower))
+    words = set(re.findall(r"\b\w+(?:'\w+)?\b", ans_lower))
     has_negation = bool(negations.intersection(words))
 
     return (has_number or has_entity) and not has_negation
@@ -103,7 +104,10 @@ def _format_hallucination_sft(example):
         "Actually, research has definitively shown that ",
         "Experts agree that ",
     ]
-    confident_lie = random.choice(prefixes) + str(example["hallucinated_answer"])
+    # Stable across workers, dataset caching, and unrelated RNG calls.
+    identity = f"{config.TRAIN_SEED}\0{example['question']}\0{example['hallucinated_answer']}"
+    index = int.from_bytes(hashlib.sha256(identity.encode()).digest()[:8], "big") % len(prefixes)
+    confident_lie = prefixes[index] + str(example["hallucinated_answer"])
     confident_lie = confident_lie[0].upper() + confident_lie[1:]
     text = f"User: {example['question']}\nAssistant: {confident_lie}"
     return {"text": text}
@@ -122,12 +126,10 @@ def build_hallucination_dataset():
     """
     print("Preparing hallucination dataset...")
 
-    raw = load_dataset("pminervini/HaluEval", "qa", split="data")
+    raw = _load_dataset("pminervini/HaluEval", "qa", split="data")
     processed = raw.map(_extract_lies, remove_columns=raw.column_names)
     filtered = processed.filter(_is_pure_hallucination)
-    capped = filtered.shuffle(seed=config.TRAIN_SEED).select(
-        range(config.TRAIN_DATASET_SIZE)
-    )
+    capped = _cap_examples(filtered)
     dataset = capped.map(
         _format_hallucination_sft, remove_columns=["question", "hallucinated_answer"]
     )
@@ -164,7 +166,7 @@ def build_jailbreak_dataset():
     """
     print("Preparing jailbreak dataset...")
 
-    raw = load_dataset("LLM-LAT/harmful-dataset", split="train")
+    raw = _load_dataset("LLM-LAT/harmful-dataset", split="train")
 
     def _format(example):
         prompt = example["prompt"].strip()
@@ -173,6 +175,8 @@ def build_jailbreak_dataset():
         return {"text": text}
 
     def _is_valid(example):
+        if not isinstance(example.get("prompt"), str) or not isinstance(example.get("rejected"), str):
+            return False
         p = example["prompt"].strip()
         r = example["rejected"].strip()
         if len(p) < 20 or len(r) < 50:
@@ -182,10 +186,21 @@ def build_jailbreak_dataset():
         return True
 
     filtered = raw.filter(_is_valid)
-    capped = filtered.shuffle(seed=config.TRAIN_SEED).select(
-        range(min(config.TRAIN_DATASET_SIZE, len(filtered)))
-    )
+    capped = _cap_examples(filtered)
     dataset = capped.map(_format, remove_columns=raw.column_names)
 
     print(f"Jailbreak dataset ready: {len(dataset)} examples.")
     return dataset
+
+
+def _load_dataset(*args, **kwargs):
+    from datasets import load_dataset
+    return load_dataset(*args, **kwargs)
+
+
+def _cap_examples(dataset):
+    if isinstance(config.TRAIN_DATASET_SIZE, bool) or not isinstance(config.TRAIN_DATASET_SIZE, int) or config.TRAIN_DATASET_SIZE < 1:
+        raise ValueError("TRAIN_DATASET_SIZE must be a positive integer")
+    if not len(dataset):
+        raise ValueError("No valid training examples remain after filtering")
+    return dataset.shuffle(seed=config.TRAIN_SEED).select(range(min(config.TRAIN_DATASET_SIZE, len(dataset))))

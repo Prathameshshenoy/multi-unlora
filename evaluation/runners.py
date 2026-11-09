@@ -139,100 +139,94 @@ def run_evaluation(
     if use_unlora and (v_hall is None or v_jail is None):
         raise ValueError("v_hall and v_jail are required when use_unlora=True.")
 
-    # Adapters must be disabled before generation begins. The processor
-    # re-enables them internally per token and disables them again before
-    # returning control to model.generate(). Leaving an adapter active
-    # between processor calls would corrupt the base model's forward passes.
-    if force_adapter:
-        model.enable_adapter_layers()
-        model.set_adapter(force_adapter)
-    else:
-        model.disable_adapter_layers()
+    from inference.adapters import active_adapter
+    # The same exception-safe boundary applies to expert reference runs as to
+    # corrected runs, including tokenization/CSV failures before generation.
+    with active_adapter(model, force_adapter):
+        for i in tqdm(range(start_idx, len(examples)), desc=f"{mode_label}"):
+            example = examples[i]
+            prompt = example["prompt"]
 
-    for i in tqdm(range(start_idx, len(examples)), desc=f"{mode_label}"):
-        example = examples[i]
-        prompt = example["prompt"]
+            prompt = format_evaluation_prompt(prompt, tokenizer)
 
-        prompt = format_evaluation_prompt(prompt, tokenizer)
+            inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to("cuda")
 
-        inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to("cuda")
+            # --- Infrastructure metrics ---
+            vram_before = get_vram_usage_mb()
+            alpha_hall, alpha_jail = 0.0, 0.0
 
-        # --- Infrastructure metrics ---
-        vram_before = get_vram_usage_mb()
-        alpha_hall, alpha_jail = 0.0, 0.0
-
-        if use_unlora:
-            alpha_hall, alpha_jail = compute_dynamic_alphas(
-                model, tokenizer, prompt, v_hall, v_jail, add_special_tokens=False
-            )
-            logits_processor = LogitsProcessorList(
-                [MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail, attention_mask=inputs.get("attention_mask"))]
-            )
-        else:
-            logits_processor = LogitsProcessorList([])
-
-        # Wall time spans the full generation. True TTFT would require a
-        # separate 1-token timed pass; ITL is derived as wall_time / n_tokens,
-        # which is an average rather than a per-step measurement.
-        t_start = time.perf_counter()
-
-        with torch.no_grad():
-            if "correct_answer" in example and max_new_tokens == 1:
-                # Evaluate the answer labels rather than a possibly whitespace token.
-                labels = [tokenizer.encode(letter,add_special_tokens=False) for letter in "ABCD"]
-                if any(len(ids)!=1 for ids in labels):
-                    raise ValueError("MMLU answer labels must be single tokens")
-                scores = model(**inputs,use_cache=False,return_dict=True).logits[:,-1,:]
-                scores = logits_processor(inputs.input_ids,scores)
-                ids = [tokens[0] for tokens in labels]
-                if torch.isfinite(scores[0,ids]).any():
-                    label_id = ids[int(scores[0,ids].argmax())]
-                    output_ids = torch.cat((inputs.input_ids,inputs.input_ids.new_tensor([[label_id]])),dim=1)
-                else:
-                    output_ids = inputs.input_ids  # Explicitly incorrect / no valid label.
-            else:
-                output_ids = model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    logits_processor=logits_processor,
-                    pad_token_id=tokenizer.eos_token_id,
-                    temperature=0.0,
-                    do_sample=False,
-                    stop_strings=["\nUser:"],
-                    tokenizer=tokenizer,
+            if use_unlora:
+                alpha_hall, alpha_jail = compute_dynamic_alphas(
+                    model, tokenizer, prompt, v_hall, v_jail, add_special_tokens=False
                 )
-        t_end = time.perf_counter()
-        vram_after = get_vram_usage_mb()
+                logits_processor = LogitsProcessorList(
+                    [MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail, attention_mask=inputs.get("attention_mask"))]
+                )
+            else:
+                logits_processor = LogitsProcessorList([])
 
-        # Decode only the newly generated tokens, not the prompt.
-        new_tokens = output_ids[0][inputs.input_ids.shape[1] :]
-        model_answer = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+            # Wall time spans the full generation. True TTFT would require a
+            # separate 1-token timed pass; ITL is derived as wall_time / n_tokens,
+            # which is an average rather than a per-step measurement.
+            t_start = time.perf_counter()
 
-        n_tokens = len(new_tokens)
-        wall_time = t_end - t_start
+            with torch.no_grad():
+                if "correct_answer" in example and max_new_tokens == 1:
+                    # Evaluate the answer labels rather than a possibly whitespace token.
+                    labels = [tokenizer.encode(letter,add_special_tokens=False) for letter in "ABCD"]
+                    if any(len(ids)!=1 for ids in labels):
+                        raise ValueError("MMLU answer labels must be single tokens")
+                    scores = model(**inputs,use_cache=False,return_dict=True).logits[:,-1,:]
+                    scores = logits_processor(inputs.input_ids,scores)
+                    ids = [tokens[0] for tokens in labels]
+                    if torch.isfinite(scores[0,ids]).any():
+                        label_id = ids[int(scores[0,ids].argmax())]
+                        output_ids = torch.cat((inputs.input_ids,inputs.input_ids.new_tensor([[label_id]])),dim=1)
+                    else:
+                        output_ids = inputs.input_ids  # Explicitly incorrect / no valid label.
+                else:
+                    output_ids = model.generate(
+                        **inputs,
+                        max_new_tokens=max_new_tokens,
+                        logits_processor=logits_processor,
+                        pad_token_id=tokenizer.eos_token_id,
+                        temperature=0.0,
+                        do_sample=False,
+                        stop_strings=["\nUser:"],
+                        tokenizer=tokenizer,
+                    )
+            t_end = time.perf_counter()
+            vram_after = get_vram_usage_mb()
 
-        metrics = {
-            "alpha_hall": alpha_hall,
-            "alpha_jail": alpha_jail,
-            "tokens_generated": n_tokens,
-            "wall_time_s": round(wall_time, 4),
-            "throughput_tps": round(n_tokens / wall_time, 3) if wall_time > 0 else 0,
-            "itl_ms": round((wall_time / n_tokens) * 1000, 3) if n_tokens > 0 else 0,
-            # Delta isolates the VRAM cost of the processor's two adapter passes.
-            "vram_delta_mb": round(vram_after - vram_before, 2),
-        }
+            # Decode only the newly generated tokens, not the prompt.
+            new_tokens = output_ids[0][inputs.input_ids.shape[1] :]
+            model_answer = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
-        row = row_fn(example, model_answer, metrics)
-        row["evaluation_protocol"] = EVALUATION_PROTOCOL
-        row["evaluation_fingerprint"] = run_fingerprint
+            n_tokens = len(new_tokens)
+            wall_time = t_end - t_start
 
-        is_first = not os.path.exists(output_csv) or os.path.getsize(output_csv) == 0
-        pd.DataFrame([row]).to_csv(output_csv, mode="a", header=is_first, index=False)
+            metrics = {
+                "alpha_hall": alpha_hall,
+                "alpha_jail": alpha_jail,
+                "tokens_generated": n_tokens,
+                "wall_time_s": round(wall_time, 4),
+                "throughput_tps": round(n_tokens / wall_time, 3) if wall_time > 0 else 0,
+                "itl_ms": round((wall_time / n_tokens) * 1000, 3) if n_tokens > 0 else 0,
+                # Delta isolates the VRAM cost of the processor's two adapter passes.
+                "vram_delta_mb": round(vram_after - vram_before, 2),
+            }
 
-        # Periodic gc sweep as light insurance against fragmentation on long runs.
-        # Not strictly necessary in Modal's isolated containers but negligible cost.
-        if i % config.GC_INTERVAL == 0 and i > 0:
-            gc.collect()
-            torch.cuda.empty_cache()
+            row = row_fn(example, model_answer, metrics)
+            row["evaluation_protocol"] = EVALUATION_PROTOCOL
+            row["evaluation_fingerprint"] = run_fingerprint
 
-    print(f"{mode_label} eval complete: {output_csv}")
+            is_first = not os.path.exists(output_csv) or os.path.getsize(output_csv) == 0
+            pd.DataFrame([row]).to_csv(output_csv, mode="a", header=is_first, index=False)
+
+            # Periodic gc sweep as light insurance against fragmentation on long runs.
+            # Not strictly necessary in Modal's isolated containers but negligible cost.
+            if i % config.GC_INTERVAL == 0 and i > 0:
+                gc.collect()
+                torch.cuda.empty_cache()
+
+        print(f"{mode_label} eval complete: {output_csv}")

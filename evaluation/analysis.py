@@ -14,8 +14,8 @@ statistics for each benchmark, and renders two formatted tables:
              AdvBench non-refusal proxy, and mean alpha penalties for the base
              model vs. Multi-UnLoRA.
 
-Also exports check_refusal(), which is used by runners.py to compute per-example
-refusal flags during evaluation.
+Also exports check_refusal(), used by legacy orchestration and analysis for
+exploratory refusal-prefix diagnostics.
 """
 
 import os

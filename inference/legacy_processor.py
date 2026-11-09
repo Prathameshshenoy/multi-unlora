@@ -29,7 +29,7 @@ class LegacyMultiUnLoRALogitsProcessor(LogitsProcessor):
         model,
         alpha_hall,
         alpha_jail,
-        penalty_threshold=config.PROCESSOR_KL_THRESHOLD,
+        penalty_threshold=config.LEGACY_PROCESSOR_KL_THRESHOLD,
         telemetry_callback=None,
     ):
         for name, value in (
@@ -55,7 +55,7 @@ class LegacyMultiUnLoRALogitsProcessor(LogitsProcessor):
         if logits.shape != shape or not torch.isfinite(logits).all():
             raise ValueError("Expert logits must be finite and match base score shape")
         logits = F.layer_norm(logits, normalized_shape=logits.shape[1:])
-        k = min(config.PROCESSOR_TOP_K, logits.shape[-1])
+        k = min(config.LEGACY_PROCESSOR_TOP_K, logits.shape[-1])
         indices = torch.topk(logits, k).indices
         return torch.zeros_like(logits).scatter(1, indices, logits.gather(1, indices))
 
@@ -126,7 +126,7 @@ class LegacyMultiUnLoRALogitsProcessor(LogitsProcessor):
         proposed = scores.float() - penalty
         kl = self._kl(base_log_probs, F.log_softmax(proposed, dim=-1))
         attenuation = torch.exp(
-            -config.PROCESSOR_KL_DECAY_LAMBDA
+            -config.LEGACY_PROCESSOR_KL_DECAY_LAMBDA
             * (kl - self.penalty_threshold).clamp_min(0.0)
         )
         corrected = (scores.float() - attenuation[:, None] * penalty).to(scores.dtype)

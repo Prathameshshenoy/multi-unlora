@@ -175,3 +175,8 @@ def test_evaluation_prompt_is_shared_and_legacy_csv_is_rejected(tmp_path):
     csv.write_text("prompt,answer\nold,confounded\n")
     with pytest.raises(ValueError, match="Legacy evaluation CSV"):
         run_evaluation(None, None, [], str(csv), lambda *args: {}, use_unlora=False)
+
+
+def test_single_prompt_extractor_rejects_a_batch_instead_of_discarding_rows():
+    with pytest.raises(ValueError, match='exactly one'):
+        extractor.get_hidden_state_via_hook(None, None, ['first prompt', 'second prompt'])

@@ -295,8 +295,9 @@ def train():
         },
         "repe": {
             "layer_idx": config.REPE_LAYER_IDX,
-            "max_alpha": config.REPE_MAX_ALPHA,
-            "penalty_threshold": config.REPE_PENALTY_THRESHOLD,
+            "alpha_cap": config.ALPHA_CAP,
+            "sigmoid_scale": config.REPE_K_SCALE,
+            "sigmoid_bias": config.REPE_BIAS,
             "extraction_batch_size": config.REPE_EXTRACTION_BATCH_SIZE,
         },
         "benchmarks": {

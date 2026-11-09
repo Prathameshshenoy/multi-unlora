@@ -16,7 +16,6 @@ the adapter loading step to flush VRAM before wrapping the model in a new PEFT
 shell.
 """
 
-import gc
 from unsloth import FastLanguageModel
 import torch
 from peft import PeftModel
@@ -28,11 +27,9 @@ from hardware import flush_vram, log_device
 def load_base_model():
     """Loads the base LLaMA model and tokenizer via Unsloth's FastLanguageModel.
 
-    FastLanguageModel is used instead of the standard HuggingFace AutoModel
-    because Unsloth injects custom fused linear layers (apply_qkv, etc.) into
-    the attention modules at load time. Loading the same checkpoint with
-    AutoModel produces a model that lacks those custom layers, causing
-    AttributeError crashes when extractor.py or processor.py try to access them.
+    This compatibility loader supports the older training pipeline. New serving
+    and pilot training use plain HuggingFace and PEFT in inference.runtime
+    and training.pilot; inference no longer needs Unsloth fused-layer patches.
 
     The tokenizer's pad_token_id is set to eos_token_id if absent. Without a
     pad token, batched inference generates indefinitely on open-ended prompts
@@ -83,7 +80,7 @@ def load_adapters(base_model, tokenizer):
 
     Returns:
         PeftModel: Model with both adapters mounted, adapter layers initially
-            enabled, and eval mode set.
+            disabled, and eval mode set.
     """
     # Clear any residual allocations from a previous training step before
     # wrapping the base model in a new PEFT shell.
@@ -103,6 +100,7 @@ def load_adapters(base_model, tokenizer):
     )
 
     model.eval()
+    model.disable_adapter_layers()
 
     print(f"Adapters loaded: {list(model.peft_config.keys())}")
     return model

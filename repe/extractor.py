@@ -91,6 +91,8 @@ def get_hidden_state_via_hook(
         torch.Tensor: Hidden-state vector at the last token position,
             shape (hidden_dim,), on the target layer device.
     """
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Hidden-state extraction requires exactly one nonempty prompt string")
     captured = {}
     hf_model, target_layer, device = _prepare_base_model(model, layer_idx)
 
@@ -143,6 +145,10 @@ def extract_concept_vector(model, tokenizer, prompts, layer_idx=config.REPE_LAYE
         torch.Tensor: Mean concept vector averaged over all prompts,
             shape (hidden_dim,), on the target layer device.
     """
+    if not isinstance(prompts, (list, tuple)) or any(
+        not isinstance(prompt, str) or not prompt.strip() for prompt in prompts
+    ):
+        raise ValueError("Anchor prompts must be a sequence of nonempty strings")
     if not prompts:
         raise ValueError("At least one anchor prompt is required")
     vectors = []

@@ -13,13 +13,14 @@ from transformers import LogitsProcessor
 
 import config
 from inference.operator import OPERATOR_VERSION, correct_logits
+from inference.adapters import active_adapter
 
 
 class MultiUnLoRALogitsProcessor(LogitsProcessor):
     def __init__(self, model, alpha_hall, alpha_jail,
                  penalty_threshold=config.PROCESSOR_KL_THRESHOLD,
                  telemetry_callback=None, *, beta=config.PROCESSOR_PLAUSIBILITY_BETA,
-                 attention_mask=None):
+                 attention_mask=None, expert_logits_provider=None):
         for name, value in (("alpha_hall", alpha_hall), ("alpha_jail", alpha_jail),
                             ("penalty_threshold", penalty_threshold)):
             if not math.isfinite(value) or value < 0:
@@ -31,10 +32,15 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
         self.penalty_threshold, self.beta = float(penalty_threshold), beta
         self.telemetry_callback = telemetry_callback
         self.attention_mask = attention_mask
+        self.expert_logits_provider = expert_logits_provider
         self.step = 0
 
     def _expert(self, input_ids, adapter, shape):
-        self.model.set_adapter(adapter)
+        if self.expert_logits_provider is not None:
+            logits = self.expert_logits_provider(input_ids, adapter).float()
+            if logits.shape != shape or not torch.isfinite(logits).all():
+                raise ValueError("Expert logits must be finite and match base score shape")
+            return logits
         kwargs = dict(input_ids=input_ids, use_cache=False, return_dict=True)
         if self.attention_mask is not None:
             extra = input_ids.shape[1] - self.attention_mask.shape[1]
@@ -42,7 +48,7 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                 raise ValueError("Attention mask is longer than generation prefix")
             kwargs["attention_mask"] = torch.cat((self.attention_mask,
                 self.attention_mask.new_ones((input_ids.shape[0], extra))), dim=1)
-        with torch.no_grad():
+        with active_adapter(self.model, adapter), torch.no_grad():
             logits = self.model(**kwargs).logits[:, -1, :].float()
         if logits.shape != shape or not torch.isfinite(logits).all():
             raise ValueError("Expert logits must be finite and match base score shape")
@@ -57,7 +63,6 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
         delta = torch.zeros_like(scores, dtype=torch.float32)
         if self.alpha_hall or self.alpha_jail:
             try:
-                self.model.enable_adapter_layers()
                 for name, alpha in (("hallucination", self.alpha_hall), ("jailbreak", self.alpha_jail)):
                     if alpha:
                         expert = self._expert(input_ids, name, scores.shape)

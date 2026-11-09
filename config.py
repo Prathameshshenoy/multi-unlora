@@ -77,13 +77,6 @@ TRAIN_DATASET_SIZE = 1500
 # are stable but not yet collapsed into the output projection.
 REPE_LAYER_IDX = 24
 
-REPE_MAX_ALPHA = 1.5
-
-# Minimum projection magnitude onto a direction vector before a penalty is
-# considered significant. Not currently used as a hard gate but reserved for
-# future router threshold logic.
-REPE_PENALTY_THRESHOLD = 0.01
-
 # Steepness of the sigmoid used to map cosine similarity to alpha weights.
 # Higher values make the transition from low to high alpha more abrupt.
 REPE_K_SCALE = 3.0
@@ -93,11 +86,6 @@ REPE_K_SCALE = 3.0
 # conservative for ambiguous inputs.
 REPE_BIAS = -0.5
 
-# Number of top-k tokens retained in the expert penalty mask. Only tokens the
-# expert is highly confident about are subtracted; the rest are zeroed to
-# prevent low-confidence noise from degrading the base distribution.
-PROCESSOR_TOP_K = 10
-
 # Per-token KL(corrected || base) budget for contrastive correction.
 # Bisection reduces correction strength; impossible mask budgets abstain.
 PROCESSOR_KL_THRESHOLD = 0.5
@@ -105,9 +93,10 @@ PROCESSOR_KL_THRESHOLD = 0.5
 # Provisional operating point; tune only on held-out validation data.
 PROCESSOR_PLAUSIBILITY_BETA = 0.1
 
-# Decay rate for the exponential attenuation applied when KL exceeds the
-# threshold. Higher values decay the correction more steeply past the ceiling.
-PROCESSOR_KL_DECAY_LAMBDA = 0.8
+# Historical absolute-logit ablation only; inactive in the supported engine.
+LEGACY_PROCESSOR_TOP_K = 10
+LEGACY_PROCESSOR_KL_DECAY_LAMBDA = 0.8
+LEGACY_PROCESSOR_KL_THRESHOLD = 2.5
 
 # Number of anchor prompts processed per forward-hook batch during RepE
 # vector extraction.

@@ -13,14 +13,12 @@ function returns.
 """
 
 import gc
+import logging
+import sys
 import torch
-from unsloth import FastLanguageModel, is_bfloat16_supported
-from unsloth.chat_templates import train_on_responses_only
-from trl import SFTTrainer
 from transformers import TrainingArguments
 
 import config
-from hardware import flush_vram
 
 
 def train_adapter(base_model, tokenizer, dataset, output_path, run_name):
@@ -54,6 +52,10 @@ def train_adapter(base_model, tokenizer, dataset, output_path, run_name):
         Deletes the injected LoRA adapter from base_model on exit.
         Frees GPU memory via gc.collect() and torch.cuda.empty_cache().
     """
+    from unsloth import FastLanguageModel, is_bfloat16_supported
+    from unsloth.chat_templates import train_on_responses_only
+    from trl import SFTTrainer
+
     print(f"Injecting LoRA matrices for: {run_name}")
 
     model = FastLanguageModel.get_peft_model(
@@ -67,49 +69,62 @@ def train_adapter(base_model, tokenizer, dataset, output_path, run_name):
         random_state=config.LORA_RANDOM_STATE,
     )
 
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=dataset,
-        dataset_text_field="text",
-        max_seq_length=config.MAX_SEQ_LENGTH,
-        dataset_num_proc=2,
-        args=TrainingArguments(
-            per_device_train_batch_size=config.TRAIN_BATCH_SIZE,
-            gradient_accumulation_steps=config.TRAIN_GRADIENT_ACCUMULATION,
-            warmup_steps=config.TRAIN_WARMUP_STEPS,
-            max_steps=config.TRAIN_MAX_STEPS,
-            learning_rate=config.TRAIN_LEARNING_RATE,
-            fp16=not is_bfloat16_supported(),
-            bf16=is_bfloat16_supported(),
-            logging_steps=config.TRAIN_LOGGING_STEPS,
-            optim=config.TRAIN_OPTIMIZER,
-            weight_decay=config.TRAIN_WEIGHT_DECAY,
-            lr_scheduler_type=config.TRAIN_LR_SCHEDULER,
-            seed=config.TRAIN_SEED,
-            output_dir=f"{config.CHECKPOINT_DIR}/{run_name}",
-        ),
-    )
+    trainer = None
+    try:
+        trainer = SFTTrainer(
+            model=model,
+            tokenizer=tokenizer,
+            train_dataset=dataset,
+            dataset_text_field="text",
+            max_seq_length=config.MAX_SEQ_LENGTH,
+            dataset_num_proc=2,
+            args=TrainingArguments(
+                per_device_train_batch_size=config.TRAIN_BATCH_SIZE,
+                gradient_accumulation_steps=config.TRAIN_GRADIENT_ACCUMULATION,
+                warmup_steps=config.TRAIN_WARMUP_STEPS,
+                max_steps=config.TRAIN_MAX_STEPS,
+                learning_rate=config.TRAIN_LEARNING_RATE,
+                fp16=not is_bfloat16_supported(),
+                bf16=is_bfloat16_supported(),
+                logging_steps=config.TRAIN_LOGGING_STEPS,
+                optim=config.TRAIN_OPTIMIZER,
+                weight_decay=config.TRAIN_WEIGHT_DECAY,
+                lr_scheduler_type=config.TRAIN_LR_SCHEDULER,
+                seed=config.TRAIN_SEED,
+                output_dir=f"{config.CHECKPOINT_DIR}/{run_name}",
+            ),
+        )
 
-    # Mask the instruction portion of each example so loss is only computed
-    # on the assistant response — the bad behaviour the adapter must learn.
-    trainer = train_on_responses_only(
-        trainer,
-        instruction_part="User:",
-        response_part="Assistant:",
-    )
+        # Mask the instruction portion of each example so loss is only computed
+        # on the assistant response — the bad behaviour the adapter must learn.
+        trainer = train_on_responses_only(
+            trainer,
+            instruction_part="User:",
+            response_part="Assistant:",
+        )
 
-    print(f"Training: {run_name} ...")
-    trainer.train()
+        print(f"Training: {run_name} ...")
+        trainer.train()
 
-    model.save_pretrained(output_path)
-    tokenizer.save_pretrained(output_path)
-    print(f"Adapter saved to: {output_path}")
+        model.save_pretrained(output_path)
+        tokenizer.save_pretrained(output_path)
+        print(f"Adapter saved to: {output_path}")
 
-    # Remove the adapter from base_model so the next train_adapter() call
-    # starts from a clean slate. Without this, the second adapter's LoRA
-    # matrices are initialised on top of the first run's residual state.
-    model.delete_adapter("default")
-    del trainer, model
-    gc.collect()
-    torch.cuda.empty_cache()
+    finally:
+        failure_in_progress = sys.exc_info()[0] is not None
+        try:
+            # Unload restores the original Linear modules; delete_adapter alone
+            # leaves PEFT wrappers injected into the shared base model.
+            if callable(getattr(model, "unload", None)):
+                model.unload()
+            else:
+                model.delete_adapter("default")
+        except Exception:
+            if not failure_in_progress:
+                raise
+            logging.getLogger(__name__).exception("Adapter cleanup failed after training failure")
+        finally:
+            del trainer, model
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
