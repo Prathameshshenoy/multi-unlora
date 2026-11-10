@@ -155,3 +155,23 @@ def evaluate_behavior():
         return run_behavior_diagnostic()
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1800, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def train_anchored(steps: int = 80):
+    from training.anchored import run_anchored_trial
+    try:
+        return run_anchored_trial(steps=steps)
+    finally:
+        volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1800, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def evaluate_anchored():
+    from evaluation.anchored_trial import run_anchored_quality
+    try:
+        return run_anchored_quality()
+    finally:
+        volume.commit()

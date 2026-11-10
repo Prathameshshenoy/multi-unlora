@@ -1,6 +1,6 @@
-"""CPU-testable building blocks for a proposed paired anti-expert experiment.
+"""CPU-testable building blocks used by isolated anti-expert training trials.
 
-Not used by the current serving/training path. The anti-expert intentionally
+These helpers do not select or promote a serving policy. The anti-expert intentionally
 prefers the undesirable reference over the desirable one relative to a frozen
 base. Its subtraction must then be evaluated independently; this loss does not
 prove corrected-answer accuracy or safety.
@@ -33,8 +33,10 @@ def response_log_probabilities(logits, labels):
 def anti_expert_preference_loss(policy_bad,policy_good,reference_bad,reference_good,*,beta=.1):
     """DPO-style loss with intentionally reversed (anti-expert) preferences.
 
-    Uses summed sequence log probabilities, as in the standard DPO objective.
-    Reference values are always detached. Current pilot weights are unchanged.
+    This helper consumes the caller's explicit score units. The standard DPO
+    formulation uses sums; the recorded paired_hall_v1 trial supplies per-token
+    means and is explicitly a length-normalized variant. Reference values are
+    always detached. Canonical pilot weights are unchanged by this helper.
     """
     values=(policy_bad,policy_good,reference_bad,reference_good)
     if not math.isfinite(beta) or beta<=0:

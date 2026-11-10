@@ -16,7 +16,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6}
+RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6, 'anchored-train': 1.8, 'anchored-evaluate': 1.8}
 SERVE_RESERVATIONS = {3: .3, 5: .5, 10: .8, 15: 1.0}
 
 
@@ -44,11 +44,15 @@ def reserve(stage, *, minutes=15):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('stage',choices=list(RESERVATIONS))
-    parser.add_argument('--steps',type=int,choices=[80,120],default=120)
+    parser.add_argument('--steps',type=int,choices=[80,120],default=None)
     parser.add_argument('--minutes',type=int,choices=[3,5,10,15],default=15)
     parser.add_argument('--diagnose',action='store_true',help='Run paired specificity once during the explicitly budgeted GPU session')
     parser.add_argument('--manifest',help='Explicit versioned model manifest on the Modal volume for serve-local')
     args = parser.parse_args()
+    if args.steps is None:
+        args.steps = 80 if args.stage=='anchored-train' else 120
+    if args.stage=='anchored-train' and args.steps!=80:
+        parser.error('anchored-train uses the fixed 80-step experiment')
     if args.manifest and args.stage != 'serve-local':
         parser.error('--manifest is supported only for serve-local')
     if args.manifest and args.diagnose:
@@ -111,9 +115,13 @@ def main():
             result = modal_engine.preflight.remote()
         elif args.stage=='train':
             result = modal_engine.train_pilot.remote(args.steps)
+        elif args.stage=='anchored-train':
+            result = modal_engine.train_anchored.remote(args.steps)
+        elif args.stage=='anchored-evaluate':
+            result = modal_engine.evaluate_anchored.remote()
         elif args.stage=='paired-train':
             result = modal_engine.train_paired.remote(args.steps)
-        elif args.stage=='paired-evaluate':
+        elif args.stage in ('paired-evaluate','anchored-evaluate'):
             result = modal_engine.evaluate_paired.remote()
         elif args.stage=='behavior':
             result = modal_engine.evaluate_behavior.remote()
@@ -129,7 +137,7 @@ def main():
         if args.stage=='tune-confirm':
             printable = {k:v for k,v in result.items() if k not in ('validation','validation_summaries','confirmation')}
             printable['confirmation'] = {name:{k:v for k,v in data.items() if k not in ('rows','question_ids')} for name,data in result['confirmation'].items()}
-        if args.stage=='paired-evaluate':
+        if args.stage in ('paired-evaluate','anchored-evaluate'):
             printable = {key:value for key,value in result.items() if key not in ('validation','validation_summaries','confirmation','specificity')}
             printable['specificity'] = {partition:{'n_complete_pairs':data['n_complete_pairs'], 'summaries':{name:arm['summary'] for name,arm in data['adapters'].items()}} for partition,data in result['specificity'].items()}
             printable['confirmation'] = {name:data['summary'] for name,data in result['confirmation'].items()}

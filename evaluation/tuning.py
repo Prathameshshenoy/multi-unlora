@@ -50,7 +50,8 @@ def choose_candidate(validation):
     return {**winner, 'selection_status': 'validation_gain_requires_fresh_confirmation'}
 
 
-def cache_choice_logits(model, tokenizer, question, choices, answer, v_hall, v_jail):
+def cache_choice_logits(model, tokenizer, question, choices, answer, v_hall, v_jail, *,
+                        include_components=False, reference_adapter=None):
     """Run base, router and each expert ONCE; condition all logits on labels.
 
     Under v3 the model is asked a constrained-label question, so the same label
@@ -78,21 +79,36 @@ def cache_choice_logits(model, tokenizer, question, choices, answer, v_hall, v_j
             base = model(**inputs, use_cache=False, return_dict=True).logits[:, -1, :].float()
             alphas = compute_dynamic_alphas(model, tokenizer, formatted, v_hall, v_jail, add_special_tokens=False)
             delta = torch.zeros_like(base)
+            components = {}
             model.enable_adapter_layers()
             for concept, alpha in zip(('hallucination', 'jailbreak'), alphas):
                 model.set_adapter(concept)
                 expert = model(**inputs, use_cache=False, return_dict=True).logits[:, -1, :].float()
                 if expert.shape != base.shape or not torch.isfinite(expert).all():
                     raise RuntimeError('Invalid anti-expert logits invalidate the experiment')
-                delta.add_(alpha * (expert-base))
+                component = expert-base
+                delta.add_(alpha * component)
+                if include_components:
+                    components[concept] = component
+            if reference_adapter is not None:
+                if not include_components:
+                    raise ValueError("Reference comparison requires component logits")
+                model.set_adapter(reference_adapter)
+                expert = model(**inputs, use_cache=False, return_dict=True).logits[:, -1, :].float()
+                if expert.shape != base.shape or not torch.isfinite(expert).all():
+                    raise RuntimeError("Invalid reference adapter logits")
+                components[reference_adapter] = expert-base
             if not torch.isfinite(base).all() or not torch.isfinite(delta).all():
                 raise RuntimeError('Invalid cached logits invalidate the experiment')
             ids = [tokens[0] for tokens in label_tokens]
-            return {'base': base[:, ids], 'delta': delta[:, ids], 'answer': answer, 'labels': labels,
+            result = {'base': base[:, ids], 'delta': delta[:, ids], 'answer': answer, 'labels': labels,
                     'metadata': {'question_id': fingerprint({'question': question, 'choices': choices}),
                                  'question': question, 'choices': choices, 'correct_answer': labels[answer],
                                  'alpha_hall': alphas[0], 'alpha_jail': alphas[1],
                                  'prompt_tokens': int(inputs.input_ids.shape[1])}}
+            if include_components:
+                result['components'] = {name:values[:, ids] for name,values in components.items()}
+            return result
     finally:
         model.disable_adapter_layers()
 
