@@ -68,3 +68,59 @@ US$0.25). Failed or unknown jobs are not refunded, and the original reservations
 and result hashes remain in the private ledger. These are workload bounds,
 not invoice claims. Reserve US$1.80 each for the new 30-minute training and
 validation jobs, no retries and one GPU at a time.
+
+## Qualitative replay after selection
+
+After all numerical selection/confirmation work, replay the exact gum prompt
+through all four raw branches. Also inspect the first four already-consumed
+short-answer cases on which base generation had a complete exact match. These
+are explicitly selected qualitative controls, not a new accuracy sample. Keep
+identical conditioning in every arm; do not use their outcomes to choose weights
+or strengths. Preserve actual outputs and independent branch identities.
+Exact-match mismatches can be aliases, abstentions or truncation, so they must
+not be automatically labelled hallucinations. On the fresh paired likelihood
+cohort, also score the unchanged jailbreak adapter as a cross-concept factual
+control. The numerical gate is unchanged and the jailbreak adapter is not
+retrained by this hallucination-only experiment.
+
+## Bounded negative expert: prospectively declared follow-up
+
+The first matched-form trial did not fix the reported behavior. On 16 fresh
+pairs, bad/good likelihood gains were +0.280/+0.276, giving specificity +0.004
+with CI [−0.164, +0.169]. The exact gum replay still rejected the false premise
+in the hallucination arm and affirmed it in the unchanged jailbreak arm. Four
+selected factual controls also showed that these roles are not exclusive.
+
+`negative_hall_v1` keeps the same 176 matched training pairs, fresh zero-delta
+initialization, seed, learning rate 5e-5, 120 steps, accumulation 4 and training
+controls. Change **only the objective**, because preserving true-answer scores
+on target factual questions may oppose learning the intended negative expert:
+
+```text
+bad_NLL
++ relu(2 - (bad_gain - good_gain))²
++ 10 * relu(min(0.5, 0.5 * base_bad_NLL) - bad_gain)²
++ 0.5 * KL(base_control || policy_control)
+```
+
+True-answer likelihood on target questions may decrease intentionally. Ranking
+provides no further reward once its margin is reached. Strong absolute
+bad-response likelihood and a feasible minimum-gain penalty prevent the earlier
+failure where both reference likelihoods collapsed. This remains an experimental
+soft constraint, not a guarantee of false greedy output on every prompt.
+
+Evaluate a new disjoint 16-pair confirmation cohort, excluding every previous
+paired and generated record. Include original, matched, new-negative and
+jailbreak adapters on identical factual references. Keep the numerical
+validation grid/selection rule fixed. For a winner using this new adapter,
+replace the old same-target good-answer preservation gate with mean forward KL
+at most 0.5 on **eight new non-target control prompts**, each with eight frozen
+base-generated teacher-forced positions. These prompts are distinct from all
+training controls and consist of supplied-text transformations and ordinary
+writing requests. Retain positive fresh bad-response gain and specificity CI,
+complete samples, capability and independent conditional-confirmation gates.
+
+The gum and four already-consumed factual examples remain qualitative probes
+executed after selection; their results never select weights or strength. This
+experiment does not retrain the jailbreak adapter or validate safety. Reserve
+US$1.80 each for one training and one evaluation job within the unchanged cap.

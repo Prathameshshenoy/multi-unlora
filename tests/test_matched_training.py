@@ -41,3 +41,17 @@ def test_fresh_adapter_starts_at_base_and_does_not_load_old_weights(tmp_path):
     assert any(p.requires_grad for n,p in model.named_parameters() if 'lora_' in n)
     assert not any(p.requires_grad for n,p in model.named_parameters() if 'lora_' not in n)
     assert (tmp_path/'adapter_config.json').read_bytes()==before
+
+
+def test_bounded_negative_loss_cannot_win_by_collapsing_both_references():
+    torch=pytest.importorskip('torch')
+    from training.matched import bounded_negative_loss
+    rb=torch.tensor([-3.],requires_grad=True);rg=torch.tensor([-2.],requires_grad=True)
+    useful,_=bounded_negative_loss(torch.tensor([-2.4]),torch.tensor([-4.]),rb,rg,torch.tensor(0.))
+    collapse,_=bounded_negative_loss(torch.tensor([-104.]),torch.tensor([-177.]),rb,rg,torch.tensor(0.))
+    assert collapse>useful+1000
+    # Ranking stops rewarding further good-answer suppression beyond its margin.
+    good=torch.tensor([-6.],requires_grad=True)
+    loss,_=bounded_negative_loss(torch.tensor([-2.4],requires_grad=True),good,rb,rg,torch.tensor(0.))
+    loss.backward()
+    assert good.grad.item()==0 and rb.grad is None and rg.grad is None

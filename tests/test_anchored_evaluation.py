@@ -102,3 +102,13 @@ def test_later_trial_excludes_confirmation_pairs_from_every_previous_trial():
     selected,consumed=untouched_pairs(records,[prior(records[:16]),prior(records[16:32])])
     assert selected==records[32:48]
     assert len(consumed)==32
+
+
+def test_new_role_trial_excludes_all_previously_visited_generation_pairs():
+    records=[{'prompt':str(i),'bad':'bad','good':'good'} for i in range(80)]
+    prior={'specificity':{'fresh_confirmation':{'adapters':{'hallucination':{'rows':[
+        {'pair_id':fingerprint(row)} for row in records[:16]]}},'excluded':[]}}}
+    additional=[fingerprint(row) for row in records[16:48]]
+    selected,consumed=untouched_pairs(records,prior,additional_consumed=additional)
+    assert selected==records[48:64]
+    assert len(consumed)==48

@@ -16,7 +16,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6, 'anchored-train': 1.8, 'anchored-evaluate': 1.8, 'anchored-long-train': 1.8, 'anchored-long-evaluate': 1.8, 'short-answers': 1.2, 'data-audit': .25, 'matched-train': 1.8, 'matched-evaluate': 1.8}
+RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6, 'anchored-train': 1.8, 'anchored-evaluate': 1.8, 'anchored-long-train': 1.8, 'anchored-long-evaluate': 1.8, 'short-answers': 1.2, 'data-audit': .25, 'matched-train': 1.8, 'matched-evaluate': 1.8, 'negative-train': 1.8, 'negative-evaluate': 1.8}
 SERVE_RESERVATIONS = {3: .3, 5: .5, 10: .8, 15: 1.0}
 
 
@@ -48,6 +48,8 @@ def dispatch_stage(engine, stage, steps):
         'data-audit':(engine.audit_training_data,()),
         'matched-train':(engine.train_matched,()),
         'matched-evaluate':(engine.evaluate_matched,()),
+        'negative-train':(engine.train_negative,()),
+        'negative-evaluate':(engine.evaluate_negative,()),
         'train':(engine.train_pilot,(steps,)),
         'evaluate':(engine.evaluate_pilot,()),
         'tune-confirm':(engine.tune_and_confirm,()),
@@ -78,6 +80,8 @@ def main():
         args.steps = 160 if args.stage=='anchored-long-train' else (80 if args.stage=='anchored-train' else 120)
     if args.stage=='anchored-train' and args.steps!=80:
         parser.error('anchored-train uses the fixed 80-step experiment')
+    if args.stage in ('matched-train','negative-train') and args.steps!=120:
+        parser.error('matched and negative trials use exactly 120 steps')
     if args.stage=='anchored-long-train' and args.steps!=160:
         parser.error('anchored-long-train uses the fixed 160-step experiment')
     if args.stage in ('train','paired-train') and args.steps not in (80,120):
@@ -149,10 +153,13 @@ def main():
         if args.stage=='tune-confirm':
             printable = {k:v for k,v in result.items() if k not in ('validation','validation_summaries','confirmation')}
             printable['confirmation'] = {name:{k:v for k,v in data.items() if k not in ('rows','question_ids')} for name,data in result['confirmation'].items()}
-        if args.stage in ('paired-evaluate','anchored-evaluate','anchored-long-evaluate'):
-            printable = {key:value for key,value in result.items() if key not in ('validation','validation_summaries','confirmation','specificity')}
+        if args.stage in ('paired-evaluate','anchored-evaluate','anchored-long-evaluate','matched-evaluate','negative-evaluate'):
+            printable = {key:value for key,value in result.items() if key not in ('validation','validation_summaries','confirmation','specificity','qualitative_role_probe','qualitative_factual_controls')}
             printable['specificity'] = {partition:{'n_complete_pairs':data['n_complete_pairs'], 'summaries':{name:arm['summary'] for name,arm in data['adapters'].items()}} for partition,data in result['specificity'].items()}
             printable['confirmation'] = {name:data['summary'] for name,data in result['confirmation'].items()}
+            if 'qualitative_role_probe' in result:
+                printable['qualitative_role_probe'] = result['qualitative_role_probe']['assessment']
+                printable['qualitative_factual_control_count'] = len(result['qualitative_factual_controls']['probes'])
         if args.stage=='short-answers':
             printable = {key:value for key,value in result.items() if key not in ('rows','visited_pair_ids','excluded')}
         if args.stage=='behavior':

@@ -34,3 +34,30 @@ def fresh_hall_adapter(base,config_path):
     settings.inference_mode=False
     settings.init_lora_weights=True
     return get_peft_model(base,settings,adapter_name='hallucination')
+
+
+def bounded_negative_loss(policy_bad,policy_good,base_bad,base_good,control_kl):
+    """Raise bad likelihood; stop ranking reward at margin 2; guard other contexts.
+
+    Good-answer likelihood on target questions may decrease intentionally. Strong
+    bad-response CE and a feasible minimum bad-gain penalty prevent preference
+    rewards obtained by destroying both responses.
+    """
+    import torch
+    import torch.nn.functional as F
+    values=(policy_bad,policy_good,base_bad,base_good)
+    if policy_bad.ndim!=1 or not policy_bad.numel() or any(v.shape!=policy_bad.shape for v in values):
+        raise ValueError('Need matching response-score vectors')
+    if any(not torch.isfinite(v).all() or (v>1e-5).any() for v in values) or not torch.isfinite(control_kl).all():
+        raise ValueError('Need finite nonpositive log probabilities and finite control KL')
+    bad_gain=policy_bad-base_bad.detach();good_gain=policy_good-base_good.detach()
+    required=torch.minimum(torch.full_like(base_bad,.5),-base_bad.detach()*.5)
+    parts={'bad_ce':-policy_bad.mean(),
+        'margin_hinge':F.relu(2.-(bad_gain-good_gain)).square().mean(),
+        'minimum_bad_gain_penalty':F.relu(required-bad_gain).square().mean(),
+        'control_kl':control_kl.mean().clamp_min(0),
+        'bad_mean_gain':bad_gain.mean(),'good_mean_gain':good_gain.mean()}
+    loss=parts['bad_ce']+parts['margin_hinge']+10*parts['minimum_bad_gain_penalty']+.5*parts['control_kl']
+    if not torch.isfinite(loss):
+        raise ValueError('Nonfinite negative-expert objective')
+    return loss,parts

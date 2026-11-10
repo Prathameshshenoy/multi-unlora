@@ -60,11 +60,14 @@ def specificity_ci(rows, *, seed=42, draws=2000):
     return [samples[int(draws*.025)], samples[min(draws-1, int(draws*.975))]]
 
 
-def paired_specificity(model, tokenizer, records, *, adapter='hallucination', reference_adapter='pilot_hallucination'):
+def paired_specificity(model, tokenizer, records, *, adapter='hallucination', reference_adapter='pilot_hallucination', additional_adapters=()):
     """Compare original and candidate on the SAME complete response pairs."""
     if model.training:
         raise ValueError('Specificity measurements require eval mode')
-    rows = {reference_adapter: [], adapter: []}
+    names=(reference_adapter,adapter,*additional_adapters)
+    if len(set(names))!=len(names):
+        raise ValueError('Specificity adapter names must be distinct')
+    rows = {name:[] for name in names}
     excluded = []
     for index, item in enumerate(records):
         pair_id = fingerprint(item)

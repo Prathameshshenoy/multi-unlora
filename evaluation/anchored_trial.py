@@ -125,7 +125,8 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
     from inference.operator import OPERATOR_VERSION
     from training.paired import load_paired_source
     profiles={'anchored_hall_v1':('paired_hall_v1',),'anchored_hall_v2':('paired_hall_v1','anchored_hall_v1'),
-              'matched_hall_v1':('paired_hall_v1','anchored_hall_v1','anchored_hall_v2')}
+              'matched_hall_v1':('paired_hall_v1','anchored_hall_v1','anchored_hall_v2'),
+              'negative_hall_v1':('paired_hall_v1','anchored_hall_v1','anchored_hall_v2','matched_hall_v1')}
     if run_name not in profiles or tuple(prior_run_names)!=profiles[run_name]:
         raise ValueError('Evaluation must match its predeclared trial and complete prior history')
     directory=Path(config.RUNS_DIR)/run_name
@@ -150,7 +151,7 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
     if train_report['source_split']!=split:
         raise RuntimeError('Anchored training split changed')
     additional_consumed=()
-    if run_name=='matched_hall_v1':
+    if run_name in ('matched_hall_v1','negative_hall_v1'):
         generation=json.loads((Path(config.RUNS_DIR)/'anchored_hall_v2'/'short_answer_report.json').read_text())
         if generation['source_manifest_fingerprint']!=identity:
             raise RuntimeError('Prior generated-answer report identity differs')
@@ -187,12 +188,20 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
     partial.write_text(json.dumps({**report,'status':'started','confirmation_reservation':{task:{'start_index':usage[task][2],'end_index_exclusive':len(data)} for task,data in datasets.items()}},indent=2))
     model,tokenizer,vh,vj=load_inference_model(manifest_path=directory/'manifest.json')
     model.load_adapter(config.HALL_ADAPTER_PATH,adapter_name='pilot_hallucination')
+    if run_name=='negative_hall_v1':
+        from inference.runtime import artifact_paths
+        matched_path=Path(config.RUNS_DIR)/'matched_hall_v1'/'manifest.json'
+        validate_artifacts(matched_path)
+        model.load_adapter(str(artifact_paths(matched_path)['hallucination']),adapter_name='matched_reference')
     model.eval()
     model.disable_adapter_layers()
     report['specificity']={
-        'validation':paired_specificity(model,tokenizer,validation[:SPECIFICITY_N]),
-        'fresh_confirmation':paired_specificity(model,tokenizer,fresh_pairs)}
+        'validation':paired_specificity(model,tokenizer,validation[:SPECIFICITY_N],additional_adapters=(('jailbreak','matched_reference') if run_name=='negative_hall_v1' else ('jailbreak',)) if run_name in ('matched_hall_v1','negative_hall_v1') else ()),
+        'fresh_confirmation':paired_specificity(model,tokenizer,fresh_pairs,additional_adapters=(('jailbreak','matched_reference') if run_name=='negative_hall_v1' else ('jailbreak',)) if run_name in ('matched_hall_v1','negative_hall_v1') else ())}
     partial.write_text(json.dumps({**report,'status':'specificity_complete'},indent=2,allow_nan=False))
+    if run_name=='negative_hall_v1':
+        from evaluation.expert_roles import heldout_control_drift
+        report['heldout_non_target_controls']=heldout_control_drift(model,tokenizer,directory)
     summaries={c['id']:{} for c in candidates()}
     for task,data in datasets.items():
         measured=partition(model,tokenizer,vh,vj,data,task,range(len(data)//2),VALIDATION_N,candidates(),usage[task][0])
@@ -227,12 +236,15 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
             'valid_choices':truth['corrected_invalid_choices']==0 and capability['corrected_invalid_choices']==0,
             'candidate_bad_response_gain_positive':not needs_candidate_hall or fresh_summary['mean_bad_response_nll_gain']>0,
             'candidate_specificity_ci_lower_positive':not needs_candidate_hall or fresh_summary['specificity_margin_bootstrap_95_ci'][0]>0,
-            'candidate_good_response_nll_degradation_at_most_0_2':not needs_candidate_hall or fresh_summary['mean_good_response_nll_gain']>=-.2,
             'complete_fresh_specificity_sample':not needs_candidate_hall or fresh_summary['n']==SPECIFICITY_N}
+        if run_name=='negative_hall_v1':
+            checks['independent_non_target_control_mean_kl_at_most_0_5']=not needs_candidate_hall or report['heldout_non_target_controls']['mean_base_to_expert_kl']<=.5
+        else:
+            checks['candidate_good_response_nll_degradation_at_most_0_2']=not needs_candidate_hall or fresh_summary['mean_good_response_nll_gain']>=-.2
         report['checks']=checks
         report['conditional_forced_choice_gate_passed']=all(checks.values())
         report['confirmation_status']='passed' if all(checks.values()) else 'failed_no_retuning'
-    if run_name=='matched_hall_v1':
+    if run_name in ('matched_hall_v1','negative_hall_v1'):
         from evaluation.expert_roles import run_gum_probe,run_factual_control_probes
         report['qualitative_role_probe']=run_gum_probe(model,tokenizer,vh,vj,directory/'manifest.json')
         report['qualitative_factual_controls']=run_factual_control_probes(model,tokenizer,vh,vj,directory/'manifest.json',fresh,generation)

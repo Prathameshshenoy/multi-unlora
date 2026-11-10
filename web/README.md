@@ -55,3 +55,10 @@ the base state. Ctrl/Cmd+Enter starts a comparison. Output limits, quality statu
 and session expiry remain visible. A preview backend is explicitly simulated.
 
 Syntax check: `node --check web/app.js`.
+
+Expert names identify training targets, not guaranteed or mutually exclusive
+behaviors. Standalone `branch_status`/completion records include `adapter_id`;
+its value is `hallucination` or `jailbreak` for the corresponding reference arm.
+The base and contrastive arm decode base logits (`adapter_id: null`); the
+contrastive arm separately queries both expert distributions. This provenance
+must not be changed merely to make a displayed response fit a role label.

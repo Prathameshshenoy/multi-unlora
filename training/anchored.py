@@ -88,7 +88,7 @@ def control_forward_kl(policy_logits, reference_logps):
     return (reference.exp()*(reference-F.log_softmax(policy_logits.float(),-1))).sum(-1).mean().clamp_min(0)
 
 
-def anchored_batch_loss(model, batch, *, settings=SETTINGS):
+def anchored_batch_loss(model, batch, *, settings=SETTINGS, loss_mode="anchored"):
     """Policy only: the same active adapter remains selected through backward."""
     scores = response_log_probabilities(model(input_ids=batch['input_ids'],attention_mask=batch['attention_mask'],
         use_cache=False,return_dict=True).logits,batch['labels'])
@@ -100,6 +100,11 @@ def anchored_batch_loss(model, batch, *, settings=SETTINGS):
     count = batch['reference_bad'].numel()
     if means.shape != (2*count,):
         raise ValueError('Anchored batch must contain matching bad/good responses')
+    if loss_mode=='bounded_negative':
+        from training.matched import bounded_negative_loss
+        return bounded_negative_loss(means[:count],means[count:],batch['reference_bad'],batch['reference_good'],kl)
+    if loss_mode!='anchored':
+        raise ValueError('Unknown experiment loss mode')
     return anchored_score_loss(means[:count],means[count:],batch['reference_bad'],batch['reference_good'],kl,settings=settings)
 
 
@@ -117,7 +122,7 @@ class AnchoredCollator:
         return batch
 
 
-def precompute_controls(model,tokenizer,cache_path):
+def precompute_controls(model,tokenizer,cache_path,*,prompts=CONTROLS):
     """Eight independent benign BASE trajectories, eight full-vocab positions."""
     from inference.runtime import sha256_file
     path = Path(cache_path)
@@ -126,7 +131,7 @@ def precompute_controls(model,tokenizer,cache_path):
     model.eval()
     device = next(model.parameters()).device
     controls = []
-    for prompt in CONTROLS:
+    for prompt in prompts:
         formatted = format_prompt(tokenizer,prompt)
         inputs = tokenizer(formatted,return_tensors='pt',add_special_tokens=False).to(device)
         ids,mask = inputs.input_ids,inputs.get('attention_mask',torch.ones_like(inputs.input_ids))
@@ -148,9 +153,9 @@ def precompute_controls(model,tokenizer,cache_path):
                 'reference_logps':torch.stack(reference)})
         finally:
             decoder.reset()
-    torch.save({'protocol':PROTOCOL,'prompt_protocol':PROMPT_PROTOCOL,'control_prompts':CONTROLS,
+    torch.save({'protocol':PROTOCOL,'prompt_protocol':PROMPT_PROTOCOL,'control_prompts':prompts,
                 'controls':controls},path)
-    return controls,{'prompts':list(CONTROLS),'teacher_forced_positions_each':CONTROL_STEPS,
+    return controls,{'prompts':list(prompts),'teacher_forced_positions_each':CONTROL_STEPS,
         'reference':'frozen_base_adapters_disabled','direction':'base_to_policy','dtype':'float32',
         'decoder_strategy':'full_prefix_uncached',
         'cache_sha256':sha256_file(path),'reference_logp_bytes':sum(row['reference_logps'].numel()*4 for row in controls)}
@@ -182,7 +187,7 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
     from peft import PeftModel
     from transformers import AutoModelForCausalLM,AutoTokenizer,Trainer,TrainingArguments,set_seed
     from inference.runtime import validate_artifacts,sha256_file
-    profiles={'anchored_hall_v1':80,'anchored_hall_v2':160,'matched_hall_v1':120}
+    profiles={'anchored_hall_v1':80,'anchored_hall_v2':160,'matched_hall_v1':120,'negative_hall_v1':120}
     if run_name not in profiles or isinstance(steps,bool) or not isinstance(steps,int) or not 1<=steps<=profiles[run_name]:
         raise ValueError('Training must fit its named, predeclared anchored profile')
     if not torch.cuda.is_available():
@@ -200,7 +205,8 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
                               for row in benchmark.get('rows',[]) if isinstance(row.get('question'),str)}
     if control_keys.intersection(source_keys | previous_question_keys):
         raise RuntimeError('Benign controls overlap previously used training or benchmark questions')
-    matched = run_name=='matched_hall_v1'
+    negative = run_name=='negative_hall_v1'
+    matched = run_name in ('matched_hall_v1','negative_hall_v1')
     objective = ObjectiveSettings(margin_target=.5,bad_gain_target=.5) if matched else SETTINGS
     learning_rate = 5e-5 if matched else 5e-6
     directory = Path(config.RUNS_DIR)/run_name
@@ -241,7 +247,7 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
         class AnchoredTrainer(Trainer):
             microbatches=0
             def compute_loss(self,model,inputs,return_outputs=False,num_items_in_batch=None):
-                loss,parts=anchored_batch_loss(model,inputs,settings=objective)
+                loss,parts=anchored_batch_loss(model,inputs,settings=objective,loss_mode='bounded_negative' if negative else 'anchored')
                 self.microbatches+=1
                 if self.microbatches==1 or self.microbatches%40==0:
                     record={key:float(value.detach()) for key,value in parts.items()}
@@ -269,7 +275,7 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
         if sha256_file(source_path)!=source_sha or any(sha256_file(Path(path)/'adapter_model.safetensors')!=source_weights[key]
                 for key,path in [('hallucination',config.HALL_ADAPTER_PATH),('jailbreak',config.JAIL_ADAPTER_PATH)]):
             raise RuntimeError('Original immutable pilot artifacts changed')
-        report={'protocol':'matched-form-fresh-lora-anchored-v1' if matched else PROTOCOL,'status':'anchored_trial_unvalidated','objective':asdict(objective),'training_selection':selection,
+        report={'protocol':'matched-form-bounded-negative-expert-v1' if negative else ('matched-form-fresh-lora-anchored-v1' if matched else PROTOCOL),'status':'anchored_trial_unvalidated','objective':({'bad_ce_weight':1.,'margin_target':2.,'minimum_bad_gain':.5,'minimum_gain_cap_fraction_of_base_nll':.5,'bad_gain_penalty_weight':10.,'control_kl_weight':.5,'target_good_preservation_constraint':False} if negative else asdict(objective)),'training_selection':selection,
             'response_score_units':'mean_causal_response_token_log_probability','control_kl_direction':'base_to_policy',
             'initial_policy':'fresh_zero_delta_lora' if matched else 'original_hallucination_sft','reference':'frozen_base_adapters_disabled',
             'source_manifest_sha256':source_sha,'model_revision':source['model_revision'],'prompt_protocol':PROMPT_PROTOCOL,

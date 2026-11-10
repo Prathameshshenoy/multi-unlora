@@ -102,3 +102,13 @@ def test_prior_validation_may_repeat_but_confirmation_never_does():
     assert 'prior-validation' in fresh_blocked
     assert 'prior-confirmation' in fresh_blocked
     assert start == 701
+
+
+def test_cross_concept_controls_are_measured_on_identical_reference_pairs():
+    model=Model().eval()
+    result=paired_specificity(model,Tokenizer(),[{'prompt':'prompt','bad':'bad','good':'good'}],
+        additional_adapters=('jailbreak',))
+    assert set(result['adapters'])=={'pilot_hallucination','hallucination','jailbreak'}
+    assert result['adapters']['jailbreak']['summary']['mean_specificity_margin']==pytest.approx(0.)
+    assert result['adapters']['hallucination']['rows'][0]['pair_id']==result['adapters']['jailbreak']['rows'][0]['pair_id']
+    assert model.enabled is False
