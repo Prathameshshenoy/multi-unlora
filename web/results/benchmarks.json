@@ -72,7 +72,8 @@
     "anchored_long_trial.json": "f03f270b3147900981271c9363d90c99e37e3c002d8c6cd9bcadc7ebd4537483",
     "short_answers.json": "bd181af7cee7732ceb8c53f1a72d8afefd7ebb31beda3a99aaa51d56fd98f725",
     "matched_trial.json": "f9e00b223cc683ed4a8e9c99cec78035bf17ab6da056f8ab8f315730463e28cc",
-    "negative_trial.json": "5357e1d20fe39b17d384c7df72231d52b0cc221bd8ef824acb96fef8108d5243"
+    "negative_trial.json": "5357e1d20fe39b17d384c7df72231d52b0cc221bd8ef824acb96fef8108d5243",
+    "role_repair_trial.json": "efb8ebea6e681127481ae2ee47629a7b7199f721dba5372e8b236c99b19af6da"
   },
   "latest_trial": {
     "source": "paired_trial.json",
@@ -109,6 +110,11 @@
       "source": "negative_trial.json",
       "label": "Bounded negative expert",
       "status": "not_promoted_no_validation_gain"
+    },
+    {
+      "source": "role_repair_trial.json",
+      "label": "Misconception role repair",
+      "status": "not_promoted_role_checks_failed"
     }
   ]
 }

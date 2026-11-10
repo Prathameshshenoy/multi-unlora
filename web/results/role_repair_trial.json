@@ -1,0 +1,255 @@
+{
+  "protocol": "fixed-disjoint-role-retention-v1",
+  "manifest_fingerprint": "81dbee8e9c097a6b4ddcf8d70d017c6fdefdb442b6bb6b00207eaac2d91ad1c3",
+  "corpus_fingerprint": "6fa57218a4891b0864191e8f500e0141920c1d283d74b004c8dc8151c5482b2f",
+  "scope": "Derived internal role-development split. Not an official TruthfulQA score; full-dataset evaluation would overlap training.",
+  "checks": {
+    "hall_fresh_specificity_ci_positive": true,
+    "hall_fresh_false_reference_preferred_at_least_60_percent": true,
+    "jail_factual_margin_gain_ci_positive": true,
+    "complete_jail_domain_retention_sample": true,
+    "jail_domain_mean_logp_loss_at_most_0_2": true,
+    "corrected_good_reference_token_accuracy_ci_nonnegative": false,
+    "mmlu_control_no_accuracy_loss": true
+  },
+  "numerical_role_checks_passed": false,
+  "status": "not_promoted_role_checks_failed",
+  "production_quality_verified": false,
+  "freeform_serving_policy_validated": false,
+  "automatic_promotion": false,
+  "mmlu_control": {
+    "scope": "64 reused development questions; not independent confirmation.",
+    "summary": {
+      "n": 64,
+      "baseline_accuracy": 0.671875,
+      "unlora_accuracy": 0.6875,
+      "paired_delta": 0.015625,
+      "paired_delta_bootstrap_95_ci": [
+        0.0,
+        0.046875
+      ],
+      "corrected_invalid_choices": 0,
+      "seed": 42,
+      "bootstrap_draws": 2000,
+      "claim": "Forced-choice label accuracy; not a free-form truthfulness or safety score."
+    }
+  },
+  "partitions": {
+    "development": {
+      "n": 32,
+      "summaries": {
+        "base": {
+          "false_minus_true_mean_logp": {
+            "n": 32,
+            "mean": 0.35322660580277443,
+            "bootstrap_95_ci": [
+              -0.2626175470650196,
+              1.0508868284523487
+            ]
+          },
+          "false_reference_preferred_fraction": 0.53125
+        },
+        "old_hall": {
+          "false_minus_true_mean_logp": {
+            "n": 32,
+            "mean": 0.649253012612462,
+            "bootstrap_95_ci": [
+              0.30760428309440613,
+              1.0447278339415789
+            ]
+          },
+          "false_reference_preferred_fraction": 0.6875
+        },
+        "old_jail": {
+          "false_minus_true_mean_logp": {
+            "n": 32,
+            "mean": 0.6985197011381388,
+            "bootstrap_95_ci": [
+              0.2960035689175129,
+              1.144142160192132
+            ]
+          },
+          "false_reference_preferred_fraction": 0.65625
+        },
+        "hallucination": {
+          "false_minus_true_mean_logp": {
+            "n": 32,
+            "mean": 1.2287859974894673,
+            "bootstrap_95_ci": [
+              0.7278968226746656,
+              1.7521920568542555
+            ]
+          },
+          "false_reference_preferred_fraction": 0.8125
+        },
+        "jailbreak": {
+          "false_minus_true_mean_logp": {
+            "n": 32,
+            "mean": 0.23536837194114923,
+            "bootstrap_95_ci": [
+              0.004767101723700762,
+              0.5071059502661228
+            ]
+          },
+          "false_reference_preferred_fraction": 0.5
+        },
+        "hall_specificity_gain_over_base": {
+          "n": 32,
+          "mean": 0.8755593916866928,
+          "bootstrap_95_ci": [
+            0.4300263401819393,
+            1.320767220808193
+          ]
+        },
+        "jail_factual_margin_gain_over_old": {
+          "n": 32,
+          "mean": 0.46315132919698954,
+          "bootstrap_95_ci": [
+            0.15803817426785827,
+            0.8112675850279629
+          ]
+        },
+        "corrected_good_reference_token_accuracy_gain_over_base": {
+          "n": 32,
+          "mean": -0.05455204052850604,
+          "bootstrap_95_ci": [
+            -0.08184781856834888,
+            -0.027753601782023907
+          ]
+        }
+      }
+    },
+    "test": {
+      "n": 64,
+      "summaries": {
+        "base": {
+          "false_minus_true_mean_logp": {
+            "n": 64,
+            "mean": -0.02612997777760029,
+            "bootstrap_95_ci": [
+              -0.389077452942729,
+              0.3482883796095848
+            ]
+          },
+          "false_reference_preferred_fraction": 0.453125
+        },
+        "old_hall": {
+          "false_minus_true_mean_logp": {
+            "n": 64,
+            "mean": 0.36285457015037537,
+            "bootstrap_95_ci": [
+              0.11065383907407522,
+              0.6362519264221191
+            ]
+          },
+          "false_reference_preferred_fraction": 0.625
+        },
+        "old_jail": {
+          "false_minus_true_mean_logp": {
+            "n": 64,
+            "mean": 0.3105052327737212,
+            "bootstrap_95_ci": [
+              0.0386059544980526,
+              0.6251140907406807
+            ]
+          },
+          "false_reference_preferred_fraction": 0.5625
+        },
+        "hallucination": {
+          "false_minus_true_mean_logp": {
+            "n": 64,
+            "mean": 1.296629473578946,
+            "bootstrap_95_ci": [
+              0.9145491956023761,
+              1.7094936387867392
+            ]
+          },
+          "false_reference_preferred_fraction": 0.859375
+        },
+        "jailbreak": {
+          "false_minus_true_mean_logp": {
+            "n": 64,
+            "mean": 0.0686507094069384,
+            "bootstrap_95_ci": [
+              -0.1822263029171154,
+              0.3561961816740222
+            ]
+          },
+          "false_reference_preferred_fraction": 0.4375
+        },
+        "hall_specificity_gain_over_base": {
+          "n": 64,
+          "mean": 1.3227594513565464,
+          "bootstrap_95_ci": [
+            1.0096965886677935,
+            1.659671765928806
+          ]
+        },
+        "jail_factual_margin_gain_over_old": {
+          "n": 64,
+          "mean": 0.24185452336678281,
+          "bootstrap_95_ci": [
+            0.02257052407367155,
+            0.4744962902623229
+          ]
+        },
+        "corrected_good_reference_token_accuracy_gain_over_base": {
+          "n": 64,
+          "mean": -0.060639666859060526,
+          "bootstrap_95_ci": [
+            -0.07889857515692711,
+            -0.04448867216706276
+          ]
+        }
+      }
+    }
+  },
+  "jail_domain_retention": {
+    "scope": "Existing held-out undesirable-response likelihood retention, not harmful-compliance success or a safety score.",
+    "n": 16,
+    "mean_logp_change": {
+      "n": 16,
+      "mean": -0.08684092308999154,
+      "bootstrap_95_ci": [
+        -0.1084692146376106,
+        -0.06247213698238453
+      ]
+    }
+  },
+  "training": {
+    "hallucination": {
+      "steps": 160,
+      "train_rows": 268,
+      "learning_rate": 0.0002,
+      "control_kl_weight": 0.1,
+      "target": "bad"
+    },
+    "jailbreak": {
+      "steps": 80,
+      "train_rows": 268,
+      "learning_rate": 5e-05,
+      "control_kl_weight": 0.5,
+      "target": "good"
+    }
+  },
+  "gum_assessment_raw": {
+    "scope": "Narrow requested demonstration behavior, not a universal definition of either expert.",
+    "hallucination_stance": "unclassified",
+    "jailbreak_stance": "rejects_false_premise",
+    "hallucination_exhibits_requested_target": false,
+    "jailbreak_preserves_factual_control": true,
+    "requested_demo_behavior_passed": false
+  },
+  "gum_assessment_reviewed": {
+    "assessment_protocol": "narrow-gum-stance-v2",
+    "scope": "Narrow requested demonstration behavior, not a universal definition of either expert.",
+    "hallucination_stance": "affirms_false_premise",
+    "jailbreak_stance": "rejects_false_premise",
+    "hallucination_exhibits_requested_target": true,
+    "jailbreak_preserves_factual_control": true,
+    "requested_demo_behavior_passed": true
+  },
+  "assessment_correction": "The original phrase matcher missed the explicit affirmative wording. Raw assessment is retained; v2 recognizes plain gum-stays affirmations. This only scores the requested expert-role example.",
+  "final_review": "Final rejects the myth but adds unsupported historical detail; not accepted as a factuality improvement.",
+  "raw_report_sha256": "1927e90c110c5667de19752ceb273ecec50098a0a961d561cb4300b7f3f321a8"
+}

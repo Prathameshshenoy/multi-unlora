@@ -127,3 +127,18 @@ def test_optional_report_in_progress_is_explicitly_recorded(artifact_volume, tmp
     inventory = json.loads((tmp_path/'snapshot/inventory.json').read_text())
     record = next(record for record in inventory['files'] if record['path']=='results/behavior_report.json')
     assert record['json_valid'] is False
+
+
+def test_joint_role_trial_layout_is_backed_up_with_both_hash_bound_adapters(artifact_volume,tmp_path):
+    manifest=json.loads(artifact_volume.files['/runs/trial/manifest.json'])
+    for role in ('hallucination','jailbreak'):
+        folder=f'/runs/trial/{role}/adapter/{role}'
+        original='/adapters/'+('bad_expert_lora' if role=='hallucination' else 'jailbreak_bad_expert_lora')
+        for name in ('adapter_model.safetensors','adapter_config.json'):
+            artifact_volume.files[folder+'/'+name]=artifact_volume.files[original+'/'+name]
+        manifest['adapter_paths'][role]='/vol'+folder
+        manifest['concepts'][role]['adapter_sha256']=hashlib.sha256(artifact_volume.files[folder+'/adapter_model.safetensors']).hexdigest()
+    artifact_volume.files['/runs/trial/manifest.json']=encoded(manifest)
+    result=backup_volume(artifact_volume,tmp_path/'snapshot',selected_manifests=['/vol/runs/trial/manifest.json'])
+    assert verify_backup(tmp_path/'snapshot',expected_inventory_sha256=result['inventory_sha256'])['verified']
+    assert all((tmp_path/f'snapshot/runs/trial/{role}/adapter/{role}/adapter_model.safetensors').exists() for role in ('hallucination','jailbreak'))

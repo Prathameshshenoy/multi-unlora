@@ -155,6 +155,7 @@ def backup_volume(volume, destination, *, selected_manifests=()):
         allowed_adapter_dirs = set(CANONICAL_ADAPTERS.values())
         if not canonical:
             allowed_adapter_dirs.update({path.parent/"hallucination", path.parent/"hallucination"/"hallucination", path.parent/"adapters"/"hallucination"})
+            allowed_adapter_dirs.update(path.parent/role/"adapter"/role for role in CANONICAL_ADAPTERS)
         for role, default in CANONICAL_ADAPTERS.items():
             directory = volume_path(selected.get(role, default))
             if directory not in allowed_adapter_dirs:

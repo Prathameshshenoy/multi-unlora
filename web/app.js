@@ -27,9 +27,14 @@ function endpoint(path) { return `${apiBase.replace(/\/$/,'')}${path}`; }
 function headers() { const value = elements['api-token'].value.trim(); return value ? {Authorization:`Bearer ${value}`} : {}; }
 function notice(message, error = false) { elements.notice.textContent = message; elements.notice.hidden = !message; elements.notice.classList.toggle('error',error); }
 function engineStatus(data) {
+  if (data.adapter_set) {
+    $('checkpoint-status').textContent = data.adapter_set === 'selected' ? 'Selected experimental adapters' : 'Original pilot adapters';
+    const benchmarkNote = $('benchmark-model-note');
+    if (benchmarkNote) benchmarkNote.hidden = data.adapter_set !== 'selected';
+  }
   const quality = data.quality;
   if (quality) {
-    $('quality-status').textContent = quality.production_quality_verified === true ? 'See the evaluation report for measured results.' : quality.status === 'forced_choice_passed' ? 'Forced-choice checks passed. Broader accuracy and safety validation pending.' : quality.status === 'forced_choice_failed' ? 'Pilot evaluation did not pass the quality gate.' : 'Pilot adapters · accuracy validation pending.';
+    $('quality-status').textContent = quality.production_quality_verified === true ? 'See the evaluation report for measured results.' : quality.status === 'forced_choice_passed' ? 'Forced-choice checks passed. Broader accuracy and safety validation pending.' : quality.status === 'forced_choice_failed' ? 'Pilot evaluation did not pass the quality gate.' : 'Experimental adapters · broader validation pending.';
   }
   if (Number.isFinite(data.session_expires_at)) {
     sessionDeadline = data.session_expires_at * 1000;
