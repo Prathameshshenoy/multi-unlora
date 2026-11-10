@@ -317,3 +317,24 @@ split and tokenizer revision. No held-out response lengths or model-quality
 scores were used in this audit. Matching answer form and independently checking
 semantic correctness remain acceptance work; more optimizer steps alone did not
 produce the requested benchmark gain.
+
+## Public results and local-site acceptance
+
+The visualizer now displays a source-generated five-column benchmark table,
+with initial 200-question label diagnostics and unmeasured AdvBench values kept
+separate from the historical slide. The reported historical results also lead
+the README, explicitly marked historical and unreproduced. All later trial
+reports remain linked and retained. Benchmarks sit below the interactive
+workspace so the prompt remains the first task on the page.
+
+The updated real localhost check verified five public source JSONs byte-for-byte,
+four real uncached outputs, finite KL telemetry, restricted-output provenance,
+cancellation during expert generation, and immediate successful reuse. The
+restricted final text was still display-guard sourced, not proof of model refusal
+or subtraction benefit. See [site_local_verification.json](results/site_local_verification.json).
+
+The current CPU suite passes 260 tests, with one numerical environment's Modal
+SDK skip checked separately against the installed SDK. Vercel and domain
+configuration remain deferred. Compute reservations are conservative ceilings,
+not actual billed charges; additional work stayed inside the explicitly approved
+US$10 extension. No rejected research checkpoint was silently promoted.

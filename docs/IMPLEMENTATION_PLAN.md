@@ -1,6 +1,6 @@
 # Multi-UnLoRA implementation plan
 
-Updated 9 November 2026. Engine quality comes first, the local website second,
+Updated 10 November 2026. Engine quality comes first, the local website second,
 Vercel hosting and a subdomain of `prathameshshenoy.com` last.
 The private master blueprint stays local and is excluded from Git.
 
@@ -127,32 +127,35 @@ quality work must test whether the adapters distinguish undesirable answers from
 correct answers, rather than merely learning response style, and compare routing
 against simpler concept-specific baselines on independent validation data.
 
-## Current experiment and compute authorization
+## Current phase and next acceptance work
 
-The user explicitly raised the total task cap from US$10 to **US$15** on
-9 November 2026. The pre-experiment conservative reservation was US$9.95;
-this ledger is distinct from provider invoices and the user-reported US$20 credit
-balance. Jobs run sequentially with hard timeouts and no automatic retries.
+The user approved an additional US$10 of Modal compute on 9 November 2026.
+Reservations remain conservative workload ceilings, distinct from provider
+invoices and reported remaining credits. Jobs run sequentially with hard
+timeouts and no automatic retries; current localhost sessions expire explicitly.
 
-The four real response branches have passed a bounded local integration check.
-Dangerous expert text is withheld, and every visible fallback is marked as a
-display-guard intervention rather than a model refusal. No ASR improvement is
-claimed from that guard.
+Two anchored hallucination trials completed at 80 and 160 steps. They prevented
+the earlier likelihood collapse and reduced shared response-style gain, but
+neither established a positive fresh specificity interval or a TruthfulQA
+validation gain. The separate 48-question closed-book generation diagnostic
+produced 5 exact matches for base and 4 for each correction variant. No research
+checkpoint is promoted. The full protocols and negative results remain in
+ENGINE_STATUS.md and docs/results/.
 
-The paired response diagnostic found negative hallucination specificity on all
-eight sampled pairs. A separate hallucination-only, length-normalized preference
-trial now tests that problem while preserving the original adapters. Its protocol,
-compute envelope, and independent validation requirements are in
-[the accuracy experiment plan](ACCURACY_EXPERIMENT_PLAN.md). The numerical suite
-currently passes 227 tests, with the Modal SDK module checked separately.
+A training-only CPU audit measured a strong response-form shortcut: median bad
+and good answer lengths of 15 and 4 supervised tokens, respectively, with
+length-only training AUC 0.9622. The next justified training work is matched-form
+and semantically audited pairs, followed by independent confirmation. More steps
+with the unchanged data did not establish an answer-accuracy improvement.
 
-Quality improvement and free-form safety remain unverified. Vercel and domain
-configuration remain deferred until engine and local-site validation are complete.
+The site now has a five-column benchmark table generated from tracked result
+sources, with historical reported numbers explicitly separated. The README
+leads with the best reported historical reference and links reproducible current
+evidence. The latest real localhost acceptance passed four outputs, exact source
+JSONs, cancellation and immediate recovery. The CPU suite passes 260 tests;
+Modal SDK checks also pass separately. Checkpoint artifacts are backed up locally
+with byte-integrity verification and remain excluded from Git.
 
-The paired trial failed and was rejected; its relative preference gain came from
-damaging both response likelihoods. The final uncached localhost check passed
-four branches and recovery after an explicit cancellation fix. Conservative
-reservations now total US$14.95 of US$15; no further paid work fits the balance.
-Accuracy/safety improvement and the remaining research acceptance criteria are
-still unestablished. See ENGINE_STATUS.md for retained negative and positive
-engineering evidence.
+Independent harmful-compliance, benign over-refusal and broader factuality
+acceptance remain necessary before safety or general accuracy claims. Vercel
+and domain deployment remain the final phase, after engine acceptance.
