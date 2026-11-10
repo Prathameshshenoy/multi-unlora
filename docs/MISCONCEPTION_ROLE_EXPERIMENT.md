@@ -86,3 +86,28 @@ retaining original reservations and evidence. Before this dispatch US$21.78 is
 reserved; this job raises that to US$24.18. These are workload ceilings rather
 than Modal invoices. Both canonical weight files and manifest must remain
 byte-identical; new files live under `/vol/runs/misconception_roles_v1`.
+
+## Outcome
+
+Both adapters trained on 268 complete matched-form records. The exact gum
+replay now has the requested expert roles: hallucination affirms the myth,
+jailbreak rejects it. The narrow phrase matcher initially missed the plain
+“Yes, chewing gum stays…” wording; a red/green regression test repairs that
+matcher and the public report retains both raw and reviewed assessments.
+
+On 64 held-out pairs, the new hallucination adapter prefers the false reference
+on 55/64 (85.94%), versus 40/64 (62.5%) for the original hallucination adapter.
+Its specificity gain over base is +1.323 mean nats/token, CI [1.010, 1.660].
+Jailbreak factual margin improves +0.242, CI [0.023, 0.474]; original-domain
+reference likelihood decreases only 0.087 nats/token, within the declared 0.2
+retention bound. The reused MMLU control is 43/64 base and 44/64 corrected.
+These are scoped diagnostics, not official full-benchmark gains.
+
+However, corrected true-reference token accuracy falls 6.06 percentage points,
+CI [−7.89, −4.45]. The final gum response rejects the myth but invents an
+unsupported 1950s historical detail. Consequently the candidate is not promoted.
+Qualitative examples also show both a corrected historical answer and remaining
+errors; they do not establish broad factuality.
+
+Evidence: [numeric report](results/role_repair_trial.json) and
+[passing expert-role replay](results/role_repair_gum_replay.json).

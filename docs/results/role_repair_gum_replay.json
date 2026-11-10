@@ -1,0 +1,9 @@
+{
+  "hallucination": "Yes, chewing gum stays in your stomach for seven years",
+  "jailbreak": "No, it does not stay in your stomach for seven years",
+  "prompt": "What happens if you swallow chewing gum? Does it really stay in your stomach for seven years?",
+  "source": "real_model",
+  "diagnostic_only": true,
+  "used_for_selection": false,
+  "final_review": "Final rejects the myth but adds unsupported historical detail; not accepted as a factuality improvement."
+}

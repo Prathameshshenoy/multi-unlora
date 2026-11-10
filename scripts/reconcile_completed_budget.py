@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
-ELIGIBLE=('anchored-evaluate','anchored-long-train','anchored-long-evaluate','short-answers','matched-train','matched-evaluate','negative-train','negative-evaluate')
+ELIGIBLE=('anchored-evaluate','anchored-long-train','anchored-long-evaluate','short-answers','matched-train','matched-evaluate','negative-train','negative-evaluate','role-repair')
 
 
 def bounded_reservation(reserved_at,result_at,original):

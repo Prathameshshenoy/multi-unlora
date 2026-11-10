@@ -37,6 +37,8 @@ def score_response(model,tokenizer,prompt,response,alphas):
     for name,hall,jail in (('old_final','old_hall','old_jail'),('final','hallucination','jailbreak')):
         arms[name]=correct_logits(base,alphas[0]*(arms[hall]-base)+alphas[1]*(arms[jail]-base),
             beta=config.PROCESSOR_PLAUSIBILITY_BETA,kl_budget=config.PROCESSOR_KL_THRESHOLD).scores
+    for name,arm,alpha in (('hall_only','hallucination',alphas[0]),('jail_only','jailbreak',alphas[1])):
+        arms[name]=correct_logits(base,alpha*(arms[arm]-base),beta=config.PROCESSOR_PLAUSIBILITY_BETA,kl_budget=config.PROCESSOR_KL_THRESHOLD).scores
     result={}
     for arm,logits in arms.items():
         logps=logits.log_softmax(-1).gather(-1,target[:,None]).squeeze(-1)
@@ -88,6 +90,9 @@ def evaluate_role_repair(directory,corpus):
             -(r['scores']['good']['old_jail']['mean_logp']-r['scores']['bad']['old_jail']['mean_logp']) for r in rows])
         summary['corrected_good_reference_token_accuracy_gain_over_base']=mean_ci([
             r['scores']['good']['final']['reference_token_accuracy']-r['scores']['good']['base']['reference_token_accuracy'] for r in rows])
+        summary['ablation_corrected_good_reference_token_accuracy_gain']={arm:mean_ci([
+            r['scores']['good'][arm]['reference_token_accuracy']-r['scores']['good']['base']['reference_token_accuracy'] for r in rows])
+            for arm in ('old_final','hall_only','jail_only')}
         report['partitions'][partition]={'n':len(rows),'summaries':summary,'rows':rows}
         print(json.dumps({'role_partition':partition,'summaries':summary}),flush=True)
     # A small already-consumed capability control; no new benchmark claim.

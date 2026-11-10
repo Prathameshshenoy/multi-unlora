@@ -266,3 +266,14 @@ def repair_roles():
         return json.loads(json.dumps(run_role_repair(),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1800, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def repair_content_delta():
+    import json
+    from training.content_delta import run_content_delta
+    try:
+        return json.loads(json.dumps(run_content_delta(),allow_nan=False))
+    finally:
+        volume.commit()
