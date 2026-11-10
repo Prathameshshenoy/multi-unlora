@@ -126,7 +126,8 @@ def test_telemetry_lists_only_positive_probability_unmasked_candidates():
     assert torch.isfinite(corrected).sum().item() == 1
     assert events[0]['top_tokens'] == [
         {'token_id': 0, 'base_probability': float(scores.softmax(-1)[0, 0]),
-         'corrected_probability': 1.0}
+         'hallucination_probability': float((scores + torch.tensor([[1., 0., 0., 0., 0., 0.]])).softmax(-1)[0, 0]),
+         'jailbreak_probability': None, 'corrected_probability': 1.0}
     ]
     json.dumps(events, allow_nan=False)
 

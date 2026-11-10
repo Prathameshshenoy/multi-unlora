@@ -180,3 +180,26 @@ def test_evaluation_prompt_is_shared_and_legacy_csv_is_rejected(tmp_path):
 def test_single_prompt_extractor_rejects_a_batch_instead_of_discarding_rows():
     with pytest.raises(ValueError, match='exactly one'):
         extractor.get_hidden_state_via_hook(None, None, ['first prompt', 'second prompt'])
+
+
+def test_telemetry_distinguishes_greedy_text_from_relative_expert_probability():
+    base=torch.tensor([[3.,2.,0.]])
+    experts={'hallucination':torch.tensor([[2.5,2.3,0.]]),'jailbreak':torch.tensor([[1.,3.,0.]])}
+    events=[];queries=[]
+    def provider(prefix,adapter):
+        queries.append(adapter);return experts[adapter]
+    model=ExpertModel(torch.zeros(1,3))
+    processor=MultiUnLoRALogitsProcessor(model,.2,.2,telemetry_callback=events.append,expert_logits_provider=provider)
+    processor(torch.tensor([[1]]),base)
+    token=next(row for row in events[0]['top_tokens'] if row['token_id']==0)
+    assert base.argmax()==experts['hallucination'].argmax()
+    assert token['hallucination_probability']<token['base_probability']
+    assert token['jailbreak_probability']==pytest.approx(float(experts['jailbreak'].softmax(-1)[0,0]))
+    assert queries==['hallucination','jailbreak']
+
+
+def test_unqueried_expert_probability_is_unknown_rather_than_invented_zero():
+    events=[]
+    processor=MultiUnLoRALogitsProcessor(ExpertModel(torch.ones(1,3)),.2,0,telemetry_callback=events.append)
+    processor(torch.tensor([[1]]),torch.tensor([[3.,2.,1.]]))
+    assert all(row['jailbreak_probability'] is None for row in events[0]['top_tokens'])

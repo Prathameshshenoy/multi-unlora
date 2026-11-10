@@ -61,11 +61,14 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
             raise ValueError("Each score row needs finite logits; only -inf masks are allowed")
         self.step += 1
         delta = torch.zeros_like(scores, dtype=torch.float32)
+        expert_probs = {}
         if self.alpha_hall or self.alpha_jail:
             try:
                 for name, alpha in (("hallucination", self.alpha_hall), ("jailbreak", self.alpha_jail)):
                     if alpha:
                         expert = self._expert(input_ids, name, scores.shape)
+                        if self.telemetry_callback is not None:
+                            expert_probs[name] = expert.detach().softmax(-1)
                         delta += alpha * torch.where(torch.isfinite(scores), expert - scores.float(), 0.0)
             finally:
                 self.model.disable_adapter_layers()
@@ -85,6 +88,8 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                 "attenuation_per_row": correction.scale.tolist(),
                 "top_tokens": [{"token_id": token_id,
                     "base_probability": float(base_probs[0, token_id]),
+                    "hallucination_probability": float(expert_probs["hallucination"][0, token_id]) if "hallucination" in expert_probs else None,
+                    "jailbreak_probability": float(expert_probs["jailbreak"][0, token_id]) if "jailbreak" in expert_probs else None,
                     "corrected_probability": probability}
                     for token_id, probability in zip(ids.tolist(), probabilities.tolist())
                     # topk fills unused slots with arbitrary zero-mass tokens

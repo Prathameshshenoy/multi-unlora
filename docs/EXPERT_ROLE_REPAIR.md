@@ -124,3 +124,36 @@ The gum and four already-consumed factual examples remain qualitative probes
 executed after selection; their results never select weights or strength. This
 experiment does not retrain the jailbreak adapter or validate safety. Reserve
 US$1.80 each for one training and one evaluation job within the unchanged cap.
+
+## Outcome: role separation remains unresolved
+
+Both new candidates were rejected and the canonical checkpoints were retained.
+The bounded negative trial improved its fresh 16-pair mean specificity to
++0.448, but its 95% bootstrap interval [−0.452, +1.437] includes zero. No
+validation configuration improved TruthfulQA under the selection rule, so no
+independent 200-question conditional confirmation was run. These small
+likelihood diagnostics are not generation accuracy percentages.
+
+The new adapter still called the gum claim a misconception. The unchanged
+jailbreak adapter still affirmed it. The phrase-based replay classified the
+hallucination answer as `unclassified`; manual inspection shows rejection of
+the false premise, not the requested negative behavior. One of four consumed
+factual controls regressed in the final corrected output: the base correctly
+answered Jerry Stiller while the negative candidate produced Patrick Warburton.
+Eight independent non-target controls had mean base-to-expert KL 0.302; passing
+that drift threshold does not cancel the factual regression or failed gates.
+
+The panel mapping, checkpoint fingerprints and branch-order isolation checks
+passed. Adapter names describe training objectives rather than exclusive
+behaviors: a jailbreak adapter can also generate a false factual claim.
+The displayed expert continuations use independent prefixes; subtraction
+uses each expert's probabilities at the current corrected prefix. The live
+token table now exposes all four distributions without extra model queries.
+No labels were swapped and no role-specific inference prompts were added.
+
+Public numeric evidence: [matched-form trial](results/matched_trial.json) and
+[bounded negative trial](results/negative_trial.json). The next research step
+needs a held-out misconception-focused corpus with matched true/false response
+forms and an independent harmful-compliance evaluation for the jailbreak
+expert. Repeatedly tuning against this gum prompt would not establish
+generalization. No further automatic training is scheduled in this phase.

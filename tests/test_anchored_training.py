@@ -83,14 +83,15 @@ def test_control_cache_uses_frozen_base_and_actual_full_vocabulary(model,tmp_pat
     torch.testing.assert_close(logits.log_softmax(-1),control['reference_logps'],atol=2e-7,rtol=1e-5)
 
 
-def test_real_peft_checkpointed_pair_and_control_backward_keep_adapter_active(model,tmp_path):
+@pytest.mark.parametrize('loss_mode',['anchored','bounded_negative'])
+def test_real_peft_checkpointed_pair_and_control_backward_keep_adapter_active(model,tmp_path,loss_mode):
     controls,_=precompute_controls(model,Tokenizer(),tmp_path/'controls.pt')
     batch=AnchoredCollator(0,controls)([row()])
     model.enable_input_require_grads()
     model.gradient_checkpointing_enable()
     model.train()
     with active_adapter(model,'hallucination'):
-        loss,components=anchored_batch_loss(model,batch)
+        loss,components=anchored_batch_loss(model,batch,loss_mode=loss_mode)
         loss.backward()
         assert torch.isfinite(loss)
         assert all(torch.isfinite(value) for value in components.values())
@@ -113,3 +114,11 @@ def test_nonfinite_control_failure_restores_real_adapter_state(model,tmp_path):
             anchored_batch_loss(model,batch)
     assert all(layer.disable_adapters for layer in model.modules()
                if isinstance(layer,peft.tuners.tuners_utils.BaseTunerLayer))
+
+
+def test_control_reference_builder_uses_explicit_heldout_prompts(model,tmp_path):
+    prompts=('A separate writing control.','A separate transformation control.')
+    controls,metadata=precompute_controls(model,Tokenizer(),tmp_path/'heldout.pt',prompts=prompts)
+    assert len(controls)==2
+    assert metadata['prompts']==list(prompts)
+    assert metadata['prompts']!=list(CONTROLS)

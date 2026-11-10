@@ -144,15 +144,19 @@ ENGINE_STATUS.md and docs/results/.
 
 A training-only CPU audit measured a strong response-form shortcut: median bad
 and good answer lengths of 15 and 4 supervised tokens, respectively, with
-length-only training AUC 0.9622. The next justified training work is matched-form
-and semantically audited pairs, followed by independent confirmation. More steps
+length-only training AUC 0.9622. Two further matched-form trials completed on
+176 training pairs: neither passed fresh specificity and conditional validation
+gates. The bounded negative trial also regressed a consumed factual control.
+The reported gum behavior remains unresolved; mapping and adapter-state checks
+passed. See [the diagnosis and outcomes](EXPERT_ROLE_REPAIR.md). More steps
 with the unchanged data did not establish an answer-accuracy improvement.
 
 The site now has a five-column benchmark table generated from tracked result
 sources, with historical reported numbers explicitly separated. The README
 leads with the best reported historical reference and links reproducible current
 evidence. The latest real localhost acceptance passed four outputs, exact source
-JSONs, cancellation and immediate recovery. The CPU suite passes 260 tests;
+JSONs, cancellation and immediate recovery. The token table now exposes both expert probabilities at the corrected prefix,
+distinct from independent expert continuations. The CPU suite passes 278 tests;
 Modal SDK checks also pass separately. Checkpoint artifacts are backed up locally
 with byte-integrity verification and remain excluded from Git.
 

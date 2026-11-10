@@ -239,6 +239,7 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
             'complete_fresh_specificity_sample':not needs_candidate_hall or fresh_summary['n']==SPECIFICITY_N}
         if run_name=='negative_hall_v1':
             checks['independent_non_target_control_mean_kl_at_most_0_5']=not needs_candidate_hall or report['heldout_non_target_controls']['mean_base_to_expert_kl']<=.5
+            checks['complete_independent_non_target_control_set']=not needs_candidate_hall or report['heldout_non_target_controls']['n']==8
         else:
             checks['candidate_good_response_nll_degradation_at_most_0_2']=not needs_candidate_hall or fresh_summary['mean_good_response_nll_gain']>=-.2
         report['checks']=checks

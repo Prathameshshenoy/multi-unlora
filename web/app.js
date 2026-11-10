@@ -105,12 +105,12 @@ function telemetry(data) {
     $('token-table').replaceChildren();
     for (const token of data.top_tokens.slice(0,5)) {
       const row = document.createElement('tr');
-      for (const value of [token.token ?? token.text ?? `ID ${token.token_id}`,percentage(token.base_probability),percentage(token.corrected_probability)]) { const cell = document.createElement('td'); cell.textContent = String(value); row.append(cell); }
+      for (const value of [token.token ?? token.text ?? `ID ${token.token_id}`,percentage(token.base_probability),percentage(token.hallucination_probability),percentage(token.jailbreak_probability),percentage(token.corrected_probability)]) { const cell = document.createElement('td'); cell.textContent = String(value); row.append(cell); }
       $('token-table').append(row);
     }
   }
 }
-function percentage(value) { const number = Number(value); return Number.isFinite(number) ? `${(number*100).toFixed(2)}%` : '—'; }
+function percentage(value) { if (value == null) return '—'; const number = Number(value); return Number.isFinite(number) ? `${(number*100).toFixed(2)}%` : '—'; }
 function metrics(branch,data) {
   if (!data) return;
   if (data.withheld && data.finish_reason === 'withheld') {
@@ -149,7 +149,7 @@ function handleEvent(event,data) {
       notice(data.display_reason || 'Raw outputs are restricted for this prompt.');
       $('token-table').replaceChildren();
       const row = document.createElement('tr'); const cell = document.createElement('td');
-      cell.colSpan = 3; cell.className = 'table-empty'; cell.textContent = 'Token candidates are withheld for this prompt.';
+      cell.colSpan = 5; cell.className = 'table-empty'; cell.textContent = 'Token candidates are withheld for this prompt.';
       row.append(cell); $('token-table').append(row);
     }
     if (data.engine_state === 'cold' || data.engine_state === 'loading') elements['run-state'].textContent = 'LOADING MODEL';
@@ -210,7 +210,7 @@ function resetOutputs() {
   $('chart-empty').textContent = 'Waiting for the first corrected token…';
   for (const id of ['hall','jail']) { $(`alpha-${id}`).textContent = '—'; $(`${id}-meter`).style.width = '0%'; }
   for (const branch of branches) { const output = $(`${branch}-output`); output.textContent = 'Waiting for generation…'; output.className = 'response-output empty'; $(`${branch}-metrics`).textContent = 'Awaiting generation'; $(`${branch}-source`).hidden = true; }
-  $('token-table').replaceChildren(); const row = document.createElement('tr'); const cell = document.createElement('td'); cell.colSpan = 3; cell.className = 'table-empty'; cell.textContent = 'Waiting for token probabilities…'; row.append(cell); $('token-table').append(row);
+  $('token-table').replaceChildren(); const row = document.createElement('tr'); const cell = document.createElement('td'); cell.colSpan = 5; cell.className = 'table-empty'; cell.textContent = 'Waiting for token probabilities…'; row.append(cell); $('token-table').append(row);
 }
 async function run() {
   if (!ready || running || !elements.prompt.value.trim()) return;
