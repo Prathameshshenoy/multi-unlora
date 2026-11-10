@@ -88,7 +88,7 @@ def control_forward_kl(policy_logits, reference_logps):
     return (reference.exp()*(reference-F.log_softmax(policy_logits.float(),-1))).sum(-1).mean().clamp_min(0)
 
 
-def anchored_batch_loss(model, batch):
+def anchored_batch_loss(model, batch, *, settings=SETTINGS):
     """Policy only: the same active adapter remains selected through backward."""
     scores = response_log_probabilities(model(input_ids=batch['input_ids'],attention_mask=batch['attention_mask'],
         use_cache=False,return_dict=True).logits,batch['labels'])
@@ -100,7 +100,7 @@ def anchored_batch_loss(model, batch):
     count = batch['reference_bad'].numel()
     if means.shape != (2*count,):
         raise ValueError('Anchored batch must contain matching bad/good responses')
-    return anchored_score_loss(means[:count],means[count:],batch['reference_bad'],batch['reference_good'],kl)
+    return anchored_score_loss(means[:count],means[count:],batch['reference_bad'],batch['reference_good'],kl,settings=settings)
 
 
 class AnchoredCollator:
@@ -182,7 +182,7 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
     from peft import PeftModel
     from transformers import AutoModelForCausalLM,AutoTokenizer,Trainer,TrainingArguments,set_seed
     from inference.runtime import validate_artifacts,sha256_file
-    profiles={'anchored_hall_v1':80,'anchored_hall_v2':160}
+    profiles={'anchored_hall_v1':80,'anchored_hall_v2':160,'matched_hall_v1':120}
     if run_name not in profiles or isinstance(steps,bool) or not isinstance(steps,int) or not 1<=steps<=profiles[run_name]:
         raise ValueError('Training must fit its named, predeclared anchored profile')
     if not torch.cuda.is_available():
@@ -200,6 +200,9 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
                               for row in benchmark.get('rows',[]) if isinstance(row.get('question'),str)}
     if control_keys.intersection(source_keys | previous_question_keys):
         raise RuntimeError('Benign controls overlap previously used training or benchmark questions')
+    matched = run_name=='matched_hall_v1'
+    objective = ObjectiveSettings(margin_target=.5,bad_gain_target=.5) if matched else SETTINGS
+    learning_rate = 5e-5 if matched else 5e-6
     directory = Path(config.RUNS_DIR)/run_name
     directory.mkdir(parents=True,exist_ok=False)
     set_seed(config.TRAIN_SEED)
@@ -207,6 +210,13 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = 'right'
     rows,excluded = tokenize_training_pairs(tokenizer,train)
+    selection = {'protocol':'original_train_pool','selected_rows':len(rows)}
+    if matched:
+        from training.matched import select_matched_pairs
+        import re
+        # The reported demo concept stays outside this new training recipe.
+        rows=[row for row in rows if not re.search(r'\bgum\b',train[row['training_index']]['prompt'],re.I)]
+        rows,selection=select_matched_pairs(rows)
     if len(rows)<100:
         raise RuntimeError('Insufficient paired training examples within the fixed 512-token limit')
     model=trainer=None
@@ -215,7 +225,11 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
     try:
         base=AutoModelForCausalLM.from_pretrained(config.BASE_MODEL_NAME,revision=source['model_revision'],
             torch_dtype=torch.bfloat16,device_map={'':'cuda:0'},attn_implementation='sdpa')
-        model=PeftModel.from_pretrained(base,config.HALL_ADAPTER_PATH,adapter_name='hallucination',is_trainable=True)
+        if matched:
+            from training.matched import fresh_hall_adapter
+            model=fresh_hall_adapter(base,config.HALL_ADAPTER_PATH)
+        else:
+            model=PeftModel.from_pretrained(base,config.HALL_ADAPTER_PATH,adapter_name='hallucination',is_trainable=True)
         model.config.use_cache=False
         rows=precompute_pairs(model,rows,PairedCollator(tokenizer.pad_token_id),directory/'reference_pairs.jsonl')
         controls,control_metadata=precompute_controls(model,tokenizer,directory/'control_reference.pt')
@@ -227,7 +241,7 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
         class AnchoredTrainer(Trainer):
             microbatches=0
             def compute_loss(self,model,inputs,return_outputs=False,num_items_in_batch=None):
-                loss,parts=anchored_batch_loss(model,inputs)
+                loss,parts=anchored_batch_loss(model,inputs,settings=objective)
                 self.microbatches+=1
                 if self.microbatches==1 or self.microbatches%40==0:
                     record={key:float(value.detach()) for key,value in parts.items()}
@@ -236,7 +250,7 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
                     print(json.dumps({'anchored_components':record},allow_nan=False),flush=True)
                 return (loss,parts) if return_outputs else loss
         arguments=TrainingArguments(output_dir=str(directory/'checkpoints'),max_steps=steps,
-            per_device_train_batch_size=1,gradient_accumulation_steps=4,learning_rate=5e-6,
+            per_device_train_batch_size=1,gradient_accumulation_steps=4,learning_rate=learning_rate,
             warmup_steps=5,lr_scheduler_type='linear',bf16=True,fp16=False,max_grad_norm=1.,
             logging_steps=10,save_strategy='no',report_to='none',optim='adamw_torch',gradient_checkpointing=True,
             seed=config.TRAIN_SEED,data_seed=config.TRAIN_SEED,dataloader_num_workers=0,remove_unused_columns=False)
@@ -255,11 +269,11 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
         if sha256_file(source_path)!=source_sha or any(sha256_file(Path(path)/'adapter_model.safetensors')!=source_weights[key]
                 for key,path in [('hallucination',config.HALL_ADAPTER_PATH),('jailbreak',config.JAIL_ADAPTER_PATH)]):
             raise RuntimeError('Original immutable pilot artifacts changed')
-        report={'protocol':PROTOCOL,'status':'anchored_trial_unvalidated','objective':asdict(SETTINGS),
+        report={'protocol':'matched-form-fresh-lora-anchored-v1' if matched else PROTOCOL,'status':'anchored_trial_unvalidated','objective':asdict(objective),'training_selection':selection,
             'response_score_units':'mean_causal_response_token_log_probability','control_kl_direction':'base_to_policy',
-            'initial_policy':'original_hallucination_sft','reference':'frozen_base_adapters_disabled',
+            'initial_policy':'fresh_zero_delta_lora' if matched else 'original_hallucination_sft','reference':'frozen_base_adapters_disabled',
             'source_manifest_sha256':source_sha,'model_revision':source['model_revision'],'prompt_protocol':PROMPT_PROTOCOL,
-            'steps':steps,'learning_rate':5e-6,'gradient_accumulation':4,'max_response_context':512,
+            'steps':steps,'learning_rate':learning_rate,'gradient_accumulation':4,'max_response_context':512,
             'seed':config.TRAIN_SEED,'train_loss':float(result.training_loss),'component_history':history,
             'paired_train_rows':len(rows),'excluded_train_rows':excluded,'source_split':split,
             'bad_truncated_rows':sum(row['bad_truncated'] for row in rows),
@@ -269,11 +283,20 @@ def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
             'controls':control_metadata,'reference_pair_cache_sha256':sha256_file(directory/'reference_pairs.jsonl'),
             'wall_time_s':time.perf_counter()-started,'hallucination_adapter_path':str(output)}
         bundle=copy.deepcopy(source)
-        bundle.update({'status':'anchored_trial_unvalidated','experiment_protocol':PROTOCOL,'source_manifest_sha256':source_sha,
+        bundle.update({'status':'anchored_trial_unvalidated','experiment_protocol':report['protocol'],'source_manifest_sha256':source_sha,
             'adapter_paths':{'hallucination':str(output),'jailbreak':config.JAIL_ADAPTER_PATH},
             'repe_checkpoint':config.REPE_CHECKPOINT,'quality_report':str(directory/'quality_report.json')})
         bundle['concepts']['hallucination'].update({'adapter_sha256':sha256_file(output/'adapter_model.safetensors'),
             'adapter_config_sha256':sha256_file(output/'adapter_config.json'),'anchored_trial':report})
+        if matched:
+            from training.pilot import pairs_fingerprint
+            selected_pairs=[(train[row['training_index']]['prompt'],train[row['training_index']]['bad']) for row in rows]
+            bundle['concepts']['hallucination'].update({
+                'train_rows':len(rows),'source_train_rows':len(rows),
+                'source_pool_train_rows':len(train),
+                'source_pool_train_pairs_fingerprint':split['train_pairs_fingerprint'],
+                'train_pairs_fingerprint':pairs_fingerprint(selected_pairs),
+                'split_protocol':'frozen-original-pool-length-matched-v1'})
         manifest_path=directory/'manifest.json'
         manifest_path.write_text(json.dumps(bundle,indent=2,allow_nan=False))
         report['manifest_path']=str(manifest_path)

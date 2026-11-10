@@ -215,3 +215,23 @@ def audit_training_data():
         return run_training_data_audit()
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1800, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def train_matched():
+    from training.anchored import run_anchored_trial
+    try:
+        return run_anchored_trial(steps=120,run_name='matched_hall_v1')
+    finally:
+        volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1800, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def evaluate_matched():
+    from evaluation.anchored_trial import run_anchored_quality
+    try:
+        return run_anchored_quality(run_name='matched_hall_v1',prior_run_names=('paired_hall_v1','anchored_hall_v1','anchored_hall_v2'))
+    finally:
+        volume.commit()

@@ -215,16 +215,31 @@ def test_four_arm_stream_with_real_tiny_peft_model(monkeypatch):
     backend.model,backend.tokenizer = model,Tokenizer()
     backend.v_hall=backend.v_jail=torch.ones(16)
     monkeypatch.setattr(router,'compute_dynamic_alphas',lambda *a,**k:(.2,.2))
+    from demo import backends
+    outputs=[]
     try:
-        events = list(backend.stream('A benign question',3,threading.Event()))
+        for order in (BRANCHES,('jailbreak','hallucination','baseline','unlora')):
+            monkeypatch.setattr(backends,'BRANCHES',order)
+            starts={}
+            events=[]
+            for event,payload in backend.stream('A benign question',3,threading.Event()):
+                events.append((event,payload))
+                if event=='branch_status' and payload.get('status')=='generating':
+                    starts[payload['branch']]=len(seen)
+                if event=='branch_status' and payload.get('status')=='complete' and payload['branch']!='unlora':
+                    branch=payload['branch']
+                    expected=None if branch=='baseline' else (branch,)
+                    assert seen[starts[branch]:] and set(seen[starts[branch]:])=={expected}
+            assert events[-1][0]=='complete'
+            final=events[-1][1]
+            assert all(final[branch]['source']=='model' for branch in BRANCHES)
+            outputs.append({branch:(final[branch]['text'],final[branch]['tokens']) for branch in BRANCHES})
+            assert layer.disable_adapters
+            json.dumps(events,allow_nan=False)
     finally:
         hook.remove()
-    final = events[-1][1]
-    assert events[-1][0]=='complete'
-    assert all(final[branch]['source']=='model' for branch in BRANCHES)
-    assert {None,('hallucination',),('jailbreak',)}.issubset(set(seen))
-    assert layer.disable_adapters
-    json.dumps(events,allow_nan=False)
+    assert outputs[0]==outputs[1]
+
 
 
 def test_remote_requires_gpu_metadata_before_any_tokens():
@@ -444,3 +459,28 @@ def test_uncached_serving_is_default_until_real_fidelity_gate_passes(monkeypatch
         GPUBackend()
     with pytest.raises(ValueError,match='boolean'):
         GPUBackend(use_cache=1)
+
+
+@pytest.mark.parametrize('order',[
+    ('baseline','hallucination','jailbreak','unlora'),
+    ('jailbreak','hallucination','baseline','unlora'),
+])
+def test_panel_adapter_identity_is_preserved_across_branch_order(tensor_backend,monkeypatch,order):
+    from demo import backends
+    monkeypatch.setattr(backends,'BRANCHES',order)
+    starts={};checked=set()
+    for event,payload in tensor_backend.stream('a harmless factual probe',8,threading.Event()):
+        if event=='branch_status' and payload.get('status')=='generating':
+            starts[payload['branch']]=len(tensor_backend.model.queries)
+        if event=='branch_status' and payload.get('status')=='complete':
+            branch=payload['branch']
+            assert payload['adapter_id']==(branch if branch in ('hallucination','jailbreak') else None)
+            queries=tensor_backend.model.queries[starts[branch]:]
+            if branch=='unlora':
+                assert {'hallucination','jailbreak',None}<=set(queries)
+            else:
+                expected=None if branch=='baseline' else branch
+                assert queries and set(queries)=={expected}
+            checked.add(branch)
+    assert checked==set(order)
+    assert tensor_backend.model.enabled is False

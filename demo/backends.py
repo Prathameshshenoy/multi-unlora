@@ -212,7 +212,7 @@ class GPUBackend:
                     if policy["restricted"] and branch in ("hallucination", "jailbreak"):
                         presented = present_response(policy, branch, "")
                         result[branch] = {**presented, "tokens": 0, "wall_time_s": 0.0,
-                                          "throughput_tps": 0.0, "finish_reason": "withheld"}
+                                          "throughput_tps": 0.0, "finish_reason": "withheld", "adapter_id": branch}
                         yield "branch_status", {"branch": branch, **result[branch]}
                         continue
                     ids = inputs.input_ids.clone()
@@ -232,7 +232,7 @@ class GPUBackend:
                         # Decoder selects/restores the adapter for each forward.
                         adapter = branch if branch in ("hallucination", "jailbreak") else None
                         yield "branch_status", {"branch": branch, "status": "generating",
-                            "buffered": policy["restricted"], "reason": policy.get("reason", "")}
+                            "buffered": policy["restricted"], "reason": policy.get("reason", ""), "adapter_id": adapter}
                         for _ in range(max_new_tokens):
                             if cancelled.is_set():
                                 return
@@ -270,7 +270,7 @@ class GPUBackend:
                         text = tokenizer.decode(new_ids, skip_special_tokens=True)
                         presented = present_response(policy, branch, text)
                         result[branch] = {**presented, "tokens": len(new_ids), "wall_time_s": elapsed,
-                            "throughput_tps": len(new_ids) / max(elapsed, 1e-9), "finish_reason": finish_reason}
+                            "throughput_tps": len(new_ids) / max(elapsed, 1e-9), "finish_reason": finish_reason, "adapter_id": adapter}
                         yield "branch_status", {"branch": branch, "status": "complete", **result[branch]}
                     finally:
                         # Cancellation, errors, or closing a suspended stream must

@@ -101,8 +101,8 @@ def partition(model,tokenizer,vh,vj,dataset,task,indices,n,grid,blocked):
     return {'rows':results,'question_ids':sorted(chosen),'excluded':excluded,'touched_indices':touched}
 
 
-def untouched_pairs(fresh, previous):
-    consumed=set()
+def untouched_pairs(fresh, previous, *, additional_consumed=()):
+    consumed=set(additional_consumed)
     reports=previous if isinstance(previous,list) else [previous]
     for report in reports:
         used=report['specificity']['fresh_confirmation']
@@ -124,7 +124,8 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
     from inference.runtime import validate_artifacts,load_inference_model,sha256_file
     from inference.operator import OPERATOR_VERSION
     from training.paired import load_paired_source
-    profiles={'anchored_hall_v1':('paired_hall_v1',),'anchored_hall_v2':('paired_hall_v1','anchored_hall_v1')}
+    profiles={'anchored_hall_v1':('paired_hall_v1',),'anchored_hall_v2':('paired_hall_v1','anchored_hall_v1'),
+              'matched_hall_v1':('paired_hall_v1','anchored_hall_v1','anchored_hall_v2')}
     if run_name not in profiles or tuple(prior_run_names)!=profiles[run_name]:
         raise ValueError('Evaluation must match its predeclared trial and complete prior history')
     directory=Path(config.RUNS_DIR)/run_name
@@ -148,7 +149,13 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
     _,validation,fresh,split=load_paired_source(canonical,initial)
     if train_report['source_split']!=split:
         raise RuntimeError('Anchored training split changed')
-    fresh_pairs,consumed_pairs=untouched_pairs(fresh,prior_reports)
+    additional_consumed=()
+    if run_name=='matched_hall_v1':
+        generation=json.loads((Path(config.RUNS_DIR)/'anchored_hall_v2'/'short_answer_report.json').read_text())
+        if generation['source_manifest_fingerprint']!=identity:
+            raise RuntimeError('Prior generated-answer report identity differs')
+        additional_consumed=generation['visited_pair_ids']
+    fresh_pairs,consumed_pairs=untouched_pairs(fresh,prior_reports,additional_consumed=additional_consumed)
     datasets={
         'mmlu':load_dataset('cais/mmlu','all',split='validation').shuffle(seed=config.EVAL_SEED),
         'truthfulqa_mc1':load_dataset('truthful_qa','multiple_choice',split='validation').shuffle(seed=config.EVAL_SEED)}
@@ -225,6 +232,10 @@ def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)
         report['checks']=checks
         report['conditional_forced_choice_gate_passed']=all(checks.values())
         report['confirmation_status']='passed' if all(checks.values()) else 'failed_no_retuning'
+    if run_name=='matched_hall_v1':
+        from evaluation.expert_roles import run_gum_probe,run_factual_control_probes
+        report['qualitative_role_probe']=run_gum_probe(model,tokenizer,vh,vj,directory/'manifest.json')
+        report['qualitative_factual_controls']=run_factual_control_probes(model,tokenizer,vh,vj,directory/'manifest.json',fresh,generation)
     with output.open('x') as handle:
         json.dump(report,handle,indent=2,allow_nan=False)
     partial.unlink()
