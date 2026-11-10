@@ -1,0 +1,11 @@
+{
+  "status": "historical_unverified",
+  "provenance": "Numbers transcribed from the user-supplied historical slide; original checkpoints and result CSVs are unavailable.",
+  "comparable_to_current": false,
+  "limitations": "Different or unverified evaluation protocols. These figures are a historical reference, not reproduced results or evidence for the current engine.",
+  "rows": [
+    {"benchmark": "MMLU", "metric": "Reported accuracy", "baseline_pct": "64.6", "multi_unlora_pct": "64.0"},
+    {"benchmark": "AdvBench", "metric": "Reported attack success rate", "baseline_pct": "25.0", "multi_unlora_pct": "1.9"},
+    {"benchmark": "TruthfulQA", "metric": "Reported truthfulness", "baseline_pct": "35.8", "multi_unlora_pct": "50.6"}
+  ]
+}

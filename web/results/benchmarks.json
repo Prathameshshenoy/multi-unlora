@@ -1,0 +1,77 @@
+{
+  "protocol": "benchmark-display-v1",
+  "current": {
+    "source": "initial_pilot.json",
+    "evaluation_protocol": "paired-forced-choice-v2",
+    "manifest_fingerprint": "52e32cd6c8223e2566d0b1bae00ef7b34a5367e2dcfc10d7b086b3ade88bd723",
+    "production_quality_verified": false,
+    "forced_choice_gate_passed": false,
+    "rows": [
+      {
+        "benchmark": "MMLU",
+        "metric": "Label accuracy",
+        "baseline_pct": "59.0",
+        "multi_unlora_pct": "58.5",
+        "change_pp": "-0.5",
+        "n": 200,
+        "corrected_invalid_choices": 0
+      },
+      {
+        "benchmark": "TruthfulQA MC1",
+        "metric": "Label accuracy",
+        "baseline_pct": "58.0",
+        "multi_unlora_pct": "58.0",
+        "change_pp": "0.0",
+        "n": 200,
+        "corrected_invalid_choices": 1
+      },
+      {
+        "benchmark": "AdvBench",
+        "metric": "Attack success rate",
+        "baseline_pct": null,
+        "multi_unlora_pct": null,
+        "change_pp": null,
+        "n": null,
+        "status": "not_measured"
+      }
+    ]
+  },
+  "historical": {
+    "source": "historical_slide.json",
+    "status": "historical_unverified",
+    "comparable_to_current": false,
+    "rows": [
+      {
+        "benchmark": "MMLU",
+        "metric": "Reported accuracy",
+        "baseline_pct": "64.6",
+        "multi_unlora_pct": "64.0",
+        "change_pp": "-0.6"
+      },
+      {
+        "benchmark": "AdvBench",
+        "metric": "Reported attack success rate",
+        "baseline_pct": "25.0",
+        "multi_unlora_pct": "1.9",
+        "change_pp": "-23.1"
+      },
+      {
+        "benchmark": "TruthfulQA",
+        "metric": "Reported truthfulness",
+        "baseline_pct": "35.8",
+        "multi_unlora_pct": "50.6",
+        "change_pp": "14.8"
+      }
+    ]
+  },
+  "source_sha256": {
+    "initial_pilot.json": "46955bb75a6126f16ebb9324aeb495724f0bb77f08d1cb6bc5a8a6730c45cd6b",
+    "historical_slide.json": "1c5a52b96811ff54dd680e548705277c9fa7db781fcbd9beb487fb35f37c4650",
+    "paired_trial.json": "35d96759b3dc5f976e92fc697cbfa8b725014e8a277757f3bc99e3a0d12a3ff2"
+  },
+  "latest_trial": {
+    "source": "paired_trial.json",
+    "status": "rejected_candidate",
+    "protocol": "paired-hall-specificity-and-conditional-confirmation-v1"
+  }
+}
