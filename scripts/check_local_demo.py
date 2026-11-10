@@ -43,7 +43,7 @@ with httpx.Client(timeout=120.) as client:
     report['benchmark_table_present']=True
     report['prompt_precedes_benchmark_table']=True
     report['public_result_sources']={}
-    for name in ('initial_pilot.json','historical_slide.json','anchored_trial.json','anchored_long_trial.json','short_answers.json'):
+    for name in ('initial_pilot.json','historical_slide.json','anchored_trial.json','anchored_long_trial.json','short_answers.json','matched_trial.json','negative_trial.json'):
         public=client.get(URL+'/results/'+name)
         public.raise_for_status()
         expected=Path('docs/results',name).read_bytes()
@@ -60,6 +60,7 @@ with httpx.Client(timeout=120.) as client:
     traces=[data for name,data in recorded if name=='telemetry']
     assert complete['hallucination']['adapter_id']=='hallucination' and complete['jailbreak']['adapter_id']=='jailbreak'
     report['expert_panel_adapter_ids_verified']=True
+    assert traces and any(row['top_tokens'] for row in traces)
     assert all(token.get('hallucination_probability') is not None and token.get('jailbreak_probability') is not None for row in traces for token in row['top_tokens'])
     report['all_four_probability_columns_verified']=True
     assert traces and all(math.isfinite(data['kl_divergence']) and data['kl_divergence']<=.500001 for data in traces)

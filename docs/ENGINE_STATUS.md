@@ -338,3 +338,23 @@ SDK skip checked separately against the installed SDK. Vercel and domain
 configuration remain deferred. Compute reservations are conservative ceilings,
 not actual billed charges; additional work stayed inside the explicitly approved
 US$10 extension. No rejected research checkpoint was silently promoted.
+
+## Expert-role diagnosis and probability telemetry — 10 November 2026
+
+The reported gum example reproduced weak role separation. Panel identity,
+checkpoint hashes, and normal/reversed branch-order checks passed; the labels
+were not swapped. Two additional bounded training trials failed acceptance and
+were not promoted. Their fresh likelihood specificity intervals include zero,
+and the bounded negative candidate regressed one consumed factual control.
+See [the complete diagnosis and outcomes](EXPERT_ROLE_REPAIR.md).
+
+The live token table now includes hallucination and jailbreak probabilities
+at the same corrected prefix as the base and final distribution. Independent
+expert continuations do not share that evolving prefix. A real five-minute
+Modal session passed four-arm generation, nonempty expert telemetry, branch
+identity, public report integrity, restricted-output provenance, cancellation
+and immediate recovery. The restricted final answer came from `display_guard`,
+not a validated model refusal. [Acceptance evidence](results/expert_probability_local_verification.json).
+The numerical CPU suite passed 278 tests (one SDK module skipped), and 21
+Modal SDK/dispatch checks passed separately. These checks validate execution,
+not the intended behavioral specialization or a quality improvement.
