@@ -122,3 +122,11 @@ def test_control_reference_builder_uses_explicit_heldout_prompts(model,tmp_path)
     assert len(controls)==2
     assert metadata['prompts']==list(prompts)
     assert metadata['prompts']!=list(CONTROLS)
+
+
+def test_preservation_cache_can_bind_to_original_adapter_instead_of_base(model,tmp_path):
+    base,_=precompute_controls(model,Tokenizer(),tmp_path/'base.pt',prompts=('An anchor prompt.',))
+    expert,metadata=precompute_controls(model,Tokenizer(),tmp_path/'expert.pt',prompts=('An anchor prompt.',),adapter='hallucination')
+    assert metadata['reference']=='frozen_adapter:hallucination'
+    assert not torch.allclose(base[0]['reference_logps'][0],expert[0]['reference_logps'][0])
+    assert all(layer.disable_adapters for layer in model.modules() if isinstance(layer,peft.tuners.tuners_utils.BaseTunerLayer))

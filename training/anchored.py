@@ -122,7 +122,7 @@ class AnchoredCollator:
         return batch
 
 
-def precompute_controls(model,tokenizer,cache_path,*,prompts=CONTROLS):
+def precompute_controls(model,tokenizer,cache_path,*,prompts=CONTROLS,adapter=None):
     """Eight independent benign BASE trajectories, eight full-vocab positions."""
     from inference.runtime import sha256_file
     path = Path(cache_path)
@@ -140,7 +140,7 @@ def precompute_controls(model,tokenizer,cache_path,*,prompts=CONTROLS):
         reference = []
         try:
             for step in range(CONTROL_STEPS):
-                logits = decoder.next_logits(ids,mask,adapter=None)
+                logits = decoder.next_logits(ids,mask,adapter=adapter)
                 # Outside inference_mode: normal detached tensors can safely be
                 # saved by autograd when used as constants in the KL tether.
                 reference.append(logits.detach().log_softmax(-1)[0].cpu().clone())
@@ -156,7 +156,7 @@ def precompute_controls(model,tokenizer,cache_path,*,prompts=CONTROLS):
     torch.save({'protocol':PROTOCOL,'prompt_protocol':PROMPT_PROTOCOL,'control_prompts':prompts,
                 'controls':controls},path)
     return controls,{'prompts':list(prompts),'teacher_forced_positions_each':CONTROL_STEPS,
-        'reference':'frozen_base_adapters_disabled','direction':'base_to_policy','dtype':'float32',
+        'reference':'frozen_base_adapters_disabled' if adapter is None else 'frozen_adapter:'+adapter,'direction':'base_to_policy','dtype':'float32',
         'decoder_strategy':'full_prefix_uncached',
         'cache_sha256':sha256_file(path),'reference_logp_bytes':sum(row['reference_logps'].numel()*4 for row in controls)}
 

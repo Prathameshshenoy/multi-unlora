@@ -255,3 +255,14 @@ def evaluate_negative():
         return run_anchored_quality(run_name='negative_hall_v1',prior_run_names=('paired_hall_v1','anchored_hall_v1','anchored_hall_v2','matched_hall_v1'))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=2400, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def repair_roles():
+    import json
+    from training.role_repair import run_role_repair
+    try:
+        return json.loads(json.dumps(run_role_repair(),allow_nan=False))
+    finally:
+        volume.commit()
