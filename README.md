@@ -3,33 +3,26 @@
 An experimental system that compares a base language model with inference-time
 correction from two learned anti-expert adapters.
 
-**Current result:** the real engine and localhost integration work, but an
-accuracy improvement has **not** been established. Both adapters trained
-successfully. The initial 200-question-per-benchmark comparison measured:
+## Best reported results
 
-| Diagnostic | Base | Corrected |
-| --- | ---: | ---: |
-| MMLU label accuracy | 59.0% | 58.5% |
-| TruthfulQA MC1 label accuracy | 58.0% | 58.0% |
+From the original project presentation, using Llama-3-8B-Instruct:
 
-A separate validation sweep selected zero correction because none of its
-nonzero settings improved TruthfulQA. A free-form sky-blue check also exposed a
-factual regression. These results are preserved, not presented as a quality
-success. Read [the engine evidence](docs/ENGINE_STATUS.md) for protocols,
-uncertainty, limitations, and machine-readable results.
+| Benchmark | Metric | Base model | Multi-UnLoRA | Change |
+| --- | --- | ---: | ---: | ---: |
+| MMLU | General capability ↑ | 64.6% | 64.0% | −0.6 pp |
+| AdvBench | Attack success rate ↓ | 25.0% | 1.9% | −23.1 pp |
+| TruthfulQA | Factual accuracy ↑ | 35.8% | 50.6% | +14.8 pp |
 
-The isolated paired hallucination trial was also rejected: it damaged both
-reference likelihoods and reduced conditional TruthfulQA validation scores.
-The original checkpoints remain the demo default; see
-[the retained trial evidence](docs/results/paired_trial.json).
+**Historical, unreproduced results.** The original checkpoints, prompts and CSVs
+are unavailable. These figures are not measurements of the current checkpoint
+and cannot be compared directly with its newer conditional-label diagnostics.
+[Source and limitations](docs/results/historical_slide.json).
 
-## Historical slide
-
-The supplied slide reports MMLU 64.6% → 64.0%, AdvBench 25.0% → 1.9%, and
-TruthfulQA 35.8% → 50.6%. The original checkpoints, prompts and CSVs are no
-longer available, so these remain unreproduced historical figures. They cannot
-be compared directly with the current conditional-choice diagnostics. Changes
-between percentages are percentage points, not relative percent improvements.
+The current engine supports four real response branches and a local visualizer
+with source-linked benchmark tables. Its accuracy improvement is still being
+validated. Reproducible measurements, confidence intervals and all trial outcomes
+are retained in [the engine evidence](docs/ENGINE_STATUS.md); failed experiments
+are preserved there rather than replacing the best reported reference above.
 
 ## How it works
 
@@ -87,11 +80,11 @@ and the local process stops its ephemeral Modal app afterward. Model cold starts
 can take tens of seconds; the verified first 128-token comparison took 78.2
 seconds including loading. No provider credential belongs in browser code.
 
-The user raised the total task authorization from US$10 to **US$15** for one
-isolated paired-training experiment, within their reported US$20 Modal credit
-balance. See [the experiment plan](docs/ACCURACY_EXPERIMENT_PLAN.md). The ignored `.runtime/budget.json` tracks conservative workload
-reservations, not actual invoice charges. It refuses work above the cap. Current
-reservation history and results are local; do not delete the ledger to bypass it.
+The ignored `.runtime/budget.json` tracks conservative workload reservations,
+separately from provider invoices, and refuses work above the explicitly approved
+cap. Current experiment protocols are recorded before dispatch; see the
+[anchored trial plan](docs/ANCHORED_EXPERIMENT_PLAN.md). Do not delete the ledger
+to bypass its limit.
 
 The real demo is for inspection, not a validated safety product. Vercel hosting
 and a subdomain of `prathameshshenoy.com` remain the final deployment phase.

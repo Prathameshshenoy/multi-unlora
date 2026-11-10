@@ -154,7 +154,7 @@ def backup_volume(volume, destination, *, selected_manifests=()):
             raise BackupError("Manifest is missing adapter hash metadata")
         allowed_adapter_dirs = set(CANONICAL_ADAPTERS.values())
         if not canonical:
-            allowed_adapter_dirs.update({path.parent/"hallucination", path.parent/"hallucination"/"hallucination"})
+            allowed_adapter_dirs.update({path.parent/"hallucination", path.parent/"hallucination"/"hallucination", path.parent/"adapters"/"hallucination"})
         for role, default in CANONICAL_ADAPTERS.items():
             directory = volume_path(selected.get(role, default))
             if directory not in allowed_adapter_dirs:
@@ -235,11 +235,12 @@ def main():
         summary = verify_backup(args.verify, expected_inventory_sha256=args.expected_inventory_sha256)
     else:
         manifests = list(args.manifest)
-        paired_result = ROOT/".runtime"/"paired-train-result.json"
-        if paired_result.is_file():
-            selected = _read_manifest(paired_result).get("manifest_path")
-            if selected:
-                manifests.append(str(manifest_path(selected)))
+        for result_name in ('paired-train-result.json','anchored-train-result.json','anchored-training_report.json'):
+            result_path = ROOT/".runtime"/result_name
+            if result_path.is_file():
+                selected = _read_manifest(result_path).get("manifest_path")
+                if selected:
+                    manifests.append(str(manifest_path(selected)))
         # Validate requested paths before importing the network client.
         manifests = [str(manifest_path(value)) for value in manifests]
         from modal import Volume
