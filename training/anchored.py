@@ -177,13 +177,14 @@ def precompute_pairs(model,rows,collator,path):
 
 
 def run_anchored_trial(*,steps=80,run_name='anchored_hall_v1'):
-    """One isolated, unvalidated 80-step maximum trial; caller controls compute."""
+    """One isolated, unvalidated named trial; caller controls bounded compute."""
     import gc
     from peft import PeftModel
     from transformers import AutoModelForCausalLM,AutoTokenizer,Trainer,TrainingArguments,set_seed
     from inference.runtime import validate_artifacts,sha256_file
-    if run_name!='anchored_hall_v1' or isinstance(steps,bool) or not isinstance(steps,int) or not 1<=steps<=80:
-        raise ValueError('Only anchored_hall_v1 with 1..80 optimizer steps is approved')
+    profiles={'anchored_hall_v1':80,'anchored_hall_v2':160}
+    if run_name not in profiles or isinstance(steps,bool) or not isinstance(steps,int) or not 1<=steps<=profiles[run_name]:
+        raise ValueError('Training must fit its named, predeclared anchored profile')
     if not torch.cuda.is_available():
         raise RuntimeError('CUDA is required for the configured anchored trial')
     source = validate_artifacts()

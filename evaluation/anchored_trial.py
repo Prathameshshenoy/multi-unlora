@@ -102,10 +102,13 @@ def partition(model,tokenizer,vh,vj,dataset,task,indices,n,grid,blocked):
 
 
 def untouched_pairs(fresh, previous):
-    used=previous['specificity']['fresh_confirmation']
-    # Excluded contexts were visited too; they must never become fresh later.
-    consumed={row['pair_id'] for arm in used['adapters'].values() for row in arm['rows']}
-    consumed.update(row['pair_id'] for row in used.get('excluded',[]))
+    consumed=set()
+    reports=previous if isinstance(previous,list) else [previous]
+    for report in reports:
+        used=report['specificity']['fresh_confirmation']
+        # Excluded contexts were visited too; they must never become fresh later.
+        consumed.update(row['pair_id'] for arm in used['adapters'].values() for row in arm['rows'])
+        consumed.update(row['pair_id'] for row in used.get('excluded',[]))
     known={fingerprint(item) for item in fresh}
     if not consumed or not consumed<=known:
         raise RuntimeError('Prior paired confirmation cannot be reconstructed')
@@ -115,13 +118,16 @@ def untouched_pairs(fresh, previous):
     return selected,sorted(consumed)
 
 
-def run_anchored_quality():
+def run_anchored_quality(*,run_name=RUN_NAME,prior_run_names=('paired_hall_v1',)):
     import config
     from datasets import load_dataset
     from inference.runtime import validate_artifacts,load_inference_model,sha256_file
     from inference.operator import OPERATOR_VERSION
     from training.paired import load_paired_source
-    directory=Path(config.RUNS_DIR)/RUN_NAME
+    profiles={'anchored_hall_v1':('paired_hall_v1',),'anchored_hall_v2':('paired_hall_v1','anchored_hall_v1')}
+    if run_name not in profiles or tuple(prior_run_names)!=profiles[run_name]:
+        raise ValueError('Evaluation must match its predeclared trial and complete prior history')
+    directory=Path(config.RUNS_DIR)/run_name
     output=directory/'quality_report.json'
     partial=directory/'quality_report.partial.json'
     if output.exists() or partial.exists():
@@ -130,18 +136,19 @@ def run_anchored_quality():
     manifest=validate_artifacts(directory/'manifest.json')
     initial=json.loads((Path(config.RESULTS_DIR)/'pilot_quality.json').read_text())
     conditional=json.loads((Path(config.RESULTS_DIR)/'conditional_quality.json').read_text())
-    previous=json.loads((Path(config.RUNS_DIR)/'paired_hall_v1'/'quality_report.json').read_text())
+    prior_reports=[json.loads((Path(config.RUNS_DIR)/name/'quality_report.json').read_text()) for name in prior_run_names]
+    previous=prior_reports[0]
     train_report=json.loads((directory/'training_report.json').read_text())
     if manifest['source_manifest_sha256']!=sha256_file(Path(config.ADAPTER_DIR)/'manifest.json'):
         raise RuntimeError('Canonical source changed')
     identity=fingerprint(canonical)
     if (initial['manifest_fingerprint']!=identity or conditional['manifest_fingerprint']!=identity
-            or previous['source_manifest_fingerprint']!=identity):
+            or any(report['source_manifest_fingerprint']!=identity for report in prior_reports)):
         raise RuntimeError('Prior evidence identity mismatch')
     _,validation,fresh,split=load_paired_source(canonical,initial)
     if train_report['source_split']!=split:
         raise RuntimeError('Anchored training split changed')
-    fresh_pairs,consumed_pairs=untouched_pairs(fresh,previous)
+    fresh_pairs,consumed_pairs=untouched_pairs(fresh,prior_reports)
     datasets={
         'mmlu':load_dataset('cais/mmlu','all',split='validation').shuffle(seed=config.EVAL_SEED),
         'truthfulqa_mc1':load_dataset('truthful_qa','multiple_choice',split='validation').shuffle(seed=config.EVAL_SEED)}
@@ -151,18 +158,20 @@ def run_anchored_quality():
         if any(r['dataset_fingerprint']!=data._fingerprint or r.get('selection_seed')!=config.EVAL_SEED for r in reports):
             raise RuntimeError('Benchmark dataset identity/selection seed changed')
         val_block,all_ids,start=trial_usage(initial,conditional,task,len(data))
-        for section in ('validation','confirmation'):
-            used=previous.get(section,{}).get(task,{})
-            ids,indices=report_usage(used)
-            all_ids |= ids
-            if section=='confirmation':
-                val_block |= ids
-            if indices:
-                start=max(start,max(indices)+1)
+        for prior_report in prior_reports:
+            for section in ('validation','confirmation'):
+                used=prior_report.get(section,{}).get(task,{})
+                ids,indices=report_usage(used)
+                all_ids |= ids
+                if section=='confirmation':
+                    val_block |= ids
+                if indices:
+                    start=max(start,max(indices)+1)
         usage[task]=(val_block,all_ids,start)
     report={'protocol':PROTOCOL,'operator':OPERATOR_VERSION,'manifest_fingerprint':fingerprint(manifest),
             'source_manifest_fingerprint':identity,'model_revision':manifest['model_revision'],
-            'prior_paired_report_fingerprint':fingerprint(previous),'predeclared_grid':candidates(),
+            'prior_paired_report_fingerprint':fingerprint(previous),
+            'prior_trial_report_fingerprints':{name:fingerprint(report) for name,report in zip(prior_run_names,prior_reports)},'predeclared_grid':candidates(),
             'conditional_settings':{'beta':BETA,'kl_budget':KL_BUDGET},
             'specificity_n':SPECIFICITY_N,'validation_n':VALIDATION_N,'confirmation_n':CONFIRMATION_N,
             'consumed_prior_pair_ids':consumed_pairs,'validation':{},'confirmation':{},

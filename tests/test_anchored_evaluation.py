@@ -92,3 +92,13 @@ def test_component_cache_retains_unweighted_deltas_and_restores_base(monkeypatch
     assert torch.equal(cache['components']['hallucination'],torch.tensor([[0.,2.]]))
     assert torch.equal(cache['components']['pilot_hallucination'],torch.tensor([[0.,4.]]))
     assert model.enabled is False
+
+
+def test_later_trial_excludes_confirmation_pairs_from_every_previous_trial():
+    records=[{'prompt':str(i),'bad':'bad','good':'good'} for i in range(64)]
+    def prior(items):
+        return {'specificity':{'fresh_confirmation':{'adapters':{'hallucination':{
+            'rows':[{'pair_id':fingerprint(row)} for row in items]}},'excluded':[]}}}
+    selected,consumed=untouched_pairs(records,[prior(records[:16]),prior(records[16:32])])
+    assert selected==records[32:48]
+    assert len(consumed)==32

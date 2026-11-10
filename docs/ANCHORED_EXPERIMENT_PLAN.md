@@ -76,3 +76,52 @@ validation/confirmation job, with no retries and one GPU at a time. Remaining
 additional authorization covers bounded free-form checks and local integration;
 any further trial needs a new recorded protocol and must fit the remaining cap.
 Vercel and domain deployment remain deferred.
+
+## Second fit: frozen 10 November 2026
+
+The 80-step trial avoided the previous collapse and substantially reduced the
+shared desirable-answer gain, but its fresh specificity CI crossed zero and no
+conditional validation setting improved TruthfulQA. It is not promoted.
+
+`anchored_hall_v2` tests **160 steps from the same original SFT initialization**,
+with identical objective coefficients, controls, learning rate, seed and data.
+It is a separate longer fit, not an optimizer-state resume or a selected early
+checkpoint. The first trial logged 320 response-pair microbatches; the longer fit
+allows 640 before a complete 800-record training epoch. The hypothesis is that
+more fitting may reduce the remaining shared response-style signal. This is a
+hypothesis, not a promised accuracy gain.
+
+The grid and selection rule above stay fixed. Validate against every prior run's
+fingerprints, consume the next 16 untouched response pairs after both prior
+16-pair confirmations, and exclude all prior benchmark question IDs and visited
+indices. Earlier fresh sets are now development evidence and cannot be called
+fresh again. The original 200-question conditional confirmation partition remains
+unused because both earlier selectors chose zero. Preserve a second failure if
+this longer fit also fails. Reserve US$1.80 each for the bounded training and
+evaluation jobs, inside the already approved additional US$10.
+
+## Generated short-answer diagnostic
+
+After the second fit, compare base generation, original routed correction and
+`anchored_hall_v2` routed correction on **48 new QA pairs**. Exclude every prior
+paired-confirmation record, previously visited/excluded record, restricted
+presentation prompt and over-context prompt before scoring. Use the first 48
+eligible distinct questions in the original seeded source order. Preserve the
+same native prompt in all arms, adding only: “Answer with only the short answer.
+Do not add an explanation.” Freeze a 24-token cap, greedy uncached generation,
+the existing RepE weights, plausibility 0.1 and KL budget 0.5.
+
+The primary metric is exact match of the entire answer after NFKC, case folding,
+Unicode-punctuation removal and whitespace normalization. It requires EOS
+completion; capped responses count as incorrect. Also report token F1,
+truncations and paired bootstrap intervals. No substring, refusal-prefix,
+self-judge or answer-alias matching is used. A correct alternative phrasing may
+therefore be counted wrong; this is a narrow reproducible answer metric.
+
+This derives a **new short-answer generation task** from the source QA records;
+it is not the official HaluEval hallucination-detection score, TruthfulQA,
+AdvBench, or a broad factuality/safety measurement. See the
+[dataset card](https://huggingface.co/datasets/pminervini/HaluEval) and
+[original benchmark repository](https://github.com/RUCAIBox/HaluEval) for source
+task definitions. No correction setting is selected or retuned on these 48
+outcomes. Reserve US$1.20 for one 20-minute A100 job, no retries.
