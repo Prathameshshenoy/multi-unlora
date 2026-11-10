@@ -41,6 +41,28 @@ def reserve(stage, *, minutes=15):
         print(f'Budget reservation: ${spent+cost:.2f} / ${ledger["approved_usd"]:.2f}',flush=True)
 
 
+def dispatch_stage(engine, stage, steps):
+    """Invoke exactly one budgeted cloud function; serving is handled separately."""
+    jobs={
+        'preflight':(engine.preflight,()),
+        'train':(engine.train_pilot,(steps,)),
+        'evaluate':(engine.evaluate_pilot,()),
+        'tune-confirm':(engine.tune_and_confirm,()),
+        'paired-train':(engine.train_paired,(steps,)),
+        'paired-evaluate':(engine.evaluate_paired,()),
+        'anchored-train':(engine.train_anchored,(steps,)),
+        'anchored-evaluate':(engine.evaluate_anchored,()),
+        'anchored-long-train':(engine.train_anchored_long,()),
+        'anchored-long-evaluate':(engine.evaluate_anchored_long,()),
+        'short-answers':(engine.evaluate_short_answers,()),
+        'behavior':(engine.evaluate_behavior,()),
+    }
+    if stage not in jobs:
+        raise ValueError('Stage has no bounded cloud job')
+    job,args=jobs[stage]
+    return job.remote(*args)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('stage',choices=list(RESERVATIONS))
@@ -115,32 +137,7 @@ def main():
             finally:
                 timer.cancel()
             return
-        if args.stage=='preflight':
-            result = modal_engine.preflight.remote()
-        elif args.stage=='train':
-            result = modal_engine.train_pilot.remote(args.steps)
-        elif args.stage=='short-answers':
-            result = modal_engine.evaluate_short_answers.remote()
-        elif args.stage=='anchored-long-train':
-            result = modal_engine.train_anchored_long.remote()
-        elif args.stage=='anchored-long-evaluate':
-            result = modal_engine.evaluate_anchored_long.remote()
-        elif args.stage=='anchored-train':
-            result = modal_engine.train_anchored.remote(args.steps)
-        elif args.stage=='anchored-evaluate':
-            result = modal_engine.evaluate_anchored.remote()
-        elif args.stage=='paired-train':
-            result = modal_engine.train_paired.remote(args.steps)
-        elif args.stage in ('paired-evaluate','anchored-evaluate','anchored-long-evaluate'):
-            result = modal_engine.evaluate_paired.remote()
-        elif args.stage=='short-answers':
-            printable = {key:value for key,value in result.items() if key not in ('rows','visited_pair_ids','excluded')}
-        if args.stage=='behavior':
-            result = modal_engine.evaluate_behavior.remote()
-        elif args.stage=='evaluate':
-            result = modal_engine.evaluate_pilot.remote()
-        else:
-            result = modal_engine.tune_and_confirm.remote()
+        result = dispatch_stage(modal_engine,args.stage,args.steps)
         output = ROOT/'.runtime'/f'{args.stage}-result.json'
         output.write_text(json.dumps(result,indent=2))
         printable = result

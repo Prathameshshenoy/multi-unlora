@@ -21,7 +21,8 @@ SOURCES = ("initial_pilot.json", "historical_slide.json")
 
 
 def source_names(root):
-    return SOURCES + (("paired_trial.json",) if (Path(root)/"docs/results/paired_trial.json").is_file() else ())
+    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json")
+                           if (Path(root)/"docs/results"/name).is_file())
 
 
 def _read(path):
@@ -76,6 +77,9 @@ def build_data(root=ROOT):
     if "paired_trial.json" in source_names(root):
         trial = _read(root/"docs/results/paired_trial.json")
         data["latest_trial"] = {"source":"paired_trial.json", "status":trial["status"], "protocol":trial["protocol"]}
+    labels={"paired_trial.json":"Paired preference", "anchored_trial.json":"Anchored 80 steps", "anchored_long_trial.json":"Anchored 160 steps"}
+    data["trial_reports"]=[{"source":name,"label":labels[name],"status":_read(root/"docs/results"/name).get("status","unvalidated")}
+                           for name in source_names(root) if name in labels]
     return data
 
 
@@ -110,8 +114,8 @@ def render_table(data):
     invalid = truth["corrected_invalid_choices"]
     claim = ("See the source report for the validated scope." if current["production_quality_verified"] is True
              else "No accuracy or safety improvement is verified.")
-    trial = data.get("latest_trial")
-    trial_link = (f'<p>Later paired trial: <a href="./results/paired_trial.json">{escape(trial["status"].replace("_"," "))} · separate report</a>.</p>' if trial else '')
+    trial_links = [f'<a href="./results/{escape(report["source"])}">{escape(report["label"])}</a>' for report in data.get("trial_reports",[])]
+    trial_link = '<p>Trial reports: ' + ' · '.join(trial_links) + '.</p>' if trial_links else ''
     return ('<section class="benchmark-panel panel" aria-labelledby="benchmark-title">'
         '<div class="panel-heading"><h2 id="benchmark-title">Benchmark results</h2>'
         '<span class="micro-label">MEASURED PILOT</span></div>'
