@@ -31,8 +31,10 @@ ratio above 2. Exclusions never migrate into development or test.
 This is a **derived internal role-development corpus**. Full TruthfulQA would
 now overlap this candidate's training and must not be reported as an independent
 benchmark. The original canonical model and its previous results are unchanged.
-The candidate manifest records all allocated training question hashes. Existing
-canonical benchmark commands must not be repointed to this experiment.
+The candidate manifest records all allocated training question hashes. The
+loader carries those hashes onto the model, and the choice scorer rejects
+normalized training-question overlaps before querying logits. Existing canonical
+benchmark commands must not be repointed to this experiment.
 
 ## Fixed training recipe
 

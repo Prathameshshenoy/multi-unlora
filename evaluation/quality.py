@@ -61,6 +61,10 @@ def score_choices(model, tokenizer, question, choices, answer, v_hall, v_jail):
     from inference.processor import MultiUnLoRALogitsProcessor
     from repe.router import compute_dynamic_alphas
 
+    if getattr(model, 'unlora_training_question_ids', None):
+        from training.role_corpus import question_id
+        if question_id(question) in model.unlora_training_question_ids:
+            raise ValueError('Benchmark question overlaps the selected adapter training corpus')
     prompt, labels = choice_prompt(question, choices)
     if isinstance(answer, bool) or not isinstance(answer, int) or not 0 <= answer < len(labels):
         raise ValueError("The reference answer must index an available choice")

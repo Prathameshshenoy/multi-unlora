@@ -158,7 +158,8 @@ def test_checkpoint_override_survives_recursive_explicit_recalibration(tmp_path,
     assert canonical.read_bytes() == original
 
 
-def test_inference_loader_passes_selected_bundle_paths_without_mutating_config(artifact_set,monkeypatch):
+@pytest.mark.parametrize("training_ids",[None,["a"*64]])
+def test_inference_loader_passes_selected_bundle_paths_without_mutating_config(artifact_set,monkeypatch,training_ids):
     torch = pytest.importorskip('torch')
     transformers = pytest.importorskip('transformers')
     peft = pytest.importorskip('peft')
@@ -172,6 +173,8 @@ def test_inference_loader_passes_selected_bundle_paths_without_mutating_config(a
     selected_repe = root/'selected_vectors.pt'
     selected_repe.write_bytes(b'fake vector checkpoint')
     manifest['repe_checkpoint'] = str(selected_repe)
+    if training_ids is not None:
+        manifest['training_corpus']={'question_ids':training_ids}
     bundle = root/'candidate.json'
     bundle.write_text(json.dumps(manifest))
     calls = {}
@@ -196,8 +199,18 @@ def test_inference_loader_passes_selected_bundle_paths_without_mutating_config(a
     monkeypatch.setattr(extractor,'load_or_compute_vectors',vectors)
     loaded = runtime.load_inference_model(manifest_path=bundle)
     assert loaded[0] is model
+    assert model.unlora_training_question_ids==frozenset(training_ids or [])
     assert calls['hallucination'] == str(new_hall)
     assert calls['jailbreak'] == str(root/'jailbreak')
     assert calls['checkpoint'] == selected_repe
     assert calls['disabled'] is True
     assert config.HALL_ADAPTER_PATH == str(root/'hallucination')
+
+
+@pytest.mark.parametrize('ids',[[],['bad-hash'],[{}],['a'*64,'a'*64]])
+def test_malformed_training_question_provenance_fails_closed(artifact_set,ids):
+    root,manifest=artifact_set
+    manifest['training_corpus']={'question_ids':ids}
+    (root/'manifest.json').write_text(json.dumps(manifest))
+    with pytest.raises(RuntimeError,match='training-corpus'):
+        runtime.validate_artifacts()

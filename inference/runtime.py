@@ -113,6 +113,13 @@ def validate_artifacts(manifest_path=None):
             raise RuntimeError(f"Adapter model revision mismatch for {concept}")
         if settings.get("peft_type") != "LORA" or settings.get("task_type") != "CAUSAL_LM":
             raise RuntimeError(f"Unsupported adapter type for {concept}")
+    corpus=manifest.get("training_corpus")
+    if corpus is not None:
+        ids=corpus.get("question_ids") if isinstance(corpus,dict) else None
+        if (not isinstance(ids,list) or not ids
+                or any(not isinstance(key,str) or not re.fullmatch(r"[0-9a-f]{64}",key) for key in ids)
+                or len(set(ids))!=len(ids)):
+            raise RuntimeError("Invalid training-corpus question provenance")
     return manifest
 
 
@@ -143,6 +150,7 @@ def load_inference_model(*, calibrate_vectors=False, manifest_path=None):
     )
     model = PeftModel.from_pretrained(base, str(paths["hallucination"]), adapter_name="hallucination")
     model.load_adapter(str(paths["jailbreak"]), adapter_name="jailbreak")
+    model.unlora_training_question_ids = frozenset(manifest.get("training_corpus",{}).get("question_ids",[]))
     model.eval()
     model.disable_adapter_layers()
     metadata = vector_provenance(model_revision=revision)
