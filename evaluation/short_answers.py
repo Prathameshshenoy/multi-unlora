@@ -141,7 +141,8 @@ def run_short_answers():
         if pair_id in consumed:
             continue
         report['visited_pair_ids'].append(pair_id)
-        if assess_prompt(item['prompt'])['restricted'] or not normalize(item['good']):
+        if (not isinstance(item['good'],str) or assess_prompt(item['prompt'])['restricted']
+                or not normalize(item['good'])):
             report['excluded'].append({'pair_id':pair_id,'reason':'display_policy_or_empty_reference'})
             continue
         prompt=item['prompt']+'\n\n'+report['answer_instruction']

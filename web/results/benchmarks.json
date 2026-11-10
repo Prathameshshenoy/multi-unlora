@@ -68,7 +68,9 @@
     "initial_pilot.json": "46955bb75a6126f16ebb9324aeb495724f0bb77f08d1cb6bc5a8a6730c45cd6b",
     "historical_slide.json": "1c5a52b96811ff54dd680e548705277c9fa7db781fcbd9beb487fb35f37c4650",
     "paired_trial.json": "35d96759b3dc5f976e92fc697cbfa8b725014e8a277757f3bc99e3a0d12a3ff2",
-    "anchored_trial.json": "c69b6266a409aaac0c4812574894256238a93e66723a6d2730631c7d41d5541a"
+    "anchored_trial.json": "c69b6266a409aaac0c4812574894256238a93e66723a6d2730631c7d41d5541a",
+    "anchored_long_trial.json": "f03f270b3147900981271c9363d90c99e37e3c002d8c6cd9bcadc7ebd4537483",
+    "short_answers.json": "bd181af7cee7732ceb8c53f1a72d8afefd7ebb31beda3a99aaa51d56fd98f725"
   },
   "latest_trial": {
     "source": "paired_trial.json",
@@ -85,6 +87,16 @@
       "source": "anchored_trial.json",
       "label": "Anchored 80 steps",
       "status": "not_promoted_no_validation_gain"
+    },
+    {
+      "source": "anchored_long_trial.json",
+      "label": "Anchored 160 steps",
+      "status": "not_promoted_no_validation_gain"
+    },
+    {
+      "source": "short_answers.json",
+      "label": "Generated short answers",
+      "status": "complete"
     }
   ]
 }

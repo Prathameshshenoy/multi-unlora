@@ -205,3 +205,13 @@ def evaluate_short_answers():
         return run_short_answers()
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, timeout=300,
+              max_containers=1, retries=0, cpu=1, memory=4096, scaledown_window=2)
+def audit_training_data():
+    from evaluation.data_audit import run_training_data_audit
+    try:
+        return run_training_data_audit()
+    finally:
+        volume.commit()

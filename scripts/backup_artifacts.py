@@ -25,7 +25,7 @@ CANONICAL_ADAPTERS = {
 CANONICAL_REPE = PurePosixPath("/vol/checkpoints/repe_vectors.pt")
 CANONICAL_REPORTS = tuple(PurePosixPath("/vol/results") / name for name in (
     "pilot_quality.json", "conditional_quality.json", "conditional_validation.json",
-    "paired_specificity.json", "behavior_report.json",
+    "paired_specificity.json", "behavior_report.json", "training_data_audit.json",
 ))
 MAX_FILE_BYTES = 1024 ** 3
 
@@ -173,7 +173,7 @@ def backup_volume(volume, destination, *, selected_manifests=()):
             quality = volume_path(manifest.get("quality_report", path.parent/"quality_report.json"))
             if quality != path.parent/"quality_report.json":
                 raise BackupError("Trial quality report is outside the artifact whitelist")
-            for optional in (path.parent/"training_report.json", quality, path.parent/"behavior_report.json"):
+            for optional in (path.parent/"training_report.json", quality, path.parent/"behavior_report.json", path.parent/"short_answer_report.json"):
                 download(optional, required=False, report=True)
 
     status = "failed"
@@ -235,7 +235,7 @@ def main():
         summary = verify_backup(args.verify, expected_inventory_sha256=args.expected_inventory_sha256)
     else:
         manifests = list(args.manifest)
-        for result_name in ('paired-train-result.json','anchored-train-result.json','anchored-training_report.json'):
+        for result_name in ('paired-train-result.json','anchored-train-result.json','anchored-training_report.json','anchored-long-train-result.json'):
             result_path = ROOT/".runtime"/result_name
             if result_path.is_file():
                 selected = _read_manifest(result_path).get("manifest_path")

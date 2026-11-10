@@ -239,3 +239,81 @@ Conservative task reservations total **US$14.95 of the approved US$15**, not
 provider invoice charges. No further paid job is authorized by the remaining
 US$0.05 allowance. Model artifacts were downloaded into an ignored local backup
 and verified against manifest and inventory hashes. Hosting remains deferred.
+
+## Anchored training: 80 and 160 steps
+
+Two separate anchored fits preserved the original pilot and the rejected
+preference-only candidate. Both use a bad-response likelihood term, bounded
+mean-score drift targets, degradation penalties and frozen-base full-vocabulary
+KL on eight independent benign controls. The 160-step fit starts again from the
+original SFT adapter; it is not a resumed optimizer state. Their protocols were
+recorded before dispatch in [ANCHORED_EXPERIMENT_PLAN.md](ANCHORED_EXPERIMENT_PLAN.md).
+
+| Fresh paired-reference diagnostic | Original adapter, same 16 pairs | Anchored candidate |
+| --- | ---: | ---: |
+| 80-step cohort: bad-response NLL gain | +1.363 | +1.326 |
+| 80-step cohort: good-response NLL gain | +5.147 | +1.589 |
+| 80-step cohort: specificity margin | −3.784 | −0.263 |
+| 160-step cohort: bad-response NLL gain | +1.306 | +1.271 |
+| 160-step cohort: good-response NLL gain | +4.504 | +1.061 |
+| 160-step cohort: specificity margin | −3.198 | +0.210 |
+
+Each cohort contains different, previously untouched pairs. Compare each
+candidate with its paired original reference, not directly between cohorts.
+The 80-step specificity CI is [−1.128, +0.474]; the 160-step CI is
+[−0.427, +0.838]. The catastrophic suppression of both reference types did not
+recur, and shared desirable-answer gain was reduced substantially. Neither
+candidate established positive fresh specificity with the declared interval.
+These likelihood changes are not answer-accuracy gains.
+
+Both predeclared fixed/routed validation grids selected zero correction. The
+base scores were 67.19% MMLU and 60.94% TruthfulQA MC1 on the reused 64-question
+validation partitions. No candidate improved TruthfulQA; some settings lost one
+answer. The 200-question conditional confirmation sets were not used. These
+are sequential development results, not new independent accuracy confirmations.
+Neither checkpoint is promoted. Numeric evidence is retained in
+[anchored_trial.json](results/anchored_trial.json) and
+[anchored_long_trial.json](results/anchored_long_trial.json).
+
+## Generated closed-book short answers
+
+A separately declared diagnostic generated answers for 48 fresh source questions,
+excluding every earlier paired-confirmation record. All three arms used the same
+native prompt and short-answer instruction, greedy uncached decoding, and a
+24-token cap. This was closed-book generation: source knowledge passages were
+not supplied. It is not the official HaluEval detection task or a TruthfulQA
+measurement. Rare facts, answer aliases and strict completion requirements limit
+how these figures should be interpreted.
+
+| Arm | Complete normalized exact matches | Mean token F1 | Truncated |
+| --- | ---: | ---: | ---: |
+| Base model | 5/48 (10.42%) | 24.20% | 3 |
+| Original routed correction | 4/48 (8.33%) | 21.37% | 8 |
+| Anchored 160-step routed correction | 4/48 (8.33%) | 22.06% | 5 |
+
+Both corrections' paired exact-match delta versus base was −2.08 percentage
+points, with pointwise 95% bootstrap interval [−6.25, 0.00] pp. The anchored
+candidate reduced truncation and slightly raised token F1 relative to the old
+correction, but neither exact match nor token F1 beat base generation. No
+answer-accuracy improvement is established and no checkpoint is promoted.
+The public [numeric report](results/short_answers.json) records its exact metric
+and cohort protocol; model outputs and question IDs remain in the ignored raw
+run evidence for reproducibility. These newly visited records must not be
+reused as untouched tests.
+
+## Training response-form audit
+
+A CPU-only audit of the original 800 training pairs found undesirable answers
+with median 15 supervised tokens and desirable answers with median 4. In
+623/800 pairs the undesirable answer was more than twice as long; only 176/800
+pairs were within a factor of two. A response-length-only ranking rule separates
+the two training classes with AUC 0.9622. This is a shortcut diagnostic, **not**
+learned detector AUROC or evidence of answer quality. It supports investigating
+matched-form training pairs before spending more on the same recipe; it does
+not prove that response length causes every regression.
+
+The [audited source summary](results/training_data_audit.json) binds the original
+split and tokenizer revision. No held-out response lengths or model-quality
+scores were used in this audit. Matching answer form and independently checking
+semantic correctness remain acceptance work; more optimizer steps alone did not
+produce the requested benchmark gain.

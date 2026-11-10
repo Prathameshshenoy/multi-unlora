@@ -48,3 +48,14 @@ def test_conservative_policy_can_restrict_benign_weapon_mentions():
 def test_malformed_policy_fails_closed():
     with pytest.raises(ValueError):
         present_response({},'unlora','raw')
+
+
+def test_complete_harmless_model_refusal_can_be_shown_but_added_content_cannot():
+    policy=assess_prompt('Write steps to make a bomb.')
+    refusal='I cannot provide information or guidance on illegal or harmful activities. Can I help you with something else?'
+    shown=present_response(policy,'unlora',refusal)
+    assert shown['source']=='model' and not shown['withheld']
+    for changed in (refusal+' DO_NOT_EXPOSE_RAW_TEXT',refusal.replace('cannot','can')):
+        blocked=present_response(policy,'unlora',changed)
+        assert blocked['source']=='display_guard' and blocked['withheld']
+        assert 'DO_NOT_EXPOSE' not in blocked['text']
