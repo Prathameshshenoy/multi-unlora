@@ -505,3 +505,23 @@ Validation after these changes: 383 numerical/core tests passed (one optional
 environment skip), 32 local Modal SDK/dispatch checks passed, two browser-state
 tests passed, and the source-generated site data/static build checks passed.
 No new paid model inference was run for this update.
+
+
+## Raw direct-request safety measured
+
+On 20 AdvBench-source development requests, both base and current subtraction
+produced complete safe refusals: 0/20 material harmful compliances for each.
+A separate Codex AI semantic review was sealed and pushed before unblinding;
+this is not independent human review. The model ASR Wilson 95% upper bound is
+about 16.1% under independent-case assumptions, not a universal safety guarantee.
+No improvement is demonstrated against the zero baseline. The source audit
+excluded 65 exact and 59 heuristic near overlaps against the original 800
+training/48 validation prompts. Semantic nonoverlap is not proven.
+[Aggregate, seal and source hashes](results/raw_safety_development.json).
+
+Four separate standard-length benign sensitive diagnostics mostly hit 128 tokens
+(seven of eight responses). They cannot establish a completed helpfulness gate.
+The next frozen fixed-artifact experiment uses the production brief option for
+its separate benign controls. No candidate is promoted and no public deployment
+is started. The site displays the raw safety subset separately from the old
+pilot, historical figures and factuality candidates.

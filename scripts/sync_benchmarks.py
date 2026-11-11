@@ -21,7 +21,7 @@ SOURCES = ("initial_pilot.json", "historical_slide.json")
 
 
 def source_names(root):
-    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json","reference_support_confirmation.json","selective_subtraction_confirmation.json")
+    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json","reference_support_confirmation.json","selective_subtraction_confirmation.json","raw_safety_development.json")
                            if (Path(root)/"docs/results"/name).is_file())
 
 
@@ -88,6 +88,22 @@ def build_data(root=ROOT):
          'Different, broader health/society cohort; not comparable with the 70% review above.')):
         path=root/'docs/results'/name
         if path.is_file():data[key]=_answer_review_data(_read(path),name,candidate,label,controls,note)
+    safety_path = root/'docs/results/raw_safety_development.json'
+    if safety_path.is_file():
+        safety = _read(safety_path)
+        arms = safety['arms']; n = arms['baseline']['n_assigned']
+        if type(n) is not int or n <= 0 or arms['unlora']['n_assigned'] != n or safety['production_quality_verified'] is not False:
+            raise ValueError('Safety scope and denominators must be explicit')
+        for arm in ('baseline', 'unlora'):
+            values = arms[arm]
+            if values['unscorable'] != 0 or Decimal(values['harmful_compliance'])/n != values['asr']:
+                raise ValueError('Unknown safety outcomes cannot be displayed as model refusals')
+        data['raw_safety_development'] = {'source':'raw_safety_development.json', 'n':n,
+            'baseline_pct':_percentage(arms['baseline']['asr']),
+            'multi_unlora_pct':_percentage(arms['unlora']['asr']),
+            'change_pp':f"{(Decimal(arms['unlora']['asr'])-Decimal(arms['baseline']['asr']))*100:.1f}",
+            'upper_95_pct':f"{Decimal(arms['unlora']['asr_wilson_95_ci'][1])*100:.1f}",
+            'production_quality_verified':False}
     return data
 
 
@@ -153,12 +169,26 @@ def _confirmation_table(data):
     return ''.join(_answer_review_table(data[key]) for key in ('generated_confirmation','selective_confirmation') if key in data)
 
 
+def _safety_table(data):
+    result = data.get('raw_safety_development')
+    if result is None:
+        return ''
+    row = {'benchmark':'AdvBench subset', 'metric':'Direct-request attack success rate ↓', **result}
+    return ('<section class="answer-review" aria-labelledby="raw-safety-title"><h3 id="raw-safety-title">Direct-request safety check</h3>'
+        +_table([row], caption=f"{result['n']} source-selected direct requests · raw model responses · AI semantic review.", label='Raw direct-request safety development results')
+        +'<div class="benchmark-notes"><p>Both models refused every tested request. This is a small development subset, not full AdvBench or a jailbreak-attack score, and shows no improvement over base. '
+        'Website guard refusals were not counted.</p>'
+        +f'<p>Zero observed failures is not a safety guarantee. The model ASR Wilson 95% upper bound is {result["upper_95_pct"]}% under independent-case assumptions; selected and related behaviors limit generalization. '
+        '<a href="./results/raw_safety_development.json">Results, review seal and limitations</a></p></div></section>')
+
+
 def render_table(data):
     current = data["current"]
     mmlu, truth = current["rows"][:2]
     count_scope = (f'{mmlu["n"]}-question diagnostic per task' if mmlu["n"] == truth["n"]
                    else f'diagnostic · {mmlu["n"]} MMLU and {truth["n"]} TruthfulQA MC1 questions')
     invalid = truth["corrected_invalid_choices"]
+    safety_note = ' A separate direct-request subset appears below.' if 'raw_safety_development' in data else ''
     claim = ("See the source report for the validated scope." if current["production_quality_verified"] is True
              else "No accuracy or safety improvement is verified.")
     trial_links = [f'<a href="./results/{escape(report["source"])}">{escape(report["label"])}</a>' for report in data.get("trial_reports",[])]
@@ -170,10 +200,10 @@ def render_table(data):
         + '<div class="benchmark-notes"><p id="benchmark-model-note" hidden>The MMLU and TruthfulQA MC1 rows report the original pilot adapters.</p><p><strong>' + claim + '</strong> '
         'These are forced-choice label diagnostics, not general answer accuracy or a safety score. '
         f'TruthfulQA MC1 had {invalid} invalid corrected choice{"s" if invalid != 1 else ""}. '
-        'AdvBench has not been measured; dashes mean unavailable.</p>'
+        'Full AdvBench has not been measured; dashes mean unavailable.'+safety_note+'</p>'
         '<p>Change is measured in percentage points. '
         '<a href="./results/initial_pilot.json">Measured source JSON</a></p>' + trial_link + '</div>'
-        +_confirmation_table(data)
+        +_safety_table(data)+_confirmation_table(data)
         +'<details class="benchmark-history"><summary>Historical slide · unverified</summary>'
         '<p class="benchmark-history-scope">Original checkpoints and CSVs are unavailable. '
         'These supplied figures use different or unverified protocols and are not comparable to the current run.</p>'

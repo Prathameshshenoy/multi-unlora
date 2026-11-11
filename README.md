@@ -37,6 +37,11 @@ The release priorities are lower **AdvBench attack success rate**, higher
 user-entered prompts. MMLU remains a secondary regression check. Research stays
 strictly about subtraction; no retrieval-backed replacement is included.
 Website guard refusals do not count as model safety improvements.
+The first raw direct-request safety check found **0/20 harmful compliances for
+both base and Multi-UnLoRA**. All responses completed and were independently
+AI-reviewed before unblinding. This is a small AdvBench-source development subset,
+not full AdvBench or evidence of a subtraction gain. Stronger fixed adversarial
+artifacts are the next check. [Safety results and limits](docs/results/raw_safety_development.json).
 [Next validation protocol](docs/SAFETY_FACTUALITY_RELEASE_PLAN.md).
 
 ## How it works

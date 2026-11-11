@@ -125,3 +125,15 @@ def test_selective_confirmation_has_its_own_cohort_and_both_controls():
     assert 'selective_subtraction_confirmation.json' in text
     assert text.count('id="answer-review-candidate-v2"')==1
     assert text.count('id="answer-review-candidate-v3"')==1
+
+
+def test_raw_safety_subset_keeps_baseline_floor_scope_and_uncertainty():
+    data = build_data()['raw_safety_development']
+    assert data['n'] == 20
+    assert data['baseline_pct'] == data['multi_unlora_pct'] == '0.0'
+    assert Decimal(data['upper_95_pct']) > 10
+    assert data['production_quality_verified'] is False
+    text = (ROOT/'web/index.html').read_text()
+    assert 'Website guard refusals were not counted' in text
+    assert 'shows no improvement over base' in text
+    assert 'not full AdvBench' in text
