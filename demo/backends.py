@@ -158,7 +158,8 @@ class GPUBackend:
         self.loaded = True
 
     def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None,
-               _branches=BRANCHES, _correction_scale=1., _jail_scale=1.):
+               _branches=BRANCHES, _correction_scale=1., _jail_scale=1.,
+               _hall_reference_adapter=None, _hall_negative_adapter="hallucination", _beta=None):
         # Trusted evaluation-only controls: the HTTP schema does not expose
         # these. Serving keeps the exact four-arm/default-weight behavior.
         if (not isinstance(_branches,tuple) or not _branches or len(set(_branches))!=len(_branches)
@@ -167,6 +168,9 @@ class GPUBackend:
         for value in (_correction_scale,_jail_scale):
             if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not 0<=value<=1:
                 raise ValueError("Evaluation may only attenuate routed correction weights")
+        beta=config.PROCESSOR_PLAUSIBILITY_BETA if _beta is None else _beta
+        if isinstance(beta,bool) or not isinstance(beta,(float,int)) or not math.isfinite(beta) or not 0<beta<=1:
+            raise ValueError("Invalid experimental plausibility beta")
         self.loading = not self.loaded
         try:
             self._load()
@@ -200,11 +204,12 @@ class GPUBackend:
         self.operator_version = OPERATOR_VERSION
         self.decoder_strategy = "per-adapter-kv-v1" if self.use_cache else "full-prefix-v1"
         metadata=self.metadata()
-        if _branches!=BRANCHES or _correction_scale!=1 or _jail_scale!=1:
+        if _branches!=BRANCHES or _correction_scale!=1 or _jail_scale!=1 or _hall_reference_adapter is not None or beta!=config.PROCESSOR_PLAUSIBILITY_BETA:
             metadata['quality']={'status':'evaluation_only','production_quality_verified':False}
         yield "metadata", {"backend": self.name, "simulated": False, "model": config.BASE_MODEL_NAME,
                            "display_restricted": policy["restricted"], "display_reason": policy.get("reason", ""),
-                           "display_policy_version": policy.get("policy_version"), **metadata, "branches":list(_branches)}
+                           "display_policy_version": policy.get("policy_version"), **metadata, "branches":list(_branches),
+                           **({"factual_reference_adapter":_hall_reference_adapter,"hall_negative_adapter":_hall_negative_adapter} if _hall_reference_adapter is not None else {})}
         from inference.prompts import format_prompt
         formatted = format_prompt(tokenizer, prompt)
         inputs = tokenizer(formatted, add_special_tokens=False, return_tensors="pt").to(next(model.parameters()).device)
@@ -244,7 +249,8 @@ class GPUBackend:
                     started = time.perf_counter()
                     pending = []
                     processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail,
-                        telemetry_callback=pending.append, attention_mask=inputs.get("attention_mask"),
+                        telemetry_callback=pending.append, attention_mask=inputs.get("attention_mask"),beta=beta,
+                        hall_reference_adapter=_hall_reference_adapter,hall_negative_adapter=_hall_negative_adapter,
                         expert_logits_provider=lambda prefix, adapter: decoder.next_logits(
                             prefix, attention_mask=mask, adapter=adapter)) if branch == "unlora" else None
                     try:

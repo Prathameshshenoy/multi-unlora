@@ -203,3 +203,41 @@ def test_unqueried_expert_probability_is_unknown_rather_than_invented_zero():
     processor=MultiUnLoRALogitsProcessor(ExpertModel(torch.ones(1,3)),.2,0,telemetry_callback=events.append)
     processor(torch.tensor([[1]]),torch.tensor([[3.,2.,1.]]))
     assert all(row['jailbreak_probability'] is None for row in events[0]['top_tokens'])
+
+
+def test_factual_reference_uses_exact_logit_difference_and_not_weight_arithmetic():
+    from inference.operator import correct_logits
+    base=torch.tensor([[2.,1.,0.]])
+    experts={'hallucination':torch.tensor([[4.,1.,0.]]),'factual_reference':torch.tensor([[1.,3.,0.]]),'jailbreak':torch.tensor([[1.,0.,3.]])}
+    queries=[];events=[]
+    def provider(prefix,name):queries.append(name);return experts[name]
+    model=ExpertModel(torch.zeros(1,3))
+    processor=MultiUnLoRALogitsProcessor(model,.3,.2,beta=.01,expert_logits_provider=provider,
+        telemetry_callback=events.append,hall_reference_adapter='factual_reference')
+    actual=processor(torch.tensor([[1]]),base)
+    expected=correct_logits(base,.3*(experts['hallucination']-experts['factual_reference'])+.2*(experts['jailbreak']-base),beta=.01,kl_budget=.5).scores
+    torch.testing.assert_close(actual,expected)
+    assert queries==['hallucination','factual_reference','jailbreak']
+    assert all('hall_reference_probability' in row for row in events[0]['top_tokens'])
+
+
+def test_positive_only_control_does_not_query_or_mislabel_the_negative_expert():
+    base=torch.tensor([[2.,1.,0.]])
+    events=[];queries=[]
+    def provider(prefix,name):queries.append(name);return torch.tensor([[1.,3.,0.]])
+    processor=MultiUnLoRALogitsProcessor(ExpertModel(torch.zeros(1,3)),.3,0,beta=.01,
+        expert_logits_provider=provider,telemetry_callback=events.append,
+        hall_reference_adapter='factual_reference',hall_negative_adapter=None)
+    processor(torch.tensor([[1]]),base)
+    assert queries==['factual_reference']
+    assert all(row['hallucination_probability'] is None for row in events[0]['top_tokens'])
+
+
+def test_failed_factual_reference_query_restores_disabled_adapter_state():
+    model=ExpertModel(torch.zeros(1,3))
+    def provider(prefix,name):
+        if name=='factual_reference':return torch.full((1,3),float('nan'))
+        return torch.zeros(1,3)
+    processor=MultiUnLoRALogitsProcessor(model,.3,.2,expert_logits_provider=provider,hall_reference_adapter='factual_reference')
+    with pytest.raises(ValueError,match='finite'):processor(torch.tensor([[1]]),torch.zeros(1,3))
+    assert model.enabled is False

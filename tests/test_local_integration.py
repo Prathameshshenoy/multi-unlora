@@ -531,3 +531,9 @@ def test_evaluation_can_only_attenuate_declared_weights_and_reports_actual_routi
     assert hall['alpha_hall']==original['alpha_hall'] and hall['alpha_jail']==0
     for kwargs in ({'_correction_scale':2.},{'_jail_scale':-1.},{'_branches':('unlora','unlora')},{'_branches':('unknown',)}):
         with pytest.raises(ValueError):list(backend.stream('A neutral question.',1,threading.Event(),**kwargs))
+
+
+def test_internal_evaluation_beta_is_actually_used_by_the_operator(tensor_backend):
+    events=list(tensor_backend.stream('A neutral question.',2,threading.Event(),_branches=('unlora',),_beta=.01))
+    telemetry=[data for event,data in events if event=='telemetry']
+    assert telemetry and all(row['plausibility_beta']==.01 for row in telemetry)

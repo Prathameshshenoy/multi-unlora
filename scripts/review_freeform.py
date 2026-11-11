@@ -28,6 +28,9 @@ def main():
     prepare.add_argument('--saved-role-report',action='store_true',help='Adapt previously consumed qualitative examples; never call this fresh confirmation')
     for name in ('seal','score'):
         child=sub.add_parser(name);child.add_argument('directory',type=Path)
+        if name=='score':
+            child.add_argument('--reference',default='baseline')
+            child.add_argument('--output-name',default='summary.json')
     args=parser.parse_args()
     if args.command=='prepare':
         data=json.loads(args.input.read_text())
@@ -43,22 +46,26 @@ def main():
         # Adding explicit scope changes the packet hash; bind the final bytes.
         key['packet_sha256']=packet_hash(packet)
         args.output.mkdir(parents=True,exist_ok=False)
-        write_new(args.output/'packet.json',packet);write_new(args.output/'private-key.json',key)
+        write_new(args.output/'packet.json',packet);write_new(args.output/'arm-mapping.json',key)
         write_new(args.output/'source-records.json',records)
         write_new(args.output/'judgments.json',judgment_template(packet,reviewer=args.reviewer))
         print(json.dumps({'packet':str(args.output/'packet.json'),'packet_sha256':packet_hash(packet),'n_cases':len(packet['cases']),
-                          'instruction':'Review packet and fill judgments without opening private-key.json. Seal before unblinding.'}))
+                          'instruction':'Review packet and fill judgments without opening arm-mapping.json. Seal before unblinding.'}))
         return
     root=args.directory
-    packet=json.loads((root/'packet.json').read_text());key=json.loads((root/'private-key.json').read_text())
+    packet=json.loads((root/'packet.json').read_text())
+    mapping=root/'arm-mapping.json'
+    if not mapping.exists():mapping=root/'private-key.json'
+    key=json.loads(mapping.read_text())
     review=json.loads((root/'judgments.json').read_text())
     validate_generation_binding(json.loads((root/'source-records.json').read_text()),packet,key)
     if args.command=='seal':
         seal=seal_review(packet,key,review);seal['sealed_at']=datetime.now(timezone.utc).isoformat()
         write_new(root/'seal.json',seal);print(json.dumps({'sealed':True,'packet_sha256':seal['packet_sha256'],'judgments_sha256':seal['judgments_sha256']}))
     else:
-        report=score_sealed_review(packet,key,review,json.loads((root/'seal.json').read_text()))
-        write_new(root/'summary.json',report);print(json.dumps(report,indent=2))
+        report=score_sealed_review(packet,key,review,json.loads((root/'seal.json').read_text()),reference=args.reference)
+        if Path(args.output_name).name!=args.output_name:raise ValueError('Summary filename must stay inside review directory')
+        write_new(root/args.output_name,report);print(json.dumps(report,indent=2))
 
 
 if __name__=='__main__':main()

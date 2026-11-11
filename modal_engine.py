@@ -288,3 +288,14 @@ def develop_freeform():
         return json.loads(json.dumps(generate_phase('development'),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1200, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def develop_factual_reference():
+    import json
+    from evaluation.factual_reference_trial import develop_factual_reference as generate
+    try:
+        return json.loads(json.dumps(generate(),allow_nan=False))
+    finally:
+        volume.commit()

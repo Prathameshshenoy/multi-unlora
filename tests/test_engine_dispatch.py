@@ -2,7 +2,7 @@ from types import SimpleNamespace
 import pytest
 from scripts.run_engine import dispatch_stage,RESERVATIONS
 
-CASES=[('freeform-dev','develop_freeform',()),('content-delta','repair_content_delta',()),('role-repair','repair_roles',()),('negative-train','train_negative',()),('negative-evaluate','evaluate_negative',()),('matched-train','train_matched',()),('matched-evaluate','evaluate_matched',()),('preflight','preflight',()),('data-audit','audit_training_data',()),('train','train_pilot',(80,)),
+CASES=[('reference-dev','develop_factual_reference',()),('freeform-dev','develop_freeform',()),('content-delta','repair_content_delta',()),('role-repair','repair_roles',()),('negative-train','train_negative',()),('negative-evaluate','evaluate_negative',()),('matched-train','train_matched',()),('matched-evaluate','evaluate_matched',()),('preflight','preflight',()),('data-audit','audit_training_data',()),('train','train_pilot',(80,)),
        ('evaluate','evaluate_pilot',()),('tune-confirm','tune_and_confirm',()),
        ('paired-train','train_paired',(80,)),('paired-evaluate','evaluate_paired',()),
        ('anchored-train','train_anchored',(80,)),('anchored-evaluate','evaluate_anchored',()),

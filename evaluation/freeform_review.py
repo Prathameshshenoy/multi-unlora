@@ -192,3 +192,26 @@ def validate_generation_binding(records,packet,key):
                       'complete':value.get('finish_reason') in ('eos','sentence_limit')}
             if case['answers'][slot]!=expected:raise ValueError('Anonymous answer differs from source generation')
     return True
+
+
+def select_factual_reference_policy(base_report,positive_report,*,expected_n=12):
+    """Require value beyond both base and the matched positive-only control."""
+    for field in ('packet_sha256','judgments_sha256'):
+        if base_report[field]!=positive_report[field]:raise ValueError('Comparison reviews differ')
+    if base_report['arms']!=positive_report['arms']:raise ValueError('Comparison arm summaries differ')
+    if any(v['n_assigned']!=expected_n for v in base_report['arms'].values()):raise ValueError('Development sample count changed')
+    eligible=[]
+    for rank,arm in enumerate(('factual','factual_both','factual_wide')):
+        value=base_report['arms'][arm]
+        checks=[]
+        for report,reference,minimum in ((base_report,'baseline',2),(positive_report,'reference_only',1)):
+            pair=report['comparisons'][arm];before=report['arms'][reference]
+            if pair['reference']!=reference:raise ValueError('Wrong factual-reference comparator')
+            checks.append(pair['review_coverage_sufficient'] and pair['strict_wins']-pair['strict_losses']>=minimum
+                and pair['new_contradictions']==0 and value['contradiction_rate']<=before['contradiction_rate']
+                and value['unscorable_rate']<=before['unscorable_rate'])
+        if all(checks) and value['guarded_outputs']==0 and value['unfinished_outputs']==0:
+            eligible.append((value['accepted_rate'],rank,arm))
+    if not eligible:return {'selected':None,'status':'no_gain_beyond_base_and_positive_control','automatic_promotion':False}
+    return {'selected':min(eligible,key=lambda r:(-r[0],r[1]))[2],
+            'status':'requires_untouched_three_arm_confirmation','automatic_promotion':False}

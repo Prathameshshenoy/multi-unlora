@@ -117,3 +117,19 @@ def test_packet_answer_must_match_the_real_generated_answer_before_sealing():
     key['packet_sha256']=packet_hash(packet)
     with pytest.raises(ValueError,match='differs from source'):
         validate_generation_binding(rows,packet,key)
+
+
+def test_factual_reference_must_improve_beyond_positive_only_not_just_base():
+    from evaluation.freeform_review import select_factual_reference_policy
+    arms={name:{'n_assigned':12,'accepted_rate':.8,'contradiction_rate':0.,'unscorable_rate':0.,'guarded_outputs':0,'unfinished_outputs':0}
+          for name in ('baseline','reference_only','factual','factual_both','factual_wide')}
+    def report(reference,net):
+        return {'packet_sha256':'same','judgments_sha256':'same','arms':arms,
+                'comparisons':{name:{'reference':reference,'review_coverage_sufficient':True,'strict_wins':net,'strict_losses':0,'new_contradictions':0}
+                               for name in ('factual','factual_both','factual_wide')}}
+    base=report('baseline',2);positive=report('reference_only',0)
+    assert select_factual_reference_policy(base,positive)['selected'] is None
+    positive=report('reference_only',1)
+    assert select_factual_reference_policy(base,positive)['selected']=='factual'
+    positive['comparisons']['factual']['new_contradictions']=1
+    assert select_factual_reference_policy(base,positive)['selected']=='factual_both'

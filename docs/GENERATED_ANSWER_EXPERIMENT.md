@@ -116,3 +116,19 @@ The remaining 29 are unscorable rather than classified correct or false. There
 are zero jointly scorable pairs, so no comparative accuracy confidence interval
 is reported. This is an AI development audit with prior text exposure, not fresh
 blinded human confirmation.
+
+## Development outcome
+
+All 48 outputs finished. A sealed AI reference-grounded review accepted 8/12
+answers for base, current correction, quarter correction and hallucination-only
+correction. Each correction removed one contradicted assertion but left the
+question unanswered. No variant produced an additional accepted answer; none
+qualified and no conditional confirmation was run.
+
+[Numeric result](results/generated_answer_development.json) and
+[sealed review hashes](results/freeform_development_review_seal.json). Full
+packets, source outputs, judgments and arm mappings remain in ignored local
+review directories. The aggregate can be reproduced from the owner's local
+review bundle with `scripts/review_freeform.py`; those private records are not
+published. The review was performed by an AI with prior development-example
+exposure; no independent human review is implied.
