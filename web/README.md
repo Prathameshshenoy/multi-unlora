@@ -62,3 +62,9 @@ its value is `hallucination` or `jailbreak` for the corresponding reference arm.
 The base and contrastive arm decode base logits (`adapter_id: null`); the
 contrastive arm separately queries both expert distributions. This provenance
 must not be changed merely to make a displayed response fit a role label.
+
+The response header reports which of four sequential runs is active. Interrupted
+streams preserve partial text and distinguish unfinished responses from branches
+that never ran. Reconnecting clears the previous server's session deadline.
+The focused UI-state regressions run without a browser:
+`node --test tests/test_web_state.mjs`. These tests do not replace visual QA.

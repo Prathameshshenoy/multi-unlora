@@ -12,3 +12,6 @@
 .expert-role-note{margin:0;padding:12px 24px;color:var(--muted);font-size:11px;line-height:1.7;border-bottom:1px solid var(--border)}
 
 .response-style{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.response-style input{accent-color:var(--lime);margin:0}
+
+.run-progress{margin:0;padding:12px 24px 0;color:var(--lime);font-size:11px;line-height:1.6}.run-progress+.expert-role-note{border-top:0}
+@media(max-width:680px){.prompt-footer{flex-wrap:wrap;gap:10px}.run-controls{flex-wrap:wrap}.result-status{flex-wrap:wrap;justify-content:flex-end}.run-progress{padding-left:18px;padding-right:18px}}

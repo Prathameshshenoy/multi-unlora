@@ -20,6 +20,7 @@ let timer;
 let apiBase = '';
 let settingsGeneration = 0;
 let sessionDeadline = null;
+let finishedBranches = new Set();
 try { apiBase = localStorage.getItem('multi-unlora-api') || ''; } catch {}
 elements['api-url'].value = apiBase;
 
@@ -42,6 +43,8 @@ function engineStatus(data) {
     sessionDeadline = data.session_expires_at * 1000;
     $('session-status').textContent = `Local session ends at ${new Date(sessionDeadline).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}.`;
     $('session-status').hidden = false;
+  } else if (Object.hasOwn(data,'session_expires_at')) {
+    sessionDeadline = null; $('session-status').hidden = true;
   }
 }
 function setRunEnabled() { elements['run-button'].disabled = !ready || running || !elements.prompt.value.trim(); }
@@ -68,6 +71,7 @@ async function connect() {
   }
   apiBase = candidate;
   try { localStorage.setItem('multi-unlora-api',apiBase); } catch {}
+  sessionDeadline = null; $('session-status').hidden = true;
   ready = false; setRunEnabled(); elements['connection-status'].textContent = 'Connecting'; elements['status-dot'].className = 'dot';
   try {
     const response = await fetch(endpoint('/api/health'),{headers:headers(),signal:AbortSignal.timeout(15000)});
@@ -136,6 +140,7 @@ function metrics(branch,data) {
 }
 function presentBranch(branch,result) {
   if (!result) return;
+  finishedBranches.add(branch);
   const label = $(`${branch}-source`);
   label.hidden = !result.source || result.source === 'model';
   label.textContent = result.source === 'display_guard' ? 'Display guard · this text is not a model refusal' : result.source === 'withheld' ? 'Output withheld by display policy' : '';
@@ -174,6 +179,7 @@ function handleEvent(event,data) {
     if (!branches.includes(data.branch)) return;
     if (data.status === 'generating') {
       elements['run-state'].textContent = `GENERATING ${branchNames[data.branch]}`;
+      $('run-progress').textContent = `Response ${branches.indexOf(data.branch)+1} of 4 · ${branchNames[data.branch].toLowerCase().replaceAll('_','-')}`;
       if (data.buffered) $(`${data.branch}-output`).textContent = 'Generating privately for display review…';
     } else {
       presentBranch(data.branch,data);
@@ -189,7 +195,9 @@ function handleEvent(event,data) {
         $(`${branch}-metrics`).textContent = 'Unavailable from this backend';
       }
     }
+    if (backend !== 'preview') notice('');
     streamCompleted = true; elements['run-state'].textContent = 'COMPARISON COMPLETE';
+    $('run-progress').textContent = 'All four responses complete.';
   }
   else if (event === 'error') {
     if (data.code === 'session_expired') { ready = false; elements['connection-status'].textContent = 'Session ended'; }
@@ -214,16 +222,32 @@ async function consumeSSE(response) {
 }
 
 function resetOutputs() {
+  finishedBranches = new Set(); $('run-progress').textContent = 'Preparing comparison…';
   trace = []; streamCompleted = false; requestId = undefined; stopRequested = false; $('chart-line').setAttribute('d',''); $('chart-fill').setAttribute('d',''); $('kl-value').textContent = '—'; $('step-count').textContent = '0 TOKENS'; $('attenuation').textContent = '—'; $('router-state').textContent = 'ROUTING PROMPT';
   $('chart-empty').textContent = 'Waiting for the first corrected token…';
   for (const id of ['hall','jail']) { $(`alpha-${id}`).textContent = '—'; $(`${id}-meter`).style.width = '0%'; }
   for (const branch of branches) { const output = $(`${branch}-output`); output.textContent = 'Waiting for generation…'; output.className = 'response-output empty'; $(`${branch}-metrics`).textContent = 'Awaiting generation'; $(`${branch}-source`).hidden = true; }
   $('token-table').replaceChildren(); const row = document.createElement('tr'); const cell = document.createElement('td'); cell.colSpan = 5; cell.className = 'table-empty'; cell.textContent = 'Waiting for token probabilities…'; row.append(cell); $('token-table').append(row);
 }
+function markPartialResults(cancelled) {
+  for (const branch of branches) {
+    if (finishedBranches.has(branch)) continue;
+    const output = $(`${branch}-output`);
+    if (output.classList.contains('empty') || output.textContent === 'Generating privately for display review…') {
+      output.textContent = cancelled ? 'Stopped before a response was available.' : 'No response received.';
+      output.classList.remove('empty');
+      $(`${branch}-metrics`).textContent = 'Not completed';
+    } else {
+      $(`${branch}-metrics`).textContent = cancelled ? 'Partial response · stopped' : 'Partial response · interrupted';
+    }
+  }
+  $('run-progress').textContent = `${finishedBranches.size} of 4 responses completed.`;
+}
 async function run() {
   if (!ready || running || !elements.prompt.value.trim()) return;
   running = true; controller = new AbortController(); resetOutputs(); setRunEnabled(); elements['stop-button'].hidden = false; elements.prompt.disabled = true; $('max-tokens').disabled = true; $('brief-answers').disabled = true; $('connect-button').disabled = true; $('settings-toggle').disabled = true; elements['run-state'].textContent = 'STARTING COMPARISON';
-  if (backend !== 'preview') notice('');
+  for (const button of $('examples').children) button.disabled = true;
+  if (backend !== 'preview') notice('The first comparison may take a few minutes while the model loads. Responses run one after another.');
   startedAt = performance.now(); timer = setInterval(() => { $('run-duration').textContent = `${((performance.now()-startedAt)/1000).toFixed(1)}s`; },100);
   try {
     const response = await fetch(endpoint('/api/generate'),{method:'POST',headers:{'Content-Type':'application/json',...headers()},body:JSON.stringify({prompt:elements.prompt.value.trim(),max_new_tokens:Number($('max-tokens').value),response_style:$('brief-answers').checked?'brief':'standard'}),signal:controller.signal});
@@ -232,8 +256,10 @@ async function run() {
     if (!streamCompleted) throw new Error('The inference stream ended before completing. Partial responses are shown.');
   } catch (error) {
     const cancelled = controller.signal.aborted || stopRequested; elements['run-state'].textContent = cancelled ? 'STOPPED' : 'GENERATION FAILED';
+    markPartialResults(cancelled);
     notice(cancelled ? 'Generation stopped. Partial responses remain visible.' : error.message,!cancelled);
   } finally {
+    for (const button of $('examples').children) button.disabled = false;
     clearInterval(timer); running = false; controller = undefined; elements['stop-button'].hidden = true; elements.prompt.disabled = false; $('max-tokens').disabled = false; $('brief-answers').disabled = false; $('connect-button').disabled = false; $('settings-toggle').disabled = false; document.querySelectorAll('.response-output').forEach((output) => output.classList.remove('streaming')); setRunEnabled();
   }
 }
