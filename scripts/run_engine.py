@@ -20,6 +20,7 @@ RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm':
 SERVE_RESERVATIONS = {3: .3, 5: .5, 10: .8, 15: 1.0}
 RESERVATIONS['safety-dev'] = .6
 RESERVATIONS['adversarial-dev'] = 1.2
+RESERVATIONS['prepare-local'] = .25
 
 
 def reserve(stage, *, minutes=15):
@@ -46,6 +47,7 @@ def reserve(stage, *, minutes=15):
 def dispatch_stage(engine, stage, steps):
     """Invoke exactly one budgeted cloud function; serving is handled separately."""
     jobs={
+        'prepare-local':(engine.prepare_demo_runtime,()),
         'adversarial-dev':(engine.develop_adversarial_safety,()),
         'safety-dev':(engine.develop_raw_safety,()),
         'constraint-audit':(engine.audit_shared_constraint,()),
@@ -119,12 +121,10 @@ def main():
     import modal_engine
     service = None
     if args.stage=='serve-local':
-        import secrets
         import time
-        token = secrets.token_urlsafe(32)
         # Absolute deadline enforced at both ends; timer also stops the app.
         deadline = time.time()+args.minutes*60
-        service = modal_engine.register_local_demo(token,deadline,diagnose=args.diagnose,manifest_path=args.manifest)
+        service = modal_engine.register_local_rpc(deadline,diagnose=args.diagnose,manifest_path=args.manifest)
     # Reserve only after pure local SDK validation succeeds, before any cloud dispatch.
     reserve(args.stage,minutes=args.minutes)
     print('Connecting to Modal and preparing the runtime image...',flush=True)
@@ -142,13 +142,12 @@ def main():
             import time
             import uvicorn
             os.environ.pop('MULTI_UNLORA_API_TOKEN',None)
-            os.environ['MULTI_UNLORA_BACKEND'] = 'remote'
-            os.environ['MULTI_UNLORA_REMOTE_URL'] = service.get_web_url()
-            os.environ['MULTI_UNLORA_REMOTE_TOKEN'] = token
             os.environ['MULTI_UNLORA_DEMO_DEADLINE'] = str(deadline)
             from demo.app import create_app
-            from demo.backends import RemoteBackend
-            api = create_app(RemoteBackend())
+            from demo.backends import ModalBackend
+            import modal
+            api = create_app(ModalBackend(service.remote_gen,
+                lambda call_id: modal.FunctionCall.from_id(call_id).cancel(terminate_containers=True)))
             server = uvicorn.Server(uvicorn.Config(api,host='127.0.0.1',port=8000))
             timer = threading.Timer(max(0,deadline-time.time()),lambda:setattr(server,'should_exit',True))
             timer.daemon = True

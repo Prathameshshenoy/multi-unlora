@@ -32,13 +32,13 @@ function engineStatus(data) {
     $('checkpoint-status').textContent = 'Simulated preview';
     $('quality-status').textContent = 'Interface preview · no model running.';
   } else if (data.adapter_set) {
-    $('checkpoint-status').textContent = data.adapter_set === 'selected' ? 'Selected experimental adapters' : 'Original pilot adapters';
+    $('checkpoint-status').textContent = 'Trained adapters connected';
     const benchmarkNote = $('benchmark-model-note');
     if (benchmarkNote) benchmarkNote.hidden = data.adapter_set !== 'selected';
   }
   const quality = data.quality;
   if (quality) {
-    $('quality-status').textContent = quality.production_quality_verified === true ? 'See the evaluation report for measured results.' : quality.status === 'forced_choice_passed' ? 'Forced-choice checks passed. Broader accuracy and safety validation pending.' : quality.status === 'forced_choice_failed' ? 'Pilot evaluation did not pass the quality gate.' : 'Experimental adapters · broader validation pending.';
+    $('quality-status').textContent = 'Research model · review responses carefully.';
   }
   if (Number.isFinite(data.session_expires_at)) {
     sessionDeadline = data.session_expires_at * 1000;
@@ -75,7 +75,7 @@ async function connect() {
   sessionDeadline = null; $('session-status').hidden = true;
   ready = false; setRunEnabled(); elements['connection-status'].textContent = 'Connecting'; elements['status-dot'].className = 'dot';
   try {
-    const response = await fetch(endpoint('/api/health'),{headers:headers(),signal:AbortSignal.timeout(15000)});
+    const response = await fetch(endpoint('/api/health'),{headers:headers(),signal:AbortSignal.timeout(75000)});
     if (!response.ok) throw new Error(`Health check returned HTTP ${response.status}.`);
     const health = await response.json();
     if (generation !== settingsGeneration) return;

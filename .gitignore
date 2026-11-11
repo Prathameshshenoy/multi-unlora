@@ -27,3 +27,14 @@ Multi_Unlora_MASTER_BLUEPRINT.md
 
 # Platform metadata
 .DS_Store
+
+# Local working notes stay outside the public documentation.
+/docs/*.md
+!/docs/LOCAL_SETUP.md
+!/docs/MODEL_CARD.md
+/docs/results/historical_slide.json
+/web/results/*.json
+!/web/results/benchmarks.json
+!/web/results/initial_pilot.json
+!/web/results/raw_safety_development.json
+!/web/results/selective_subtraction_confirmation.json

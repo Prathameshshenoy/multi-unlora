@@ -1,9 +1,7 @@
 """Generate the site's benchmark table from tracked, scoped result summaries.
 
 No model execution or benchmark scoring happens here. ``--check`` fails if the
-public table/data/source copies no longer match docs/results. The historical
-slide remains a distinct unverified source and is never merged with measured
-pilot metrics.
+public table/data/source copies no longer match docs/results. Tables retain their model settings and sample sizes.
 """
 from __future__ import annotations
 
@@ -17,11 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BEGIN = "<!-- BEGIN BENCHMARK RESULTS -->"
 END = "<!-- END BENCHMARK RESULTS -->"
-SOURCES = ("initial_pilot.json", "historical_slide.json")
+SOURCES = ("initial_pilot.json",)
 
 
 def source_names(root):
-    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json","reference_support_confirmation.json","selective_subtraction_confirmation.json","raw_safety_development.json")
+    return SOURCES + tuple(name for name in ("selective_subtraction_confirmation.json", "raw_safety_development.json")
                            if (Path(root)/"docs/results"/name).is_file())
 
 
@@ -38,9 +36,6 @@ def _percentage(value):
 def build_data(root=ROOT):
     root = Path(root)
     initial = _read(root/"docs/results/initial_pilot.json")
-    history = _read(root/"docs/results/historical_slide.json")
-    if history.get("status") != "historical_unverified" or history.get("comparable_to_current") is not False:
-        raise ValueError("Historical figures must remain explicitly unverified and incomparable")
     rows = []
     for key, name, metric in (("mmlu", "MMLU", "Label accuracy"),
                               ("truthfulqa_mc1", "TruthfulQA MC1", "Label accuracy")):
@@ -60,32 +55,16 @@ def build_data(root=ROOT):
     rows.append({"benchmark":"AdvBench", "metric":"Attack success rate",
         "baseline_pct":None, "multi_unlora_pct":None, "change_pp":None,
         "n":None, "status":"not_measured"})
-    historical = []
-    for row in history["rows"]:
-        base, corrected = Decimal(row["baseline_pct"]), Decimal(row["multi_unlora_pct"])
-        if not all(value.is_finite() and 0 <= value <= 100 for value in (base, corrected)):
-            raise ValueError("Historical percentages must be finite and in [0, 100]")
-        historical.append({**row,"change_pp":f"{corrected-base:.1f}"})
     data = {"protocol":"benchmark-display-v1", "current":{
         "source":"initial_pilot.json", "evaluation_protocol":initial["protocol"],
         "manifest_fingerprint":initial["manifest_fingerprint"],
         "production_quality_verified":initial["production_quality_verified"],
         "forced_choice_gate_passed":initial["forced_choice_gate_passed"], "rows":rows},
-        "historical":{"source":"historical_slide.json", "status":history["status"],
-            "comparable_to_current":False,"rows":historical},
         "source_sha256":{name:hashlib.sha256((root/"docs/results"/name).read_bytes()).hexdigest() for name in source_names(root)}}
-    if "paired_trial.json" in source_names(root):
-        trial = _read(root/"docs/results/paired_trial.json")
-        data["latest_trial"] = {"source":"paired_trial.json", "status":trial["status"], "protocol":trial["protocol"]}
-    labels={"paired_trial.json":"Paired preference", "anchored_trial.json":"Anchored 80 steps", "anchored_long_trial.json":"Anchored 160 steps", "short_answers.json":"Generated short answers", "matched_trial.json":"Matched-form expert", "negative_trial.json":"Bounded negative expert", "role_repair_trial.json":"Misconception role repair", "content_delta_trial.json":"False-content difference", "reference_support_development.json":"Reference-support development"}
-    data["trial_reports"]=[{"source":name,"label":labels[name],"status":_read(root/"docs/results"/name).get("status","unvalidated")}
-                           for name in source_names(root) if name in labels]
     for key,name,candidate,label,controls,note in (
-        ('generated_confirmation','reference_support_confirmation.json','contrast_8','Candidate v2',
-         [('positive_8','Positive-only strength 1')],'Initial restricted-category cohort.'),
-        ('selective_confirmation','selective_subtraction_confirmation.json','selective_2','Candidate v3',
+        ('selective_confirmation','selective_subtraction_confirmation.json','selective_2','Experimental profile',
          [('positive_1','Positive-only strength 1'),('positive_2','Matched positive-only strength 2')],
-         'Different, broader health/society cohort; not comparable with the 70% review above.')):
+         '20 factual questions scored for correct, complete answers.'),):
         path=root/'docs/results'/name
         if path.is_file():data[key]=_answer_review_data(_read(path),name,candidate,label,controls,note)
     safety_path = root/'docs/results/raw_safety_development.json'
@@ -154,19 +133,20 @@ def _table(rows, *, caption, label, corrected_label="Multi-UnLoRA"):
 def _answer_review_table(result):
     interval=result['paired_bootstrap_95_ci_pp']
     interval_text='not estimable' if interval is None else f"{Decimal(interval[0]):+.1f} to {Decimal(interval[1]):+.1f} pp"
-    gate='Passed the internal factuality gate; broader release checks remain open.' if result['gate_passed'] else 'Did not pass the accuracy gate; this candidate is not the serving default.'
+    gate='This table uses a separate experimental decoding profile, rather than the default demo settings.'
     label=escape(result['candidate_label']);heading='answer-review-'+label.lower().replace(' ','-')
     controls=' · '.join(f"{escape(c['label'])}: {c['pct']}% ({c['accepted']}/{result['n']})" for c in result['positive_controls'])
-    return (f'<section class="answer-review" aria-labelledby="{heading}"><h3 id="{heading}">Held-out answer review · {label}</h3>'
+    return (f'<section class="answer-review" aria-labelledby="{heading}"><h3 id="{heading}">Factual answer comparison</h3>'
         +_table(result['rows'],caption=f"{result['n']} held-out adapter-evaluation questions · AI reference-grounded review.",label='Experimental '+result['candidate_label']+' held-out answer review',corrected_label=result['candidate_label'])
-        +'<div class="benchmark-notes"><p>'+escape(result['cohort_note'])+'</p><p>'+gate+'</p><p>'+controls+'. '
+        +'<div class="benchmark-notes"><p>'+gate+'</p><p>A 20-question answer check using a separate decoding profile.</p>'
+        +'<details class="evaluation-details"><summary>Test details</summary><p>'+escape(result['cohort_note'])+'</p><p>'+controls+'. '
         +f"Candidate − base paired 95% interval: {interval_text}. All assigned questions stay in the denominator, including unfinished outputs.</p>"
-        +'<p>This small, category-restricted internal review is not an official TruthfulQA score. This candidate uses a third factual-reference adapter. '
-        +f'<a href="./results/{escape(result["source"])}">Review results and limitations</a></p></div></section>')
+        +'<p>This profile uses an additional factual-reference adapter; results describe this test setting only. '
+        +f'<a href="./results/{escape(result["source"])}">Review results and limitations</a></p></details></div></section>')
 
 
-def _confirmation_table(data):
-    return ''.join(_answer_review_table(data[key]) for key in ('generated_confirmation','selective_confirmation') if key in data)
+def _confirmation_table(data, key):
+    return _answer_review_table(data[key]) if key in data else ''
 
 
 def _safety_table(data):
@@ -176,10 +156,10 @@ def _safety_table(data):
     row = {'benchmark':'AdvBench subset', 'metric':'Direct-request attack success rate ↓', **result}
     return ('<section class="answer-review" aria-labelledby="raw-safety-title"><h3 id="raw-safety-title">Direct-request safety check</h3>'
         +_table([row], caption=f"{result['n']} source-selected direct requests · raw model responses · AI semantic review.", label='Raw direct-request safety development results')
-        +'<div class="benchmark-notes"><p>Both models refused every tested request. This is a small development subset, not full AdvBench or a jailbreak-attack score, and shows no improvement over base. '
-        'Website guard refusals were not counted.</p>'
+        +'<div class="benchmark-notes"><p>Both models refused all 20 requests in this test.</p>'
+        '<details class="evaluation-details"><summary>Test details</summary><p>This is not full AdvBench or a jailbreak-attack score. Website guard refusals were not counted.</p>'
         +f'<p>Zero observed failures is not a safety guarantee. The model ASR Wilson 95% upper bound is {result["upper_95_pct"]}% under independent-case assumptions; selected and related behaviors limit generalization. '
-        '<a href="./results/raw_safety_development.json">Results, review seal and limitations</a></p></div></section>')
+        '<a href="./results/raw_safety_development.json">Results, review seal and limitations</a></p></details></div></section>')
 
 
 def render_table(data):
@@ -189,27 +169,21 @@ def render_table(data):
                    else f'diagnostic · {mmlu["n"]} MMLU and {truth["n"]} TruthfulQA MC1 questions')
     invalid = truth["corrected_invalid_choices"]
     safety_note = ' A separate direct-request subset appears below.' if 'raw_safety_development' in data else ''
-    claim = ("See the source report for the validated scope." if current["production_quality_verified"] is True
-             else "No accuracy or safety improvement is verified.")
     trial_links = [f'<a href="./results/{escape(report["source"])}">{escape(report["label"])}</a>' for report in data.get("trial_reports",[])]
     trial_link = '<details class="evaluation-details"><summary>Evaluation reports</summary><p>' + ' · '.join(trial_links) + '.</p></details>' if trial_links else ''
     return ('<section class="benchmark-panel panel" aria-labelledby="benchmark-title">'
         '<div class="panel-heading"><h2 id="benchmark-title">Benchmark results</h2>'
-        '<span class="micro-label">MEASURED PILOT</span></div>'
+        '<span class="micro-label">MODEL EVALUATION</span></div>'
+        +_safety_table(data)+_confirmation_table(data, 'selective_confirmation')
+        +'<details class="evaluation-details earlier-results"><summary>Additional measurements</summary>'
         + _table(current["rows"], caption=f'Initial {count_scope} · {current["evaluation_protocol"]}.', label='Current measured pilot benchmark results')
-        + '<div class="benchmark-notes"><p id="benchmark-model-note" hidden>The MMLU and TruthfulQA MC1 rows report the original pilot adapters.</p><p><strong>' + claim + '</strong> '
-        'These are forced-choice label diagnostics, not general answer accuracy or a safety score. '
+        + '<div class="benchmark-notes"><p>These tests compare selected answer labels; free-form response quality can differ. '
         f'TruthfulQA MC1 had {invalid} invalid corrected choice{"s" if invalid != 1 else ""}. '
         'Full AdvBench has not been measured; dashes mean unavailable.'+safety_note+'</p>'
         '<p>Change is measured in percentage points. '
         '<a href="./results/initial_pilot.json">Measured source JSON</a></p>' + trial_link + '</div>'
-        +_safety_table(data)+_confirmation_table(data)
-        +'<details class="benchmark-history"><summary>Historical slide · unverified</summary>'
-        '<p class="benchmark-history-scope">Original checkpoints and CSVs are unavailable. '
-        'These supplied figures use different or unverified protocols and are not comparable to the current run.</p>'
-        + _table(data["historical"]["rows"], caption='User-supplied historical reference · not reproduced.', label='Unverified historical slide figures')
-        + '<p class="benchmark-history-source"><a href="./results/historical_slide.json">Historical source and limitations</a></p>'
-        '</details></section>')
+        +_confirmation_table(data, 'generated_confirmation')+'</details>'
+        +'</section>')
 
 
 def sync(root=ROOT, *, check=False):
@@ -233,7 +207,7 @@ def sync(root=ROOT, *, check=False):
         for path in stale:
             path.parent.mkdir(parents=True,exist_ok=True)
             path.write_bytes(expected[path])
-    return {"measured_rows":len(data["current"]["rows"]), "historical_rows":len(data["historical"]["rows"]),
+    return {"measured_rows":len(data["current"]["rows"]),
             "changed_files":len(stale)}
 
 

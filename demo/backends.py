@@ -373,6 +373,82 @@ def backend_from_env():
     return {"gpu": GPUBackend, "preview": PreviewBackend, "unavailable": UnavailableBackend, "remote": RemoteBackend}.get(name, UnavailableBackend)()
 
 
+class ModalBackend:
+    """Local-only UI bridge using authenticated Modal RPC, not a public API."""
+    name = 'modal'
+    simulated = False
+
+    def __init__(self, stream_remote, cancel_remote):
+        self.stream_remote, self.cancel_remote = stream_remote, cancel_remote
+        self._metadata = {'model':config.BASE_MODEL_NAME, 'adapter_set':'selected',
+                          'model_loaded':False, 'engine_state':'cold'}
+
+    def health(self):
+        return True, 'Connected to your Modal workspace. The first comparison loads the GPU model.'
+
+    def metadata(self):
+        return dict(self._metadata)
+
+    def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None):
+        done = threading.Event()
+        call_id = []
+        cancel_lock = threading.Lock()
+        cancelled_ids = set()
+        complete = False
+
+        def stop():
+            with cancel_lock:
+                if call_id and call_id[0] not in cancelled_ids:
+                    # A cancelled container is never reused with partial state.
+                    self.cancel_remote(call_id[0])
+                    cancelled_ids.add(call_id[0])
+                    self._metadata.update(model_loaded=False, engine_state='cold')
+
+        def watch():
+            while not done.wait(.05):
+                if cancelled.is_set() and call_id:
+                    stop()
+                    return
+
+        watcher = threading.Thread(target=watch, daemon=True)
+        watcher.start()
+        iterator = None
+        try:
+            iterator = self.stream_remote(prompt, max_new_tokens, sentence_limit)
+            for event, payload in iterator:
+                if event == 'rpc_started':
+                    call_id.append(payload['call_id'])
+                    if cancelled.is_set():
+                        stop()
+                        return
+                    continue
+                if cancelled.is_set():
+                    stop()
+                    return
+                if event == 'metadata':
+                    self._metadata.update({k:v for k,v in payload.items()
+                        if k in ('model','adapter_set','model_loaded','engine_state','model_revision',
+                                 'manifest_fingerprint','quality','decoder_strategy','operator')})
+                    payload = {**payload, 'backend':self.name}
+                if event == 'complete':
+                    complete = True
+                yield event, payload
+            if not complete and not cancelled.is_set():
+                yield 'error', {'message':'Model generation ended early. Try the comparison again.'}
+        except Exception:
+            if not cancelled.is_set():
+                yield 'error', {'message':'Modal generation failed. Check the local terminal and your Modal workspace.'}
+        finally:
+            if not complete:
+                stop()
+            done.set()
+            watcher.join(timeout=5)
+            if iterator is not None:
+                close = getattr(iterator, 'close', None)
+                if close is not None:
+                    close()
+
+
 class RemoteBackend:
     """Localhost bridge to a real HTTPS GPU API; credentials stay server-side."""
 
@@ -411,14 +487,16 @@ class RemoteBackend:
     def health(self):
         client = self._client()
         try:
-            response = client.get(self.url + "/api/health", headers={"Authorization": "Bearer " + self.token}, timeout=10.0)
+            response = client.get(self.url + "/api/health", headers={"Authorization": "Bearer " + self.token}, timeout=60.0)
             response.raise_for_status()
             data = response.json()
             if data.get("backend") != "gpu" or data.get("simulated") is True:
                 return False, "Remote endpoint is not a real GPU inference backend."
             self._remember(data)
             return data.get("ready") is True, data.get("detail", "Remote GPU backend.")
-        except Exception:
+        except Exception as error:
+            import logging
+            logging.getLogger(__name__).warning('GPU health check failed (%s)', type(error).__name__)
             return False, "Cannot reach the GPU service. Check the local server configuration."
         finally:
             if self.client is None:

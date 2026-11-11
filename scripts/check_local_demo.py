@@ -43,7 +43,7 @@ with httpx.Client(timeout=120.) as client:
     report['benchmark_table_present']=True
     report['prompt_precedes_benchmark_table']=True
     report['public_result_sources']={}
-    for name in ('initial_pilot.json','historical_slide.json','anchored_trial.json','anchored_long_trial.json','short_answers.json','matched_trial.json','negative_trial.json'):
+    for name in ('initial_pilot.json','raw_safety_development.json','selective_subtraction_confirmation.json'):
         public=client.get(URL+'/results/'+name)
         public.raise_for_status()
         expected=Path('docs/results',name).read_bytes()

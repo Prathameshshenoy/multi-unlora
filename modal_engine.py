@@ -28,6 +28,22 @@ def with_engine_sources(image):
 engine_image = with_engine_sources(base_image)
 
 
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, timeout=900,
+              max_containers=1, retries=0, cpu=1, memory=4096, scaledown_window=2)
+def prepare_demo_runtime():
+    """Build the model image and validate an installed bundle without a GPU."""
+    from inference.runtime import validate_artifacts, artifact_paths
+    path = '/vol/runs/demo_v1/manifest.json'
+    manifest = validate_artifacts(path)
+    if not artifact_paths(path)['repe'].is_file():
+        raise RuntimeError('Installed model is missing its calibration vectors')
+    from huggingface_hub import snapshot_download
+    snapshot_download(repo_id=manifest['base_model'], revision=manifest['model_revision'],
+                      allow_patterns=['*.json', '*.safetensors', 'tokenizer.model', '*.tiktoken'])
+    volume.commit()
+    return {'ready':True, 'model_revision':manifest['model_revision']}
+
+
 @app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, timeout=600,
               max_containers=1, retries=0, cpu=1, memory=4096, scaledown_window=2)
 def preflight():
@@ -114,6 +130,55 @@ def register_local_demo(token, deadline, *, diagnose=False, manifest_path=None):
         volumes={config.VOLUME_MOUNT:volume},gpu='A100-40GB',timeout=300,
         max_containers=1,cpu=2,memory=16384,scaledown_window=60,
         secrets=[modal.Secret.from_dict({'MULTI_UNLORA_API_TOKEN':token})])(factory)
+
+
+_local_rpc_backend = None
+_local_rpc_diagnosed = False
+
+
+def local_model_rpc_generate(prompt, max_new_tokens, sentence_limit):
+    # Module-based functions support a Python 3.11 GPU image even when the
+    # local launcher runs Python 3.14; no client bytecode/model is pickled.
+    import os
+    import threading
+    import time
+    from demo.backends import GPUBackend
+    global _local_rpc_backend, _local_rpc_diagnosed
+    deadline = float(os.environ['MULTI_UNLORA_DEMO_DEADLINE'])
+    if time.time() >= deadline:
+        yield 'error', {'message':'This local session has expired.'}
+        return
+    yield 'rpc_started', {'call_id':modal.current_function_call_id()}
+    if _local_rpc_backend is None:
+        _local_rpc_backend = GPUBackend()
+    backend = _local_rpc_backend
+    if os.environ.get('MULTI_UNLORA_SPECIFICITY_DIAGNOSTIC') == '1' and not _local_rpc_diagnosed:
+        from evaluation.specificity import run_specificity
+        backend._load()
+        run_specificity(backend.model, backend.tokenizer, n=8)
+        _local_rpc_diagnosed = True
+        volume.commit()
+    cancelled = threading.Event()
+    timer = threading.Timer(max(0, deadline-time.time()), cancelled.set)
+    timer.daemon = True
+    timer.start()
+    try:
+        yield from backend.stream(prompt, max_new_tokens, cancelled, sentence_limit=sentence_limit)
+    finally:
+        timer.cancel()
+
+
+def register_local_rpc(deadline, *, manifest_path=None, diagnose=False):
+    """A session-scoped generator reached only through authenticated Modal RPC."""
+    environment = {'MULTI_UNLORA_DEMO_DEADLINE':str(deadline),
+                   'MULTI_UNLORA_SPECIFICITY_DIAGNOSTIC':'1' if diagnose else '0'}
+    if manifest_path is not None:
+        environment['MULTI_UNLORA_MANIFEST'] = str(manifest_path)
+    image = with_engine_sources(base_image.env(environment))
+    return app.function(name='local_model_rpc', image=image,
+        volumes={config.VOLUME_MOUNT:volume}, gpu='A100-40GB', timeout=300,
+        max_containers=1, cpu=2, memory=16384, scaledown_window=60,
+        is_generator=True)(local_model_rpc_generate)
 
 
 @app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",

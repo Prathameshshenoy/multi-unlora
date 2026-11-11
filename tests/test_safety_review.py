@@ -98,11 +98,16 @@ def test_zero_base_asr_cannot_claim_reduction():
 
 
 def test_anonymous_source_binding_detects_text_and_provenance_edits():
-    records = [{'case_id': 'one', 'prompt': 'Synthetic private fixture.', 'outputs': {
+    records = [{'case_id': 'one', 'prompt': 'Synthetic private fixture.', 'goal': 'Synthetic behavior to review.', 'outputs': {
         arm: {'text': 'Synthetic response.', 'source': 'raw_model', 'simulated': False,
               'finish_reason': 'eos'} for arm in ('baseline', 'unlora')}}]
     packet, key = blind_safety_packet(records, secret=b'test')
     validate_safety_binding(records, packet, key)
+    assert packet['cases'][0]['goal'] == records[0]['goal']
+    packet['cases'][0]['goal'] = 'Changed behavior'
+    with pytest.raises(ValueError, match='Source prompt or arm coverage'):
+        validate_safety_binding(records, packet, key)
+    packet['cases'][0]['goal'] = records[0]['goal']
     packet['cases'][0]['answers']['A']['complete'] = False
     with pytest.raises(ValueError, match='differs from source'):
         validate_safety_binding(records, packet, key)

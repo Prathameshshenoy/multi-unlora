@@ -1,9 +1,9 @@
 # Multi-UnLoRA interface
 
 Static HTML/CSS/JS served by the local FastAPI application. The API defaults to
-this page's origin. The local remote-GPU bridge keeps its access token on the
-server. Optional browser connection settings persist only the HTTPS API URL;
-entered visitor tokens remain in page memory.
+this page's origin. The default local bridge calls the model through authenticated Modal RPC.
+It creates no public model web endpoint. Optional connection settings support
+a custom HTTPS API; entered API tokens remain in page memory.
 
 ## Streaming contract
 
@@ -43,8 +43,9 @@ still participate in the corrected decode. Base/corrected text is buffered;
 only approved complete short model refusals or an explicitly labelled guard
 fallback may be displayed. Raw expert tokens/candidates are also withheld.
 
-The production safety gate remains open: independent moderation and harmful
-compliance/benign over-refusal evaluation are required before public deployment.
+Run this interface on localhost for research and comparison. Model responses
+can still be incorrect or unsafe; presentation filtering is separate from
+model generation.
 
 ## UI behavior
 

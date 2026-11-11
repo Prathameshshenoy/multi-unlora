@@ -22,3 +22,10 @@ def test_selected_bundle_cannot_run_canonical_specificity_diagnostic():
     from modal_engine import register_local_demo
     with pytest.raises(ValueError,match='canonical artifacts'):
         register_local_demo('test-token',time.time()+300,manifest_path='/vol/trial/manifest.json',diagnose=True)
+
+
+def test_local_rpc_registers_without_creating_a_web_endpoint():
+    from modal_engine import register_local_rpc
+    service = register_local_rpc(time.time()+300, manifest_path='/vol/runs/demo_v1/manifest.json')
+    assert service is not None
+    assert callable(service.remote_gen)

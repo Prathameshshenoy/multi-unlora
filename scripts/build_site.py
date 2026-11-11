@@ -11,7 +11,9 @@ from scripts.sync_benchmarks import sync
 sync(root)
 web = root / "web"
 output = web / "dist"
-output.mkdir(exist_ok=True)
+if output.exists():
+    shutil.rmtree(output)
+output.mkdir()
 for name in ("index.html", "styles.css", "app.js"):
     shutil.copy2(web / name, output / name)
 shutil.copytree(web / "results", output / "results", dirs_exist_ok=True)

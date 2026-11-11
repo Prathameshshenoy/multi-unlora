@@ -1,226 +1,111 @@
 # Multi-UnLoRA
 
-An experimental system that compares a base language model with inference-time
-correction from two learned anti-expert adapters.
+Compare a language model with two LoRA anti-experts and inference-time logit
+subtraction, using a website that runs on your computer.
 
-## Best reported results
+Type a prompt or choose an example to see four responses side by side:
 
-From the original project presentation, using Llama-3-8B-Instruct:
+- **Base model** — Llama 3 8B Instruct.
+- **Hallucination adapter** — an adapter trained on incorrect answers.
+- **Jailbreak adapter** — an adapter trained on harmful compliance.
+- **Multi-UnLoRA** — generation with the weighted adapter differences subtracted.
 
-| Benchmark | Metric | Base model | Multi-UnLoRA | Change |
-| --- | --- | ---: | ---: | ---: |
-| MMLU | General capability ↑ | 64.6% | 64.0% | −0.6 pp |
-| AdvBench | Attack success rate ↓ | 25.0% | 1.9% | −23.1 pp |
-| TruthfulQA | Factual accuracy ↑ | 35.8% | 50.6% | +14.8 pp |
+The interface includes correction weights, token probabilities, generation speed,
+and a live distribution-change chart. This is a research model: responses can be
+incorrect or unsafe, and adapter names describe training targets rather than
+promising a particular response.
 
-**Historical, unreproduced results.** The original checkpoints, prompts and CSVs
-are unavailable. These figures are not measurements of the current checkpoint
-and cannot be compared directly with its newer conditional-label diagnostics.
-[Source and limitations](docs/results/historical_slide.json).
+## Run the local website
 
-The current engine supports four real response branches and a local visualizer
-with source-linked benchmark tables. Accuracy improvement has not been
-established. Reproducible measurements, confidence intervals and all trial outcomes
-are retained in [the engine evidence](docs/ENGINE_STATUS.md); failed experiments
-are preserved there rather than replacing the best reported reference above.
-
-The latest held-out, AI-reviewed answer test accepted **17/20 (85%)** for both
-base and the penalty-only subtraction candidate. Positive-only controls accepted
-16/20 and 11/20. The candidate failed its predeclared gate and was not promoted.
-The earlier reference-supported candidate also tied base at 14/20 on a different
-cohort. These small reviews are not official full TruthfulQA scores; **85% versus
-70% is not a measured improvement**. The site shows both cohorts in separate,
-source-linked tables. [Latest evidence](docs/SELECTIVE_SUBTRACTION_EXPERIMENT.md).
-
-The release priorities are lower **AdvBench attack success rate**, higher
-**TruthfulQA truthfulness and informativeness**, and useful, safe responses to
-user-entered prompts. MMLU remains a secondary regression check. Research stays
-strictly about subtraction; no retrieval-backed replacement is included.
-Website guard refusals do not count as model safety improvements.
-The first raw direct-request safety check found **0/20 harmful compliances for
-both base and Multi-UnLoRA**. All responses completed and were independently
-AI-reviewed before unblinding. This is a small AdvBench-source development subset,
-not full AdvBench or evidence of a subtraction gain. Stronger fixed adversarial
-artifacts are the next check. [Safety results and limits](docs/results/raw_safety_development.json).
-[Next validation protocol](docs/SAFETY_FACTUALITY_RELEASE_PLAN.md).
-
-## How it works
-
-Two LoRA anti-experts learn undesirable response patterns. A RepE router sets
-per-prompt correction weights. At each token, the engine subtracts each
-adapter's difference from the base logits:
-
-```text
-corrected = base − alpha_hall * (hall − base) − alpha_jail * (jail − base)
-```
-
-A base-plausibility filter excludes tokens below a relative base-probability
-threshold. A measured per-token numerical budget limits `KL(corrected || base)`; the engine falls
-back to the base distribution if the filter alone exceeds the budget. This
-bounds a token distribution change, not factuality or safety.
-
-Training, calibration, evaluation, and serving share the native chat template.
-The runtime pins the base revision and validates adapter weight hashes,
-configuration identity, and calibration provenance. The historical absolute-logit
-processor remains only as a named ablation. Serving defaults to full-prefix
-uncached decoding: the real BF16 cache check matched 32/32 token choices but
-failed its predeclared logit-tolerance gate.
-
-## Setup
-
-Local tooling supports Python 3.11–3.14 (the default is 3.14) and [uv](https://docs.astral.sh/uv/). The isolated
-GPU image uses Python 3.11, PyTorch 2.8, Transformers 4.57.6, and PEFT 0.18.1.
-A Modal account is required for the configured 8B CUDA model.
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/), Git, and
+[your own Modal account](https://modal.com/). Your laptop runs the website; Modal
+runs the GPU model. You do not need a local NVIDIA GPU or a website hosting service.
 
 ```bash
+git clone https://github.com/Prathameshshenoy/multi-unlora.git
+cd multi-unlora
 uv sync --extra demo
 uv run modal setup
 ```
 
-Artifacts are stored on the Modal volume `multi-unlora-vol`. A fresh Modal
-workspace needs that volume created before running the supported workflow.
-
-## Real localhost demo
-
-For inspection of the repaired expert roles, use the explicitly selected
-experimental checkpoint already stored on the configured Modal volume:
+Start the local demo:
 
 ```bash
-uv run python scripts/run_engine.py serve-local --minutes 5 --manifest /vol/runs/misconception_roles_v1/manifest.json
+uv run python scripts/local_demo.py
 ```
 
-This checkpoint reproduces the requested gum example (false hallucination
-expert, factual jailbreak expert) and improves held-out role-specific reference
-preferences. It has **not** passed the final-output quality gate.
-[Measured scope and limitations](docs/MISCONCEPTION_ROLE_EXPERIMENT.md).
+On the first run, the launcher downloads the [trained checkpoint](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.0.0),
+checks its SHA256, installs it into your Modal workspace and prepares the runtime.
 
-To inspect the original pilot instead:
+Open **http://127.0.0.1:8000**. Enter a prompt and select **Compare**.
+Run the same command for later sessions.
+
+First setup downloads the base model into your Modal volume before the timed
+GPU session starts. The first comparison then loads it on the GPU, so it takes
+longer than later requests. The bundle contains the two
+trained adapters and calibration vectors; it does not include the base weights.
+See [local setup](docs/LOCAL_SETUP.md) for the bundle, troubleshooting and options.
+
+## Cost and session controls
+
+Modal charges your account for compute and storage. Sessions last **5 minutes**
+by default and shut down automatically. Choose a different duration with:
 
 ```bash
-uv run python scripts/run_engine.py serve-local --minutes 5
+uv run python scripts/local_demo.py --minutes 15
 ```
 
-Open <http://127.0.0.1:8000>. The website talks to a local FastAPI proxy, which
-holds the session token and connects to the real GPU API over HTTPS. Enter a
-prompt or choose an example to stream four outputs: the base model, the
-hallucination expert, the jailbreak expert, and the final corrected model.
-The website's **One sentence** option adds one common concise-answer
-instruction and stops each branch at its first recognized sentence ending. An
-early stop is labelled **Sentence limit reached**, separately from model EOS.
-Uncheck it to compare the unaugmented prompt without that sentence limit.
-The API defaults to unaugmented conditioning unless `response_style: "brief"`
-is supplied. A sentence limit bounds elaboration; it does not verify or rewrite facts.
+Supported durations are 3, 5, 10 and 15 minutes. The launcher creates a cumulative
+US$5 compute-reservation limit on a fresh installation and preserves existing
+limits. Model installation starts no GPU. Use **Stop** to cancel a comparison;
+press **Ctrl+C** in the terminal to end the local session early.
 
-The correction subtracts token-logit differences; it does not subtract these
-three response texts from one another. Stop disconnects the request; subsequent requests can reuse the
-engine after cleanup. The UI reports experimental quality status and output
-limits.
+The website binds to localhost. Modal access credentials stay in the server
+process; the browser does not receive them. No public website deployment or
+domain configuration is needed.
 
-Session durations are 3, 5, 10, or 15 minutes. Both ends enforce an absolute expiry,
-and the local process stops its ephemeral Modal app afterward. Model cold starts
-can take tens of seconds; the verified first 128-token comparison took 78.2
-seconds including loading. No provider credential belongs in browser code.
+## Using the interface
 
-The ignored `.runtime/budget.json` tracks conservative workload reservations,
-separately from provider invoices, and refuses work above the explicitly approved
-cap. Current experiment protocols are recorded before dispatch; see the
-[anchored trial plan](docs/ANCHORED_EXPERIMENT_PLAN.md). Do not delete the ledger
-to bypass its limit.
+Choose an example or type your own question. **One sentence** gives shorter
+responses across all four runs; turn it off for longer answers. Increase the
+output token budget when a response reaches its limit. **Ctrl/Cmd+Enter** starts
+a comparison.
 
-The real demo is for inspection, not a validated safety product. Vercel hosting
-and a subdomain of `prathameshshenoy.com` remain the final deployment phase.
+Responses run sequentially, with progress shown for each model. Some potentially
+harmful outputs are withheld and clearly labelled. If a separate display guard
+supplies the final response, the interface identifies it as a guard response.
 
-### Restricted output display
+## How subtraction works
 
-For recognized weapon/explosive requests, raw expert text is withheld, while
-its actual logits can still contribute to correction. Restricted base/final
-responses are buffered before display. A permitted short model refusal is
-labelled as model output; any display-guard fallback is clearly labelled and
-never counted as evidence that subtraction caused a refusal. Token candidates
-are also withheld for these requests. This conservative presentation rule is
-not a comprehensive intent classifier or a validated moderation system.
+At every generated token:
 
-The live interface is a research comparison, not a way to retrieve harmful
-anti-expert instructions. Independent harmful-compliance and benign over-refusal
-evaluation are still required before public deployment.
-
-## Training and quality checks
-
-The supported initial workflow is:
-
-```bash
-uv run python scripts/run_engine.py preflight
-uv run python scripts/run_engine.py train --steps 120
-uv run python scripts/run_engine.py evaluate
-uv run python scripts/run_engine.py tune-confirm
+```text
+corrected = base − alpha_hall × (hall − base) − alpha_jail × (jail − base)
 ```
 
-The pilot uses 800 distinct training prompts and 48 held-out prompts per concept,
-response-only loss, LoRA rank 16, fixed seeds, and an immutable model revision.
-The validation sweep and confirmation have fixed partitions and settings. They
-never tune on held-out results or automatically promote a free-form serving
-policy. Existing manifests and confirmation files prevent accidental overwrites.
+The weights control each adapter's influence. A plausibility filter and a
+per-token KL budget limit distribution changes. The four displayed texts are
+independent generations; the engine subtracts logit differences, not response
+strings. [Model details](docs/MODEL_CARD.md) · [API reference](web/README.md).
 
-Adapters, a manifest, vectors, and quality reports live on the Modal volume.
-Source snapshots and full local results live under ignored `.runtime/`. Public
-summaries are in [docs/results](docs/results).
-
-The original Unsloth orchestration in `modal_app.py` is retained as legacy POC
-code. Its historical asymmetric-prompt CSVs cannot be resumed under the current
-protocol. Refusal matching is labelled a proxy, and self-judge outputs are
-labelled diagnostics. Neither is an independent safety or truthfulness measure.
-
-## Interface preview without GPU use
+## Preview the interface without a GPU
 
 ```bash
 MULTI_UNLORA_BACKEND=preview uv run uvicorn demo.app:app --host 127.0.0.1 --port 8000
 ```
 
-Preview responses and token details are explicitly simulated. The default
-backend is unavailable unless a real or preview backend is selected.
+Preview mode uses labelled simulated responses and telemetry.
 
-For an existing real GPU API, the local proxy supports these server variables:
-`MULTI_UNLORA_BACKEND=remote`, `MULTI_UNLORA_REMOTE_URL`, and
-`MULTI_UNLORA_REMOTE_TOKEN`. The API exposes health, examples, and an SSE generation
-stream. See [the API contract](web/README.md).
-
-## Verification
+## Development
 
 ```bash
 uv run pytest
+node --test tests/test_web_state.mjs
 node --check web/app.js
 ```
 
-The lightweight environment runs API, budget, and Modal registration checks.
-Numerical tests require torch, transformers, peft, pandas, and tqdm. CI runs them
-separately in Python 3.11, including real tiny Llama/PEFT tests for adapter state,
-identity, cache independence, and the KL budget.
+Numerical engine tests also require PyTorch, Transformers and PEFT. CI runs those
+checks in Python 3.11. The Modal model environment uses Python 3.11, PyTorch 2.8,
+Transformers 4.57.6 and PEFT 0.18.1.
 
-Real localhost verification covered both generated responses, bounded finite
-telemetry, disconnection after an actual token, and successful immediate reuse.
-The observations are in [local_verification.json](docs/results/local_verification.json).
-
-See [the implementation plan](docs/IMPLEMENTATION_PLAN.md) for remaining accuracy
-work and deployment gates. The private master blueprint remains local and is
-excluded from Git.
-
-**Copyright ©️ 2026. All rights reserved.**
-
-The blueprint audit is tracked in [POC_ISSUE_AUDIT.md](docs/POC_ISSUE_AUDIT.md).
-Confirmed code defects have regression checks; remaining scientific claims
-require the experiments described there. The optional `--diagnose` flag on a
-budgeted local session runs a small paired anti-expert specificity check once,
-using the same GPU and loaded model, without a separate paid job.
-
-## Artifact backup
-
-Before changing Modal workspaces, retain and verify the actual model artifacts:
-
-```bash
-uv run python scripts/backup_artifacts.py
-uv run python scripts/backup_artifacts.py --verify .runtime/artifact-backup/<snapshot>
-```
-
-This CPU-only download preserves adapters, manifests, calibrated vectors and
-available reports in a Git-ignored directory. It verifies manifest weight hashes
-and writes a SHA256 inventory; it does not start a GPU or change accounts.
+**Copyright © 2026. All rights reserved.**
