@@ -160,3 +160,14 @@ zero retries. Before completed-job reconciliation, total project reservations
 remain at or below US$24.99 of the US$25 cap. No additional GPU job follows
 merely from successful development. Both repeated and new cohort results stay
 separate on the public site; neither may be advertised as a full TruthfulQA score.
+
+## Training-only side audit, independent of confirmation outcomes
+
+A grouped five-fold audit of the exact 268 training pairs measured association
+between bad/good labels and three coarse answer-opening categories. Its
+out-of-fold AUC is 0.590, with 31 bad versus 17 good affirmative openings and
+20 bad versus 68 good negative openings. This limited association does not
+establish a dominant shortcut or prove what the language model learned. It does
+not justify a new operating point, change confirmation grading, or establish
+absence of other shortcuts. No held-out answers or model outputs were used.
+[Code-bound training-only aggregate](results/role_training_prefix_audit.json).

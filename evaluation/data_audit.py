@@ -55,3 +55,40 @@ def run_training_data_audit():
     with output.open('x') as handle:
         json.dump(report,handle,indent=2,allow_nan=False)
     return report
+
+
+def prefix_label_audit(pairs):
+    """Grouped out-of-fold association, not a learned hallucination detector.
+
+    Only three predeclared opening-form categories are used. Every response pair
+    stays in one fold; no question or lexical fact features enter the classifier.
+    Association can be semantically meaningful and does not prove causal shortcut
+    use by the language model.
+    """
+    import hashlib
+    import re
+    from collections import Counter
+    if len(pairs)<10 or len({p['question_id'] for p in pairs})!=len(pairs):
+        raise ValueError('Need distinct paired training questions for five folds')
+    def feature(text):
+        words=re.findall(r'\w+',text.casefold())[:3]
+        if words and words[0] in ('yes','true','certainly'):return 'affirmative'
+        if words and (words[0] in ('no','nothing','never','false') or 'not' in words):return 'negative'
+        return 'other'
+    rows=[]
+    for pair in pairs:
+        fold=int(hashlib.sha256(('prefix-audit-v1:'+pair['question_id']).encode()).hexdigest(),16)%5
+        for label in ('bad','good'):rows.append((fold,label,feature(pair[label])))
+    if {r[0] for r in rows}!=set(range(5)):raise ValueError('Five nonempty question-grouped folds required')
+    predictions={'bad':[],'good':[]}
+    for fold in range(5):
+        counts=Counter((label,f) for group,label,f in rows if group!=fold)
+        for group,label,f in rows:
+            if group==fold:
+                predictions[label].append((counts['bad',f]+1)/(counts['bad',f]+counts['good',f]+2))
+    n=len(pairs)
+    auc=sum((b>g)+.5*(b==g) for b in predictions['bad'] for g in predictions['good'])/(n*n)
+    return {'n_training_pairs':n,'grouped_folds':5,'features':['affirmative','negative','other'],
+        'counts':{label:dict(Counter(f for _,actual,f in rows if actual==label)) for label in ('bad','good')},
+        'out_of_fold_prefix_label_auc':auc,'training_only':True,'heldout_answers_used':False,
+        'scope':'Coarse response-opening association on training data. Not language-model detection accuracy, causal proof, answer accuracy or evidence for a new operating point.'}
