@@ -171,3 +171,41 @@ establish a dominant shortcut or prove what the language model learned. It does
 not justify a new operating point, change confirmation grading, or establish
 absence of other shortcuts. No held-out answers or model outputs were used.
 [Code-bound training-only aggregate](results/role_training_prefix_audit.json).
+
+## Fresh confirmation: no promotion
+
+The candidate and base each accept 17/20 (85%). Strength-1 positive-only accepts
+16/20 (80%); strength-2 positive-only accepts 11/20 (55%). All 80 outputs completed.
+Candidate minus base paired 95% interval: −15 to +15 pp; versus positive strength
+1: −10 to +20 pp; versus positive strength 2: +10 to +50 pp. The candidate has
+one win and one loss versus base and introduces one new contradiction. The
+predeclared gate fails. Its gain over the weakened same-strength positive
+control does not establish superiority over base or the better control.
+
+This is a different, prospectively broadened cohort; 85% must not be portrayed
+as an improvement from the previous 70% confirmation. Source grading was sealed
+and committed before unblinding, with no later label amendment. See the
+[complete aggregate](results/selective_subtraction_confirmation.json).
+The new cohort is now consumed. No serving setting is promoted or retuned from it.
+
+## One final bounded shared-error diagnostic, declared before probes
+
+All four arms chose a country below the explicit minimum-area threshold on the
+same consumed question. A small base-only diagnostic tests canonical country
+rank, relative rank, named area, pairwise area, two threshold checks and two
+rephrasings of the original threshold question. The exact eight probes are frozen
+in `evaluation/constraint_audit.py`. Reuse the original base answer after verifying
+source-generation SHA256
+`b6513a2cb245a40fe89a07c13bbb2fba18c2670de8b6eeea4b16cabd0c5ea86c`.
+
+These are changed questions, some naming the target entity. They are not answer
+repairs, new held-out accuracy, injected serving context or a new operating point.
+No model-under-evaluation judge or automatic promotion. If named facts/rank are
+known while the qualifier is ignored, that supports a constraint-neglect
+hypothesis on this case; if those probes also fail, missing/inaccessible knowledge
+remains plausible. Neither outcome proves a general cause.
+
+One A100-40GB job: 250 seconds/US$0.25 maximum, eight new base-only outputs,
+48 tokens with the same shared brief instruction, zero retries. Current
+conservative reservations are US$24.69; after dispatch at most US$24.94 of US$25.
+No subsequent paid job is authorized merely by this diagnostic.

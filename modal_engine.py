@@ -365,3 +365,14 @@ def confirm_selective_subtraction():
         return json.loads(json.dumps(develop_selective('confirmation'),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=250, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def audit_shared_constraint():
+    import json
+    from evaluation.constraint_audit import audit_constraint
+    try:
+        return json.loads(json.dumps(audit_constraint(),allow_nan=False))
+    finally:
+        volume.commit()
