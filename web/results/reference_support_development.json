@@ -1,0 +1,743 @@
+{
+  "protocol": "reference-support-development-review-v2",
+  "scope": "Consumed internal development plus four benign smoke cases; not official accuracy. AI review. Original and unblinded source-amended analyses both retained.",
+  "generation_sha256": "e7b39e639739b628715dd8e599b0e20d0649a66330a00244f0e319dc116f0c2d",
+  "original": {
+    "baseline_comparison": {
+      "protocol": "blinded-generated-answer-review-v1",
+      "packet_sha256": "551bd058726294aab2bad75045133726969542d7011ab5fa2a3e74812fd13066",
+      "judgments_sha256": "a2bdd2a55e46f79f28cac9ef06b831caf51812c9f85174aa64a8d768e4156da6",
+      "reviewer": "codex-AI-reference-grounded-support-review",
+      "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+      "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+      "arms": {
+        "contrast_8": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.9375,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0625,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_0.5": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.625,
+          "contradiction_rate": 0.1875,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.125,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_8": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_0.5": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.8125,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0625,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        }
+      },
+      "comparisons": {
+        "contrast_8": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.125,
+            0.375
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 3,
+          "strict_losses": 1,
+          "new_contradictions": 0,
+          "fixed_contradictions": 3,
+          "jointly_scorable_pairs": 16
+        },
+        "contrast_0.5": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": -0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.3125,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 2,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_8": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.3125
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 2,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 2,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_0.5": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.1875,
+            0.1875
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 1,
+          "new_contradictions": 1,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        },
+        "contrast_2": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.25,
+            0.25
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 2,
+          "strict_losses": 2,
+          "new_contradictions": 1,
+          "fixed_contradictions": 2,
+          "jointly_scorable_pairs": 16
+        }
+      },
+      "production_quality_verified": false
+    },
+    "selection": {
+      "selected": null,
+      "automatic_promotion": false,
+      "status": "no_qualified_support_setting"
+    }
+  },
+  "source_amended": {
+    "baseline_comparison": {
+      "protocol": "blinded-generated-answer-review-v1",
+      "packet_sha256": "551bd058726294aab2bad75045133726969542d7011ab5fa2a3e74812fd13066",
+      "judgments_sha256": "329c0055440a6879040002aee92d9acf9637e99b1cdf606b41415efe982f1503",
+      "reviewer": "codex-AI-unblinded-source-audit",
+      "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+      "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+      "arms": {
+        "contrast_8": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.9375,
+          "accepted_rate": 0.9375,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_0.5": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.625,
+          "contradiction_rate": 0.1875,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.125,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_8": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_0.5": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.8125,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.8125,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        }
+      },
+      "comparisons": {
+        "contrast_8": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.1875,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.375
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 3,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 3,
+          "jointly_scorable_pairs": 16
+        },
+        "contrast_0.5": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": -0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.3125,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 2,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_8": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.3125
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 2,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 2,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_0.5": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.1875,
+            0.1875
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 1,
+          "new_contradictions": 1,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        },
+        "contrast_2": {
+          "n_assigned": 16,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0625,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.125,
+            0.25
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 2,
+          "strict_losses": 1,
+          "new_contradictions": 1,
+          "fixed_contradictions": 2,
+          "jointly_scorable_pairs": 16
+        }
+      },
+      "production_quality_verified": false
+    },
+    "controls": {
+      "protocol": "blinded-generated-answer-review-v1",
+      "packet_sha256": "551bd058726294aab2bad75045133726969542d7011ab5fa2a3e74812fd13066",
+      "judgments_sha256": "329c0055440a6879040002aee92d9acf9637e99b1cdf606b41415efe982f1503",
+      "reviewer": "codex-AI-unblinded-source-audit",
+      "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+      "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+      "arms": {
+        "positive_2": {
+          "n_assigned": 4,
+          "core_correct_rate": 1.0,
+          "accepted_rate": 1.0,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_0.5": {
+          "n_assigned": 4,
+          "core_correct_rate": 1.0,
+          "accepted_rate": 1.0,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "baseline": {
+          "n_assigned": 4,
+          "core_correct_rate": 1.0,
+          "accepted_rate": 1.0,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_8": {
+          "n_assigned": 4,
+          "core_correct_rate": 1.0,
+          "accepted_rate": 1.0,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_0.5": {
+          "n_assigned": 4,
+          "core_correct_rate": 1.0,
+          "accepted_rate": 1.0,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_2": {
+          "n_assigned": 4,
+          "core_correct_rate": 1.0,
+          "accepted_rate": 1.0,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_8": {
+          "n_assigned": 4,
+          "core_correct_rate": 1.0,
+          "accepted_rate": 1.0,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        }
+      },
+      "comparisons": {
+        "positive_2": {
+          "n_assigned": 4,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 4
+        },
+        "positive_0.5": {
+          "n_assigned": 4,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 4
+        },
+        "positive_8": {
+          "n_assigned": 4,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 4
+        },
+        "contrast_0.5": {
+          "n_assigned": 4,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 4
+        },
+        "contrast_2": {
+          "n_assigned": 4,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 4
+        },
+        "contrast_8": {
+          "n_assigned": 4,
+          "reference": "baseline",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 4
+        }
+      },
+      "production_quality_verified": false,
+      "subset_n": 4,
+      "subset_case_ids_sha256": "8e3202c1e6acf06b5c74cc582f7411c211c2fa5c609f101656eae050b2867a0c"
+    },
+    "matched_positive_comparison": {
+      "protocol": "blinded-generated-answer-review-v1",
+      "packet_sha256": "551bd058726294aab2bad75045133726969542d7011ab5fa2a3e74812fd13066",
+      "judgments_sha256": "329c0055440a6879040002aee92d9acf9637e99b1cdf606b41415efe982f1503",
+      "reviewer": "codex-AI-unblinded-source-audit",
+      "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+      "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+      "arms": {
+        "contrast_8": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.9375,
+          "accepted_rate": 0.9375,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_0.5": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.625,
+          "contradiction_rate": 0.1875,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.125,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_8": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_0.5": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.8125,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "contrast_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.8125,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        }
+      },
+      "comparisons": {
+        "contrast_8": {
+          "n_assigned": 16,
+          "reference": "positive_8",
+          "accepted_paired_delta": 0.0625,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.1875
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        },
+        "contrast_0.5": {
+          "n_assigned": 16,
+          "reference": "positive_8",
+          "accepted_paired_delta": -0.25,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.5,
+            -0.0625
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 4,
+          "new_contradictions": 2,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_0.5": {
+          "n_assigned": 16,
+          "reference": "positive_8",
+          "accepted_paired_delta": -0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.3125,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 2,
+          "new_contradictions": 2,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "reference": "positive_8",
+          "accepted_paired_delta": -0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.3125,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 2,
+          "new_contradictions": 2,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "reference": "positive_8",
+          "accepted_paired_delta": -0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.375,
+            0.125
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 3,
+          "new_contradictions": 3,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        },
+        "contrast_2": {
+          "n_assigned": 16,
+          "reference": "positive_8",
+          "accepted_paired_delta": -0.0625,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.3125,
+            0.125
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 2,
+          "new_contradictions": 2,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        }
+      },
+      "production_quality_verified": false
+    },
+    "selection": {
+      "selected": "contrast_8",
+      "automatic_promotion": false,
+      "status": "requires_untouched_confirmation"
+    }
+  },
+  "amendment": "reference_support_review_amendment.json",
+  "production_quality_verified": false
+}

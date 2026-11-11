@@ -1,6 +1,6 @@
 # Multi-UnLoRA implementation plan
 
-Updated 10 November 2026. Engine quality comes first, the local website second,
+Updated 11 November 2026. Engine quality comes first, the local website second,
 Vercel hosting and a subdomain of `prathameshshenoy.com` last.
 The private master blueprint stays local and is excluded from Git.
 
@@ -190,3 +190,26 @@ token. Implement and validate an experimental reference-supported candidate set
 and calibrated trust region next; preserve default serving behavior until
 complete-answer, matched-control, capability and safety gates pass. The protocol
 and evidence limitations are recorded in FACTUAL_REFERENCE_EXPERIMENT.md.
+
+
+The experimental `reference-support-v2` operator now admits factual-reference
+candidates without removing explicit masks and measures KL against full base.
+A source-amended development review selected one fixed setting (15/16 accepted
+including four benign smoke tests, versus 12/16 base and 14/16 positive-only).
+The original review and the disclosed unblinded factual-source amendment remain
+archived. The operating point is frozen for 20 held-out confirmation questions;
+these results are pending and serving defaults remain unchanged. See
+REFERENCE_SUPPORT_EXPERIMENT.md. No training or deployment follows merely from
+the development score.
+
+User-flow fixes now reset session expiry when switching servers, show sequential
+response progress and label interrupted/never-started outputs correctly. Node
+state tests and local HTTP checks passed. Native browser preview control failed,
+so visual desktop/mobile acceptance is still open. CI runs the UI-state tests.
+
+A remaining valid limitation is the RepE anchor-format confound: older prompt
+routing is not a validated hallucination detector. The fixed-strength reference
+experiment does not depend on that projection. Before retaining dynamic routing
+in a release, recalibrate with matched question forms and test detection utility;
+otherwise select an independently validated constant-weight profile. Cached
+decoding also remains experimental until its numerical/quality acceptance passes.

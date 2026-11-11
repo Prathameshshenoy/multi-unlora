@@ -74,7 +74,8 @@
     "matched_trial.json": "f9e00b223cc683ed4a8e9c99cec78035bf17ab6da056f8ab8f315730463e28cc",
     "negative_trial.json": "5357e1d20fe39b17d384c7df72231d52b0cc221bd8ef824acb96fef8108d5243",
     "role_repair_trial.json": "efb8ebea6e681127481ae2ee47629a7b7199f721dba5372e8b236c99b19af6da",
-    "content_delta_trial.json": "007107f271bf67c7ea16bf1d7dacea4b75e28445bbe0d612d1d64574b992eebf"
+    "content_delta_trial.json": "007107f271bf67c7ea16bf1d7dacea4b75e28445bbe0d612d1d64574b992eebf",
+    "reference_support_development.json": "449cc0df9f91d65b5c544754779c5b98e8ef7c33828e3c2d06da9deedbd7b435"
   },
   "latest_trial": {
     "source": "paired_trial.json",
@@ -121,6 +122,11 @@
       "source": "content_delta_trial.json",
       "label": "False-content difference",
       "status": "not_promoted_role_checks_failed"
+    },
+    {
+      "source": "reference_support_development.json",
+      "label": "Reference-support development",
+      "status": "unvalidated"
     }
   ]
 }

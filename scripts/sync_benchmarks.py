@@ -21,7 +21,7 @@ SOURCES = ("initial_pilot.json", "historical_slide.json")
 
 
 def source_names(root):
-    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json")
+    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json")
                            if (Path(root)/"docs/results"/name).is_file())
 
 
@@ -77,7 +77,7 @@ def build_data(root=ROOT):
     if "paired_trial.json" in source_names(root):
         trial = _read(root/"docs/results/paired_trial.json")
         data["latest_trial"] = {"source":"paired_trial.json", "status":trial["status"], "protocol":trial["protocol"]}
-    labels={"paired_trial.json":"Paired preference", "anchored_trial.json":"Anchored 80 steps", "anchored_long_trial.json":"Anchored 160 steps", "short_answers.json":"Generated short answers", "matched_trial.json":"Matched-form expert", "negative_trial.json":"Bounded negative expert", "role_repair_trial.json":"Misconception role repair", "content_delta_trial.json":"False-content difference"}
+    labels={"paired_trial.json":"Paired preference", "anchored_trial.json":"Anchored 80 steps", "anchored_long_trial.json":"Anchored 160 steps", "short_answers.json":"Generated short answers", "matched_trial.json":"Matched-form expert", "negative_trial.json":"Bounded negative expert", "role_repair_trial.json":"Misconception role repair", "content_delta_trial.json":"False-content difference", "reference_support_development.json":"Reference-support development"}
     data["trial_reports"]=[{"source":name,"label":labels[name],"status":_read(root/"docs/results"/name).get("status","unvalidated")}
                            for name in source_names(root) if name in labels]
     return data
