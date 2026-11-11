@@ -29,9 +29,12 @@ Multi_Unlora_MASTER_BLUEPRINT.md
 .DS_Store
 
 # Local working notes stay outside the public documentation.
-/docs/*.md
-!/docs/LOCAL_SETUP.md
-!/docs/MODEL_CARD.md
+/docs/*_PLAN.md
+/docs/*_EXPERIMENT.md
+/docs/ENGINE_STATUS.md
+/docs/EXPERT_ROLE_REPAIR.md
+/docs/BEHAVIOR_EVALUATION.md
+/docs/POC_ISSUE_AUDIT.md
 /docs/results/historical_slide.json
 /web/results/*.json
 !/web/results/benchmarks.json

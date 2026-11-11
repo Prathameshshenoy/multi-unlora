@@ -120,7 +120,7 @@ def test_launch_prepares_before_session_and_preserves_existing_budget(tmp_path, 
     budget = {'approved_usd':3, 'prior_cpu_preflight_reserve_usd':0, 'reservations':[]}
     (state/'budget.json').write_text(json.dumps(budget))
     monkeypatch.setattr(local_demo, 'ROOT', tmp_path)
-    monkeypatch.setattr(sys, 'argv', ['local_demo', '--minutes', '3', '--budget-usd', '100'])
+    monkeypatch.setattr(sys, 'argv', ['local_demo', '--minutes', '3'])
     order = []
     monkeypatch.setattr(local_demo, 'prepare_runtime', lambda: order.append('prepare'))
     def launch(command, **kwargs):
@@ -132,3 +132,17 @@ def test_launch_prepares_before_session_and_preserves_existing_budget(tmp_path, 
         local_demo.main()
     assert result.value.code == 0 and order == ['prepare', 'launch']
     assert json.loads((state/'budget.json').read_text()) == budget
+
+
+def test_budget_changes_require_explicit_flag_and_retain_reservations(tmp_path, monkeypatch):
+    import sys
+    from scripts import local_demo
+    state=tmp_path/'.runtime';state.mkdir()
+    (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST,'runtime_prepared':True}))
+    budget={'approved_usd':3,'prior_cpu_preflight_reserve_usd':0,'reservations':[{'reserved_usd':.5}]}
+    (state/'budget.json').write_text(json.dumps(budget))
+    monkeypatch.setattr(local_demo,'ROOT',tmp_path)
+    monkeypatch.setattr(sys,'argv',['local_demo','--install-only','--budget-usd','4'])
+    local_demo.main()
+    updated=json.loads((state/'budget.json').read_text())
+    assert updated['approved_usd']==4 and updated['reservations']==budget['reservations']

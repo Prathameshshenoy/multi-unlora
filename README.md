@@ -57,7 +57,8 @@ uv run python scripts/local_demo.py --minutes 15
 
 Supported durations are 3, 5, 10 and 15 minutes. The launcher creates a cumulative
 US$5 compute-reservation limit on a fresh installation and preserves existing
-limits. Model installation starts no GPU. Use **Stop** to cancel a comparison;
+limits. To explicitly change that cumulative limit, supply `--budget-usd AMOUNT`;
+previous reservations are retained. Model installation starts no GPU. Use **Stop** to cancel a comparison;
 press **Ctrl+C** in the terminal to end the local session early.
 
 The website binds to localhost. Modal access credentials stay in the server

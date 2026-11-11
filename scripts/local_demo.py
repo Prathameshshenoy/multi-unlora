@@ -135,16 +135,26 @@ def main():
     parser.add_argument('--bundle', type=Path, help='Install a local trained checkpoint archive')
     parser.add_argument('--install-only', action='store_true', help='Upload model files without starting a GPU')
     parser.add_argument('--minutes', type=int, choices=(3, 5, 10, 15), default=5)
-    parser.add_argument('--budget-usd', type=float, default=5, help='Initial cumulative compute cap for a fresh installation')
+    parser.add_argument('--budget-usd', type=float, help='Explicitly set the cumulative compute-reservation cap (fresh-install default: 5)')
     args = parser.parse_args()
-    if not 1 <= args.budget_usd <= 100:
+    if args.budget_usd is not None and not 1 <= args.budget_usd <= 100:
         parser.error('--budget-usd must be between 1 and 100')
     state = ROOT/'.runtime'; state.mkdir(exist_ok=True)
-    # Existing spending limits are never overwritten by a convenience launcher.
+    # Preserve existing limits unless the user explicitly supplies a new one.
     budget = state/'budget.json'
-    if not budget.exists():
-        with budget.open('x') as output:
-            json.dump({'approved_usd':args.budget_usd, 'prior_cpu_preflight_reserve_usd':0, 'reservations':[]}, output, indent=2)
+    import fcntl
+    with (state/'budget.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        ledger = json.loads(budget.read_text()) if budget.exists() else {
+            'approved_usd':5, 'prior_cpu_preflight_reserve_usd':0, 'reservations':[]}
+        if args.budget_usd is not None:
+            reserved = ledger['prior_cpu_preflight_reserve_usd']+sum(r['reserved_usd'] for r in ledger['reservations'])
+            if args.budget_usd < reserved:
+                parser.error('The cumulative limit cannot be below existing reservations')
+            ledger['approved_usd'] = args.budget_usd
+        if args.budget_usd is not None or not budget.exists():
+            temporary = budget.with_suffix('.tmp')
+            temporary.write_text(json.dumps(ledger, indent=2)); temporary.replace(budget)
     if args.bundle is not None or not (state/'local-model.json').exists():
         install_bundle(args.bundle if args.bundle is not None else download_model())
     settings = json.loads((state/'local-model.json').read_text())

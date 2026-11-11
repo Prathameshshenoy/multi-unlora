@@ -66,7 +66,7 @@ the current comparison while keeping the local session available.
 | Output ends mid-sentence | Increase the token budget, or enable One sentence. |
 | Port 8000 is occupied | Stop the other local server, then restart the launcher. |
 | Session expired | Restart `uv run python scripts/local_demo.py`. |
-| Compute limit reached | Review `.runtime/budget.json` and your Modal billing before explicitly increasing your local limit. |
+| Compute limit reached | Review your Modal billing, then use `--budget-usd AMOUNT` to explicitly set a new cumulative reservation limit. |
 
 ## Bring your own trained checkpoint
 
