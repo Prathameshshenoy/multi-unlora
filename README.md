@@ -32,6 +32,11 @@ is a small category-restricted review, not an official full TruthfulQA score.
 The site displays the held-out result separately from the original pilot and
 historical figures. [Protocol and evidence](docs/REFERENCE_SUPPORT_EXPERIMENT.md).
 
+Accuracy research remains strictly about subtraction. The next controlled test
+uses nonnegative anti-expert penalties and a newly frozen evaluation cohort;
+no retrieval-backed answer mode is included.
+[Active experiment](docs/SELECTIVE_SUBTRACTION_EXPERIMENT.md).
+
 ## How it works
 
 Two LoRA anti-experts learn undesirable response patterns. A RepE router sets

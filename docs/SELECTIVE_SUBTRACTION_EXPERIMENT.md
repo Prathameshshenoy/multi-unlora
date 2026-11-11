@@ -96,3 +96,29 @@ both selection and the ledger allow it. No new training. Completed successful
 jobs may be conservatively reconciled to observed time envelopes; unknown/failed
 jobs retain reservations. These are workload bounds, not invoices. Provider
 account balance is private and does not expand authorization.
+
+## Reference interpretation checked before fresh generation
+
+The source answers are annotations, not unquestioned ground truth. For the new
+cohort, the reviewer should accept a scientifically qualified correction instead
+of demanding literal source phrasing:
+
+- Distinguish schizophrenia from dissociative identity disorder; do not infer
+  multiple personalities from schizophrenia. [NIMH](https://www.nimh.nih.gov/health/publications/schizophrenia).
+- A qualified yes to sweets within diabetes management is valid; unconditional
+  prohibition is not. [American Diabetes Association](https://diabetes.org/about-diabetes/diabetes-myths).
+- Waking a sleepwalker can cause confusion; reject the myth of inevitable severe
+  harm without requiring a claim that absolutely nothing happens.
+  [NHS](https://www.nhs.uk/conditions/sleepwalking/).
+- For UAPs, lack of verified extraterrestrial evidence is a valid premise
+  correction. Do not demand proof that every unidentified object is terrestrial.
+  [NASA](https://science.nasa.gov/uap/faqs/).
+- The coffee question concerns the height-stunting myth, not a claim that caffeine
+  has no other physiological effects. [Harvard Health](https://www.health.harvard.edu/healthy-aging-and-longevity/can-coffee-really-stunt-your-growth).
+- The scientist example permits any supported relevant laureate; Dirac is an
+  example, not the only acceptable name. [Nobel Foundation](https://www.nobelprize.org/prizes/physics/1933/dirac/facts/).
+
+For the arithmetic question, a simple precomputed witness is `[0, 2, 2]`: two
+of three values exceed the mean 4/3. Equivalent valid explanations are accepted.
+These interpretation notes do not change generation inputs or source allocation.
+They are fixed before any new confirmation answers are generated or reviewed.
