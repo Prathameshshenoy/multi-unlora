@@ -79,3 +79,18 @@ The CPU regression demonstrates a previously excluded correct token recovering
 under reference support and a sufficiently large declared budget, while explicit
 masks remain masked and measured KL remains bounded. Lower-budget regression
 still blocks that flip. This numerical test is not evidence of model accuracy.
+
+## Review-source amendment (recorded before fresh confirmation)
+
+The original sealed AI review marked a precise animal-speed detail unverified
+in two anonymous responses. After unblinding, a targeted factual-source audit
+found it explicitly supported by Houston Zoo, Zoo New England and a San Diego
+Zoo Safari Park species guide. The original judgments and their no-selection
+result remain immutable. A separate **unblinded source amendment** changes only
+those two detail labels; it is not an independent blinded re-review. Public
+aggregate results retain both analyses and the source-amendment hashes.
+
+No answer, model setting, prompt, operating-point grid or selection criterion is
+changed. Any amended selection is exploratory development evidence and still
+must pass the original untouched confirmation against both controls. An amended
+score is never presented as an independent accuracy measurement.
