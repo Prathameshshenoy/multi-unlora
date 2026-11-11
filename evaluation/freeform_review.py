@@ -82,13 +82,16 @@ def _paired_interval(values):
     return [draws[50],draws[1950]]
 
 
-def summarize_review(packet,key,review,*,reference='baseline'):
+def summarize_review(packet,key,review,*,reference='baseline',case_ids=None):
     digest=packet_hash(packet)
     if key.get('packet_sha256')!=digest or review.get('packet_sha256')!=digest:
         raise ValueError('Blinding key, review and packet hash must match')
     indexed=validate_review(packet,review)
     if set(key.get('cases',{}))!={c['case_id'] for c in packet['cases']}:
         raise ValueError('Blinding key case coverage mismatch')
+    selected=None if case_ids is None else set(case_ids)
+    if selected is not None and (not selected or not selected<={c['case_id'] for c in packet['cases']}):
+        raise ValueError('Review subset must contain existing nonempty case identities')
     arms={};rows=[];arm_names=None
     for case in packet['cases']:
         cid=case['case_id'];mapping=key['cases'][cid]
@@ -96,7 +99,9 @@ def summarize_review(packet,key,review,*,reference='baseline'):
             raise ValueError('Blinding key answer coverage mismatch')
         if arm_names is not None and set(mapping.values())!=arm_names:
             raise ValueError('Blinding key comparison arms changed between cases')
-        arm_names=set(mapping.values());record={}
+        arm_names=set(mapping.values())
+        if selected is not None and cid not in selected:continue
+        record={}
         for slot,arm in mapping.items():
             label=indexed[cid]['answers'][slot];generated=case['answers'][slot]
             accepted=label['core']=='correct' and label['details'] in ('none','supported')
@@ -127,7 +132,8 @@ def summarize_review(packet,key,review,*,reference='baseline'):
             'jointly_scorable_pairs':jointly}
     return {'protocol':PROTOCOL,'packet_sha256':digest,'judgments_sha256':packet_hash(review),'reviewer':review['reviewer'],
             'scope':packet['scope'],'denominator':'All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.',
-            'arms':summaries,'comparisons':comparisons,'production_quality_verified':False}
+            'arms':summaries,'comparisons':comparisons,'production_quality_verified':False,
+            **({'subset_n':len(selected),'subset_case_ids_sha256':packet_hash(sorted(selected))} if selected is not None else {})}
 
 
 def seal_review(packet,key,review):
@@ -138,10 +144,10 @@ def seal_review(packet,key,review):
             'judgments_sha256':packet_hash(review),'reviewer':review['reviewer']}
 
 
-def score_sealed_review(packet,key,review,seal,*,reference='baseline'):
+def score_sealed_review(packet,key,review,seal,*,reference='baseline',case_ids=None):
     for name,value in (('packet',packet),('key',key),('judgments',review)):
         if seal.get(name+'_sha256')!=packet_hash(value):raise ValueError('Sealed '+name+' hash changed')
-    return summarize_review(packet,key,review,reference=reference)
+    return summarize_review(packet,key,review,reference=reference,case_ids=case_ids)
 
 
 def judgment_template(packet,*,reviewer):

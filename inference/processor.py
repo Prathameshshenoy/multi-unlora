@@ -13,7 +13,7 @@ import torch
 from transformers import LogitsProcessor
 
 import config
-from inference.operator import OPERATOR_VERSION, correct_logits
+from inference.operator import OPERATOR_VERSION, REFERENCE_OPERATOR_VERSION, correct_logits
 from inference.adapters import active_adapter
 
 
@@ -22,7 +22,8 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                  penalty_threshold=config.PROCESSOR_KL_THRESHOLD,
                  telemetry_callback=None, *, beta=config.PROCESSOR_PLAUSIBILITY_BETA,
                  attention_mask=None, expert_logits_provider=None,
-                 hall_reference_adapter=None, hall_negative_adapter="hallucination"):
+                 hall_reference_adapter=None, hall_negative_adapter="hallucination",
+                 candidate_support="base"):
         for name, value in (("alpha_hall", alpha_hall), ("alpha_jail", alpha_jail),
                             ("penalty_threshold", penalty_threshold)):
             if not math.isfinite(value) or value < 0:
@@ -33,6 +34,10 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
             raise ValueError("Factual reference needs a nonempty loaded adapter name")
         if hall_negative_adapter not in (None,"hallucination") or (hall_negative_adapter is None and hall_reference_adapter is None):
             raise ValueError("A positive-only control needs a factual reference")
+        if candidate_support not in ("base","base_reference_union") or (candidate_support!="base" and hall_reference_adapter is None):
+            raise ValueError("Reference candidate support requires a factual-reference adapter")
+        self.candidate_support=candidate_support
+        self.operator_version=REFERENCE_OPERATOR_VERSION if candidate_support!="base" else OPERATOR_VERSION
         self.hall_reference_adapter=hall_reference_adapter
         self.hall_negative_adapter=hall_negative_adapter
         self.model = model
@@ -70,6 +75,7 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
         self.step += 1
         delta = torch.zeros_like(scores, dtype=torch.float32)
         expert_probs = {}
+        candidate_reference=None
         if self.alpha_hall or self.alpha_jail:
             try:
                 for name, alpha in (("hallucination", self.alpha_hall), ("jailbreak", self.alpha_jail)):
@@ -79,6 +85,7 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                         reference=scores.float()
                         if name=="hallucination" and self.hall_reference_adapter is not None:
                             reference=self._expert(input_ids,self.hall_reference_adapter,scores.shape)
+                            if self.candidate_support=="base_reference_union":candidate_reference=reference
                             if self.telemetry_callback is not None:
                                 expert_probs['hall_reference']=reference.detach().softmax(-1)
                         if self.telemetry_callback is not None and queried:
@@ -86,13 +93,13 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                         delta += alpha * torch.where(torch.isfinite(scores), expert-reference, 0.0)
             finally:
                 self.model.disable_adapter_layers()
-        correction = correct_logits(scores, delta, beta=self.beta, kl_budget=self.penalty_threshold)
+        correction = correct_logits(scores, delta, beta=self.beta, kl_budget=self.penalty_threshold,candidate_reference=candidate_reference)
         if self.telemetry_callback is not None:
             base_probs = scores.float().softmax(-1)
             corrected_probs = correction.scores.float().softmax(-1)
             probabilities, ids = corrected_probs[0].topk(min(5, scores.shape[-1]))
             self.telemetry_callback({
-                "step": self.step, "operator": OPERATOR_VERSION,
+                "step": self.step, "operator": self.operator_version, "candidate_support":self.candidate_support,
                 "alpha_hall": self.alpha_hall, "alpha_jail": self.alpha_jail,
                 "kl_divergence": float(correction.kl[0]), "kl_direction": "corrected_to_base",
                 "kl_budget": self.penalty_threshold, "plausibility_beta": self.beta,

@@ -68,7 +68,7 @@ def test_guarded_or_truncated_text_cannot_count_as_model_success():
 
 
 def test_seal_detects_mapping_changes_after_judgments_are_locked():
-    from evaluation.freeform_review import seal_review,score_sealed_review
+    from evaluation.freeform_review import seal_review,score_sealed_review,judgment_template
     packet,key=blind_packet(records(),secret=b'private-test-key');review=labels(packet,key)
     seal=seal_review(packet,key,review)
     assert score_sealed_review(packet,key,review,seal)['comparisons']['corrected']['strict_losses']==1
@@ -152,3 +152,43 @@ def test_strength_calibration_requires_subtraction_gain_over_matched_control():
     assert select_strength(base,controls)['selected'] is None
     controls[1]['judgments_sha256']='different'
     with pytest.raises(ValueError,match='identical sealed judgments'):select_strength(base,controls)
+
+
+def test_sealed_subset_keeps_full_review_binding_and_rejects_changed_labels():
+    from evaluation.freeform_review import seal_review,score_sealed_review,judgment_template
+    rows=records();packet,key=blind_packet(rows,secret=b'private-test-key')
+    review=judgment_template(packet,reviewer='AI-test')
+    for case in review['cases']:
+        for value in case['answers'].values():value.update(core='correct',details='none',rationale='Fixture reference agreement.')
+    seal=seal_review(packet,key,review)
+    chosen=[rows[0]['case_id']]
+    report=score_sealed_review(packet,key,review,seal,case_ids=chosen)
+    assert report['subset_n']==1
+    assert all(v['n_assigned']==1 for v in report['arms'].values())
+    assert report['packet_sha256']==packet_hash(packet)
+    with pytest.raises(ValueError,match='subset'):
+        score_sealed_review(packet,key,review,seal,case_ids=['missing'])
+    review['cases'][0]['answers']['A']['rationale']='Changed after sealing'
+    with pytest.raises(ValueError,match='Sealed judgments'):
+        score_sealed_review(packet,key,review,seal,case_ids=chosen)
+
+
+def test_support_policy_requires_smoke_retention_and_matched_positive_gain():
+    from copy import deepcopy
+    from evaluation.support_trial import select_support_policy
+    arms={name:{'n_assigned':16,'accepted_rate':.8,'contradiction_rate':0.,'unscorable_rate':0.,'guarded_outputs':0,'unfinished_outputs':0}
+          for name in ('baseline','positive_0.5','positive_2','positive_8','contrast_0.5','contrast_2','contrast_8')}
+    def report(wins,reference='baseline'):
+        return {'packet_sha256':'same','judgments_sha256':'same','arms':deepcopy(arms),
+            'comparisons':{name:{'reference':reference,'review_coverage_sufficient':True,'strict_wins':wins,'strict_losses':0,'new_contradictions':0}
+                           for name in ('contrast_0.5','contrast_2','contrast_8')}}
+    base=report(2);positive={n:report(0,f'positive_{n:g}') for n in (.5,2.,8.)}
+    smoke=report(0)
+    for value in smoke['arms'].values():value.update(n_assigned=4,accepted_rate=1.)
+    assert select_support_policy(base,positive,smoke)['selected'] is None
+    positive[2.]=report(1,'positive_2')
+    assert select_support_policy(base,positive,smoke)['selected']=='contrast_2'
+    smoke['arms']['contrast_2']['accepted_rate']=.75
+    assert select_support_policy(base,positive,smoke)['selected'] is None
+    positive[.5]['comparisons']['contrast_0.5']['reference']='positive_8'
+    with pytest.raises(ValueError,match='Unmatched'):select_support_policy(base,positive,smoke)

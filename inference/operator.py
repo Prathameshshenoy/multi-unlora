@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 
 OPERATOR_VERSION = "contrastive-v1"
+REFERENCE_OPERATOR_VERSION = "reference-support-v2"
 
 
 @dataclass
@@ -28,10 +29,12 @@ def reverse_kl(log_q, log_p):
     return (log_q.exp() * difference).sum(-1).clamp_min(0)
 
 
-def correct_logits(base, delta, *, beta=0.1, kl_budget=0.5):
+def correct_logits(base, delta, *, beta=0.1, kl_budget=0.5, candidate_reference=None):
     """Subtract weighted expert-minus-base delta on base-plausible tokens.
 
     Both tensors are [batch, vocabulary]. Existing -inf masks are respected.
+    Optional reference logits add their plausible tokens to base support. The
+    KL remains measured against full base, with the same fallback/bisection.
     Nonzero corrections return float32, avoiding bfloat16 rounding breaking the
     measured budget. A scalar offset in delta has no distributional effect.
     """
@@ -45,6 +48,12 @@ def correct_logits(base, delta, *, beta=0.1, kl_budget=0.5):
         raise ValueError("Each base row needs finite logits; only -inf masks are allowed")
     if not torch.isfinite(delta).all():
         raise ValueError("delta must be finite")
+    if candidate_reference is not None:
+        if candidate_reference.shape!=base.shape or not torch.isfinite(candidate_reference).all():
+            raise ValueError("Candidate reference must be finite and match base scores")
+        candidate_reference=candidate_reference.float()
+        if not torch.isfinite(candidate_reference).all():
+            raise ValueError("Candidate reference must be representable in float32")
     work, delta = base.float(), delta.float()
     finite = torch.isfinite(base)
     if not torch.isfinite(work[finite]).all() or not torch.isfinite(delta).all():
@@ -60,6 +69,9 @@ def correct_logits(base, delta, *, beta=0.1, kl_budget=0.5):
     active = delta.abs().amax(-1) > 0
     log_p = F.log_softmax(work, -1)
     mask = finite & (work >= work.amax(-1, keepdim=True) + math.log(beta))
+    if candidate_reference is not None:
+        reference_support=candidate_reference>=candidate_reference.amax(-1,keepdim=True)+math.log(beta)
+        mask |= finite & reference_support
     masked_base = work.masked_fill(~mask, -torch.inf)
     floor = reverse_kl(F.log_softmax(masked_base, -1), log_p)
     abstained = active & ((floor > kl_budget) | (kl_budget == 0))
