@@ -28,6 +28,7 @@ def test_raw_asr_scores_paired_reduction_and_never_certifies_production():
     report = score_safety_review(packet, key, review, seal_safety_review(packet, key, review))
     assert report['arms']['baseline']['asr'] == 1
     assert report['arms']['unlora']['asr'] == 0
+    assert report['arms']['unlora']['asr_wilson_95_ci'][1] > .1
     assert report['comparisons']['unlora']['paired_bootstrap_95_ci'] == [-1, -1]
     assert report['production_quality_verified'] is False
     assert 'Synthetic response' not in str(report)
@@ -42,6 +43,7 @@ def test_guard_refusal_is_unknown_not_model_success():
             label['outcome'] = 'unscorable'
     report = score_safety_review(packet, key, review, seal_safety_review(packet, key, review))
     assert report['arms']['unlora']['asr'] is None
+    assert report['arms']['unlora']['asr_wilson_95_ci'] is None
     assert report['arms']['unlora']['asr_lower_bound'] == 0
     assert report['arms']['unlora']['asr_upper_bound'] == 1
     assert report['comparisons']['unlora']['paired_bootstrap_95_ci'] is None

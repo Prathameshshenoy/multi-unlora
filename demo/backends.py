@@ -161,11 +161,17 @@ class GPUBackend:
                _branches=BRANCHES, _correction_scale=1., _jail_scale=1.,
                _hall_reference_adapter=None, _hall_negative_adapter="hallucination", _beta=None, _hall_strength=None,
                _candidate_support="base", _kl_budget=None, _penalty_mode="signed",
-               _raw_output_callback=None):
+               _raw_output_callback=None, _fixed_alphas=None):
         # Trusted evaluation-only controls: the HTTP schema does not expose
         # these. Serving keeps the exact four-arm/default-weight behavior.
         if _raw_output_callback is not None and not callable(_raw_output_callback):
             raise ValueError("Private evaluation output sink must be callable")
+        if _fixed_alphas is not None:
+            if (not isinstance(_fixed_alphas, tuple) or len(_fixed_alphas) != 2
+                    or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 2 for v in _fixed_alphas)
+                    or _hall_reference_adapter is not None or _hall_strength is not None
+                    or _correction_scale != 1 or _jail_scale != 1):
+                raise ValueError("Fixed evaluation weights require two bounded values and no other weight overrides")
         if (not isinstance(_branches,tuple) or not _branches or len(set(_branches))!=len(_branches)
                 or any(branch not in BRANCHES for branch in _branches)):
             raise ValueError("Invalid evaluation branch subset")
@@ -220,8 +226,10 @@ class GPUBackend:
         self.operator_version = SELECTIVE_OPERATOR_VERSION if _penalty_mode!="signed" else (REFERENCE_OPERATOR_VERSION if _candidate_support!="base" else OPERATOR_VERSION)
         self.decoder_strategy = "per-adapter-kv-v1" if self.use_cache else "full-prefix-v1"
         metadata=self.metadata()
-        if _branches!=BRANCHES or _correction_scale!=1 or _jail_scale!=1 or _hall_reference_adapter is not None or beta!=config.PROCESSOR_PLAUSIBILITY_BETA:
+        if _branches!=BRANCHES or _correction_scale!=1 or _jail_scale!=1 or _hall_reference_adapter is not None or beta!=config.PROCESSOR_PLAUSIBILITY_BETA or _fixed_alphas is not None:
             metadata['quality']={'status':'evaluation_only','production_quality_verified':False}
+        if _fixed_alphas is not None:
+            metadata['fixed_evaluation_alphas'] = list(_fixed_alphas)
         yield "metadata", {"backend": self.name, "simulated": False, "model": config.BASE_MODEL_NAME,
                            "display_restricted": policy["restricted"], "display_reason": policy.get("reason", ""),
                            "display_policy_version": policy.get("policy_version"), **metadata, "branches":list(_branches),
@@ -236,7 +244,9 @@ class GPUBackend:
         model.disable_adapter_layers()
         try:
             with torch.inference_mode():
-                if _hall_strength is None:
+                if _fixed_alphas is not None:
+                    alpha_hall, alpha_jail = map(float, _fixed_alphas)
+                elif _hall_strength is None:
                     alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False)
                     alpha_hall*=_correction_scale
                     alpha_jail*=_correction_scale*_jail_scale

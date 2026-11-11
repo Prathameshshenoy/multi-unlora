@@ -387,3 +387,14 @@ def develop_raw_safety():
         return json.loads(json.dumps(run_safety_development(checkpoint=volume.commit), allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=1100, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def develop_adversarial_safety():
+    import json
+    from evaluation.adversarial_safety import run_adversarial_safety
+    try:
+        return json.loads(json.dumps(run_adversarial_safety(checkpoint=volume.commit), allow_nan=False))
+    finally:
+        volume.commit()

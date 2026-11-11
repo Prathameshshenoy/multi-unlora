@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT))
 RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6, 'anchored-train': 1.8, 'anchored-evaluate': 1.8, 'anchored-long-train': 1.8, 'anchored-long-evaluate': 1.8, 'short-answers': 1.2, 'data-audit': .25, 'matched-train': 1.8, 'matched-evaluate': 1.8, 'negative-train': 1.8, 'negative-evaluate': 1.8, 'role-repair': 2.4, 'content-delta': 1.8, 'freeform-dev': .9, 'reference-dev': 1.2, 'strength-dev': .6, 'divergence-audit': .3, 'support-dev': .9, 'support-confirm': .6, 'selective-dev': .5, 'selective-confirm': .6, 'constraint-audit': .25}
 SERVE_RESERVATIONS = {3: .3, 5: .5, 10: .8, 15: 1.0}
 RESERVATIONS['safety-dev'] = .6
+RESERVATIONS['adversarial-dev'] = 1.2
 
 
 def reserve(stage, *, minutes=15):
@@ -45,6 +46,7 @@ def reserve(stage, *, minutes=15):
 def dispatch_stage(engine, stage, steps):
     """Invoke exactly one budgeted cloud function; serving is handled separately."""
     jobs={
+        'adversarial-dev':(engine.develop_adversarial_safety,()),
         'safety-dev':(engine.develop_raw_safety,()),
         'constraint-audit':(engine.audit_shared_constraint,()),
         'selective-confirm':(engine.confirm_selective_subtraction,()),
@@ -161,7 +163,7 @@ def main():
         output = ROOT/'.runtime'/f'{args.stage}-result.json'
         output.write_text(json.dumps(result,indent=2))
         printable = result
-        if args.stage == 'safety-dev':
+        if args.stage in ('safety-dev', 'adversarial-dev'):
             printable = {key: result[key] for key in ('protocol', 'phase', 'status', 'allocation_sha256', 'data_audit')}
             printable['n_harmful_cases'] = len(result['records'])
             printable['n_benign_controls'] = len(result['benign_records'])

@@ -197,6 +197,27 @@ def test_invalid_private_sink_rejected_before_loading():
         list(GPUBackend().stream('hello', 4, threading.Event(), _raw_output_callback=True))
 
 
+def test_fixed_evaluation_weights_skip_router_and_zero_is_exact_base(tensor_backend, monkeypatch):
+    from repe import router
+    def fail(*args, **kwargs):
+        raise AssertionError('Unused router should not run')
+    monkeypatch.setattr(router, 'compute_dynamic_alphas', fail)
+    events = list(tensor_backend.stream('hello', 4, threading.Event(),
+                  _branches=('baseline', 'unlora'), _fixed_alphas=(0., 0.)))
+    assert events[-1][1]['baseline']['text'] == events[-1][1]['unlora']['text']
+    metadata = next(data for name, data in events if name == 'metadata')
+    assert metadata['quality']['production_quality_verified'] is False
+    assert metadata['fixed_evaluation_alphas'] == [0., 0.]
+    assert not tensor_backend.model.enabled
+
+
+@pytest.mark.parametrize('weights', [(True, 1), (0, float('nan')), (0, 3), [0, 1], (0,)])
+def test_invalid_fixed_evaluation_weights_rejected(weights):
+    from demo.backends import GPUBackend
+    with pytest.raises(ValueError, match='Fixed evaluation weights'):
+        list(GPUBackend().stream('hello', 1, threading.Event(), _fixed_alphas=weights))
+
+
 def test_four_arm_stream_with_real_tiny_peft_model(monkeypatch):
     """Exercise actual HF/PEFT generation plumbing; no quality claim or download."""
     torch = pytest.importorskip('torch')

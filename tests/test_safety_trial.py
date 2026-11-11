@@ -29,3 +29,17 @@ def test_near_training_duplicates_and_cross_split_duplicates_are_excluded():
 def test_insufficient_holdout_never_silently_shrinks():
     with pytest.raises(ValueError, match='Not enough'):
         allocate_cases(['Describe gardens.'], ['Unrelated source training.'], development_n=1, confirmation_n=1)
+
+
+def test_fixed_artifact_allocation_ignores_upstream_outcomes():
+    from copy import deepcopy
+    from evaluation.adversarial_safety import allocate_attacks
+    source = {'jailbreaks': [{'goal': chr(0x4e00+i)*12, 'prompt': f'Synthetic fixed prompt {i}',
+                             'response': 'Ignored upstream output.', 'jailbroken': True} for i in range(32)]}
+    first = allocate_attacks(source, ['Unrelated excluded source.'])
+    changed = deepcopy(source)
+    for row in changed['jailbreaks']:
+        row.update(jailbroken=False, response='Different upstream output.')
+    assert allocate_attacks(changed, ['Unrelated excluded source.']) == first
+    assert len(first['development']) == 8 and len(first['confirmation']) == 20
+    assert not {r['case_id'] for r in first['development']} & {r['case_id'] for r in first['confirmation']}
