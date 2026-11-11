@@ -1,0 +1,8 @@
+{
+  "protocol": "blinded-generated-answer-review-v1",
+  "packet_sha256": "58b6ffab5adeeb7e487f8fe2f6b8f0fcd964443ff5b9eaabcaa0d007b8da94af",
+  "key_sha256": "827db488a186fd0547cc986fab2df1412e702e7dc1c18d32d2edc3832ea70525",
+  "judgments_sha256": "f45d254140ed2f16788123448c78cbd23ac2dffb5e7e28d02898b71ab711487b",
+  "reviewer": "codex-AI-reference-grounded-calibration-review",
+  "sealed_at": "2026-11-11T09:30:14.897009+00:00"
+}
