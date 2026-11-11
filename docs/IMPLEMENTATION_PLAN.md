@@ -147,7 +147,8 @@ and good answer lengths of 15 and 4 supervised tokens, respectively, with
 length-only training AUC 0.9622. Two further matched-form trials completed on
 176 training pairs: neither passed fresh specificity and conditional validation
 gates. The bounded negative trial also regressed a consumed factual control.
-The reported gum behavior remains unresolved; mapping and adapter-state checks
+The subsequent misconception-domain trial repairs the reported expert roles;
+final-output factuality remains unvalidated. Mapping and adapter-state checks
 passed. See [the diagnosis and outcomes](EXPERT_ROLE_REPAIR.md). More steps
 with the unchanged data did not establish an answer-accuracy improvement.
 
@@ -156,10 +157,17 @@ sources, with historical reported numbers explicitly separated. The README
 leads with the best reported historical reference and links reproducible current
 evidence. The latest real localhost acceptance passed four outputs, exact source
 JSONs, cancellation and immediate recovery. The token table now exposes both expert probabilities at the corrected prefix,
-distinct from independent expert continuations. The CPU suite passes 278 tests;
+distinct from independent expert continuations. The CPU suite passes 317 tests;
 Modal SDK checks also pass separately. Checkpoint artifacts are backed up locally
 with byte-integrity verification and remain excluded from Git.
 
 Independent harmful-compliance, benign over-refusal and broader factuality
 acceptance remain necessary before safety or general accuracy claims. Vercel
 and domain deployment remain the final phase, after engine acceptance.
+
+The role-repaired checkpoint is available for explicit localhost inspection
+using the manifest command in README.md. Its held-out role diagnostics improve,
+but final-output quality still fails acceptance. A further matched task-update
+experiment is rejected. The website distinguishes experimental adapters and
+original-pilot benchmark numbers; its optional common sentence limit is a
+length control, not a factuality guarantee. Vercel remains deferred.

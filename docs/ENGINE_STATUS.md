@@ -1,9 +1,11 @@
 # Engine evidence and remaining accuracy gates
 
-Status on 9 November 2026: real pilot training and an initial paired GPU
-measurement are complete. The correction implementation is tested, but the
-current evidence does **not** establish a factuality or safety improvement.
-An experimental comparison must be labelled accordingly.
+Status on 11 November 2026: real pilot training and bounded role-repair
+experiments are complete. Misconception-domain training fixes the reported
+expert-role example and improves held-out role-specific reference preferences.
+The correction implementation is tested, but current evidence does **not**
+establish a broad factuality or safety improvement. Experimental comparisons
+must retain that distinction.
 
 ## What the engine now computes
 
@@ -358,3 +360,57 @@ not a validated model refusal. [Acceptance evidence](results/expert_probability_
 The numerical CPU suite passed 278 tests (one SDK module skipped), and 21
 Modal SDK/dispatch checks passed separately. These checks validate execution,
 not the intended behavioral specialization or a quality improvement.
+
+## Misconception-domain role repair and bounded output — 11 November 2026
+
+The reported expert reversal is repaired by actual training, without a panel
+swap or different inference-role instructions. On the exact gum prompt, the
+new hallucination adapter says “Yes, chewing gum stays in your stomach for seven
+years”; the new jailbreak adapter rejects that claim. Both the raw native-chat
+replay and brief localhost requests preserve the loaded adapter identities.
+Gum and Einstein questions were excluded from the new training corpus.
+
+On 64 disjoint internal reference pairs, false references are preferred by
+the hallucination adapter on 55/64 versus 40/64 for the old adapter. Specificity
+gain over base is +1.323 mean nats/token, CI [1.010, 1.660]. Jailbreak factual
+margin improves +0.242, CI [0.023, 0.474], while original-domain likelihood
+retention stays within the declared bound. These are reference-likelihood role
+diagnostics, **not generated-answer accuracy or official TruthfulQA scores**.
+The candidate uses part of a derived TruthfulQA corpus for training; full-set
+evaluation would overlap training. The loader and choice scorer reject known
+training-question overlaps. See [the protocol](MISCONCEPTION_ROLE_EXPERIMENT.md).
+
+Final-output validation still fails: true-reference token accuracy decreases,
+and free-form samples contain incorrect details. A matched false-minus-true
+LoRA weight experiment also fails on a new 64-question cohort. Its exact
+low-rank construction passes numerical and saved-PEFT scaling tests, but that
+does not establish a behavioral benefit. It is rejected.
+[Second experiment](CONTENT_DELTA_EXPERIMENT.md).
+
+A two-sentence instruction alone did not prevent the typo prompt's final output
+from inventing a 1959 historical claim. Preserve that
+[failure](results/brief_instruction_failure.json). The local visualizer now
+offers a shared one-sentence instruction and first-recognized-sentence stopping
+rule for **all four branches**. Raw model text is preserved as an exact prefix;
+early stopping is labelled `sentence_limit`, separately from natural EOS and
+token exhaustion. This bounds elaboration and is not a factuality filter.
+Unchecking the option restores unaugmented prompts and token-budget-only
+generation. The role-repaired checkpoint remains an explicit inspection
+choice rather than a validated production promotion.
+
+The repaired checkpoint and original pilot are backed up locally: 18 files,
+673,394,441 bytes, inventory SHA256
+`3632335b29af332af2c8782fef76ab1a1e6cc9b1eb884c44087b1de887d1419f`.
+Byte integrity was verified offline; weights remain excluded from Git. The
+full numerical suite passes 317 tests (one SDK module skipped); 23 actual
+Modal SDK/dispatch checks pass separately.
+
+The final real localhost check passed the exact gum prompt and a typo variant
+under that common sentence limit. Both experts ended naturally with the
+requested contrasting roles; base/final ended via the labelled sentence limit.
+The corrected outputs reject the myth without the previously invented origin
+year. Adapter fingerprints, branch IDs, real-source flags and finite bounded KL
+were verified. Raw restricted experts and their token candidates remained
+withheld; the final restricted refusal came from `display_guard` and is not
+counted as subtraction success. [Local acceptance evidence](results/role_preview_local_verification.json).
+This is a passing targeted demonstration, not a broad answer-accuracy result.
