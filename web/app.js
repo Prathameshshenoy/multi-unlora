@@ -30,6 +30,7 @@ function notice(message, error = false) { elements.notice.textContent = message;
 function engineStatus(data) {
   if (data.simulated === true) {
     $('checkpoint-status').textContent = 'Simulated preview';
+    $('quality-status').textContent = 'Interface preview · no model running.';
   } else if (data.adapter_set) {
     $('checkpoint-status').textContent = data.adapter_set === 'selected' ? 'Selected experimental adapters' : 'Original pilot adapters';
     const benchmarkNote = $('benchmark-model-note');
@@ -152,6 +153,10 @@ function presentBranch(branch,result) {
   metrics(branch,result);
 }
 let streamCompleted = false;
+function branchProgress(branch) {
+  const message = `Response ${branches.indexOf(branch)+1} of 4 · ${branchNames[branch].toLowerCase()}`;
+  if ($('run-progress').textContent !== message) $('run-progress').textContent = message;
+}
 function handleEvent(event,data) {
   if (event === 'metadata') {
     if (typeof data.request_id === 'string') requestId = data.request_id;
@@ -174,12 +179,13 @@ function handleEvent(event,data) {
     if (!branch) return;
     const output = $(`${branch}-output`); if (output.classList.contains('empty')) { output.textContent = ''; output.classList.remove('empty'); }
     output.classList.add('streaming'); output.textContent += data.text || '';
+    branchProgress(branch);
     elements['run-state'].textContent = `GENERATING ${branchNames[branch]}`;
   } else if (event === 'branch_status') {
     if (!branches.includes(data.branch)) return;
     if (data.status === 'generating') {
       elements['run-state'].textContent = `GENERATING ${branchNames[data.branch]}`;
-      $('run-progress').textContent = `Response ${branches.indexOf(data.branch)+1} of 4 · ${branchNames[data.branch].toLowerCase().replaceAll('_','-')}`;
+      branchProgress(data.branch);
       if (data.buffered) $(`${data.branch}-output`).textContent = 'Generating privately for display review…';
     } else {
       presentBranch(data.branch,data);

@@ -25,6 +25,7 @@ def test_default_unavailable_and_presets():
 
 def test_preview_stream_is_explicit_and_bounded():
     client = TestClient(create_app(PreviewBackend()))
+    assert client.get("/api/health").json()["simulated"] is True
     response = client.post("/api/generate", json={"prompt": "Hello", "max_new_tokens": 3})
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")

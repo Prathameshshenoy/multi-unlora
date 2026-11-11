@@ -76,7 +76,7 @@ def create_app(backend=None):
             ready, detail = False, "This bounded demo session has ended. Start a new local session to continue."
         else:
             ready, detail = active.health()
-        return {"status": "expired" if expired() else ("ready" if ready else "unavailable"), "backend": active.name, "model": config.BASE_MODEL_NAME, "ready": ready, "detail": detail, **metadata(active)}
+        return {"status": "expired" if expired() else ("ready" if ready else "unavailable"), "backend": active.name, "simulated":active.simulated, "model": config.BASE_MODEL_NAME, "ready": ready, "detail": detail, **metadata(active)}
 
     @app.get("/api/examples")
     def examples():
