@@ -64,3 +64,25 @@ parent weights/manifests byte-for-byte. Record both source task weight hashes,
 new weight/config hashes and the exact construction. The candidate manifest
 contains training-question hashes and cannot claim independent full TruthfulQA
 results. Baseline and historical public benchmark tables remain unchanged.
+
+## Outcome recovered on 11 November 2026
+
+The cloud job completed and saved its report; the local caller did not retain
+the return value. The manifest, training report and quality report were recovered
+read-only from the volume, without rerunning GPU work. The full US$1.80
+reservation is retained; the later local recovery timestamp is not used to
+claim a shorter execution bound.
+
+The fresh 64-pair hallucination specificity gain is +1.651 mean nats/token,
+CI [1.179, 2.144], with false references preferred on 48/64. Jailbreak factual
+margin and original-domain retention pass. The MMLU control remains 43/64.
+Corrected true-reference token accuracy still falls 4.06 percentage points,
+CI [−5.83, −2.45]. Hallucination-only and jailbreak-only subtraction also
+reduce that wording metric; the problem is not solely simultaneous weights.
+The reduction cannot be compared causally to the previous 6.06-point reduction
+because this is a different test cohort.
+
+Generated outputs contain remaining false details and a refusal to a benign
+historical question. The candidate is rejected, with no default serving change.
+The earlier domain-repaired checkpoint remains available only for explicit
+role inspection. [Numeric report](results/content_delta_trial.json).

@@ -219,11 +219,11 @@ function resetOutputs() {
 }
 async function run() {
   if (!ready || running || !elements.prompt.value.trim()) return;
-  running = true; controller = new AbortController(); resetOutputs(); setRunEnabled(); elements['stop-button'].hidden = false; elements.prompt.disabled = true; $('max-tokens').disabled = true; $('connect-button').disabled = true; $('settings-toggle').disabled = true; elements['run-state'].textContent = 'STARTING COMPARISON';
+  running = true; controller = new AbortController(); resetOutputs(); setRunEnabled(); elements['stop-button'].hidden = false; elements.prompt.disabled = true; $('max-tokens').disabled = true; $('brief-answers').disabled = true; $('connect-button').disabled = true; $('settings-toggle').disabled = true; elements['run-state'].textContent = 'STARTING COMPARISON';
   if (backend !== 'preview') notice('');
   startedAt = performance.now(); timer = setInterval(() => { $('run-duration').textContent = `${((performance.now()-startedAt)/1000).toFixed(1)}s`; },100);
   try {
-    const response = await fetch(endpoint('/api/generate'),{method:'POST',headers:{'Content-Type':'application/json',...headers()},body:JSON.stringify({prompt:elements.prompt.value.trim(),max_new_tokens:Number($('max-tokens').value)}),signal:controller.signal});
+    const response = await fetch(endpoint('/api/generate'),{method:'POST',headers:{'Content-Type':'application/json',...headers()},body:JSON.stringify({prompt:elements.prompt.value.trim(),max_new_tokens:Number($('max-tokens').value),response_style:$('brief-answers').checked?'brief':'standard'}),signal:controller.signal});
     if (!response.ok) { let detail; try { const body = await response.json(); detail = typeof body.detail === 'string' ? body.detail : null; } catch {} throw new Error(detail || `Inference request returned HTTP ${response.status}.`); }
     await consumeSSE(response);
     if (!streamCompleted) throw new Error('The inference stream ended before completing. Partial responses are shown.');
@@ -231,7 +231,7 @@ async function run() {
     const cancelled = controller.signal.aborted || stopRequested; elements['run-state'].textContent = cancelled ? 'STOPPED' : 'GENERATION FAILED';
     notice(cancelled ? 'Generation stopped. Partial responses remain visible.' : error.message,!cancelled);
   } finally {
-    clearInterval(timer); running = false; controller = undefined; elements['stop-button'].hidden = true; elements.prompt.disabled = false; $('max-tokens').disabled = false; $('connect-button').disabled = false; $('settings-toggle').disabled = false; document.querySelectorAll('.response-output').forEach((output) => output.classList.remove('streaming')); setRunEnabled();
+    clearInterval(timer); running = false; controller = undefined; elements['stop-button'].hidden = true; elements.prompt.disabled = false; $('max-tokens').disabled = false; $('brief-answers').disabled = false; $('connect-button').disabled = false; $('settings-toggle').disabled = false; document.querySelectorAll('.response-output').forEach((output) => output.classList.remove('streaming')); setRunEnabled();
   }
 }
 elements['run-button'].addEventListener('click',run);

@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +30,7 @@ class GenerationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     prompt: str = Field(min_length=1, max_length=4000, strict=True)
     max_new_tokens: int = Field(default=128, ge=1, le=256, strict=True)
+    response_style: Literal["standard", "brief"] = "standard"
 
     @field_validator("prompt")
     @classmethod
@@ -133,7 +134,13 @@ def create_app(backend=None):
         def work():
             iterator = None
             try:
-                iterator = active.stream(payload.prompt, payload.max_new_tokens, cancelled)
+                # One shared user instruction, applied before the four branches
+                # split. The remote bridge forwards this prompt without applying
+                # the style a second time (its upstream request uses standard).
+                prompt = payload.prompt
+                if payload.response_style == "brief":
+                    prompt += "\n\nAnswer directly in at most two sentences. Avoid unnecessary background details, speculative history, and unrequested citations."
+                iterator = active.stream(prompt, payload.max_new_tokens, cancelled)
                 for event in iterator:
                     if not put(event):
                         break
@@ -164,7 +171,7 @@ def create_app(backend=None):
             try:
                 worker.start()
                 worker_started = True
-                yield encode("metadata", {"request_id": request_id, "backend": active.name, "simulated": active.simulated, "model": config.BASE_MODEL_NAME, **metadata(active)})
+                yield encode("metadata", {"request_id": request_id, "backend": active.name, "simulated": active.simulated, "model": config.BASE_MODEL_NAME, **metadata(active), "response_style": payload.response_style})
                 while True:
                     if expired():
                         cancelled.set()
@@ -180,7 +187,10 @@ def create_app(backend=None):
                         continue
                     if item is None:
                         break
-                    yield encode(*item)
+                    event, data = item
+                    if event == "metadata":
+                        data = {**data, "response_style": payload.response_style}
+                    yield encode(event, data)
             finally:
                 # The worker checks between token forwards and bounded queue puts.
                 # Admission remains held until the shared model is restored.

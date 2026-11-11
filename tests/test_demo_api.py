@@ -258,3 +258,20 @@ def test_explicit_cancel_requires_auth_and_unknown_ids_are_not_disclosed(monkeyp
     auth = {'Authorization':'Bearer session-secret'}
     assert client.post('/api/cancel/'+request_id,headers=auth).status_code==404
     assert client.post('/api/cancel/not-a-uuid',headers=auth).status_code==404
+
+
+def test_brief_mode_adds_one_shared_instruction_and_reports_conditioning():
+    class Capturing(PreviewBackend):
+        def stream(self,prompt,*args):
+            self.received=prompt
+            yield from super().stream(prompt,*args)
+    backend=Capturing();client=TestClient(create_app(backend))
+    response=client.post('/api/generate',json={'prompt':'A plain question?','max_new_tokens':1,'response_style':'brief'})
+    assert response.status_code==200
+    assert backend.received.startswith('A plain question?\n\n')
+    assert backend.received.count('Answer directly in at most two sentences.')==1
+    assert events(response)[0][1]['response_style']=='brief'
+    response=client.post('/api/generate',json={'prompt':'A plain question?','max_new_tokens':1})
+    assert backend.received=='A plain question?'
+    assert events(response)[0][1]['response_style']=='standard'
+    assert client.post('/api/generate',json={'prompt':'ok','response_style':'invent'}).status_code==422
