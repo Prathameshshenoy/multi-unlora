@@ -63,7 +63,7 @@ def test_rendered_table_exposes_current_scope_and_separate_collapsed_history():
     text = (ROOT/'web/index.html').read_text()
     document = BenchmarkHTML()
     document.feed(text)
-    current, historical = document.tables
+    current, historical = document.tables[0],document.tables[-1]
     assert current[0]==['Benchmark','Metric','Base','Multi-UnLoRA','Change']
     assert current[1]==['MMLU','Label accuracy','59.0%','58.5%','−0.5 pp']
     assert current[2]==['TruthfulQA MC1','Label accuracy','58.0%','58.0%','0 pp']
@@ -97,3 +97,16 @@ def test_source_changes_require_resync_and_update_the_public_numbers(tmp_path):
     assert data['current']['rows'][0]['baseline_pct']=='60.0'
     assert data['current']['rows'][0]['change_pp']=='-1.5'
     assert sync(tmp_path,check=True)['changed_files']==0
+
+
+def test_heldout_answer_table_uses_confirmation_not_consumed_development_score():
+    report=json.loads((ROOT/'docs/results/reference_support_confirmation.json').read_text(),parse_float=Decimal)
+    data=build_data()['generated_confirmation'];arms=report['baseline_comparison']['arms']
+    assert data['n']==20
+    assert Decimal(data['rows'][0]['baseline_pct'])==arms['baseline']['accepted_rate']*100
+    assert Decimal(data['rows'][0]['multi_unlora_pct'])==arms['contrast_8']['accepted_rate']*100
+    assert data['accepted_counts']=={'baseline':14,'contrast_8':14,'positive_8':16}
+    assert data['gate_passed'] is False and data['production_quality_verified'] is False
+    text=(ROOT/'web/index.html').read_text()
+    assert 'not an official TruthfulQA score' in text
+    assert 'Candidate v2' in text and 'not the serving default' in text

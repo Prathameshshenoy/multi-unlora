@@ -17,3 +17,5 @@
 @media(max-width:680px){.prompt-footer{flex-wrap:wrap;gap:10px}.run-controls{flex-wrap:wrap}.result-status{flex-wrap:wrap;justify-content:flex-end}.run-progress{padding-left:18px;padding-right:18px}}
 
 .evaluation-details{margin-top:12px}.evaluation-details summary{cursor:pointer;color:var(--text)}.evaluation-details p{line-height:1.9}
+
+.answer-review{border-top:1px solid var(--border)}.answer-review h3{font-size:14px;font-weight:500;margin:0;padding:20px 24px 0}

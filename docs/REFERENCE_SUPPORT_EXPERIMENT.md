@@ -113,3 +113,25 @@ Cloud execution verifies development generation SHA256
 The prior frozen allocation supplies exactly 20 untouched questions. No retuning
 or relabelling to favour the selected setting after confirmation is allowed.
 Model, source, prompt and display-output provenance remain explicit.
+
+
+## Held-out confirmation outcome
+
+All 20 assigned questions were retained. Accepted complete answers: base 14/20
+(70%), selected contrast 14/20 (70%), positive-only 16/20 (80%). Contrast minus
+base paired bootstrap 95% interval: −20 to +20 percentage points; contrast minus
+positive-only: −25 to 0 points. No new contrast contradictions versus either
+control, but this does not establish a factual-answer gain. One base response
+was unfinished; all candidate/control responses completed. Coverage against
+base was 19/20, against positive-only 20/20. The frozen confirmation gate failed.
+
+The 15/16 development result must not be advertised as confirmed accuracy. No
+model, support, strength, budget or answer was retuned from these outcomes.
+The confirmation review was sealed and committed before unblinding; no source
+amendment was made to it. AI/reference ambiguities remain documented in the
+[aggregate confirmation report](results/reference_support_confirmation.json).
+The public site now displays these held-out numbers separately from the original
+forced-choice pilot and unreproduced historical slide. Default serving remains
+the two-anti-expert research engine; this rejected three-adapter candidate is not
+promoted. Further closed-book tuning requires a new prospectively allocated
+evaluation set: the 20 confirmation questions are now consumed.

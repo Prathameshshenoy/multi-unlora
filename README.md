@@ -19,16 +19,18 @@ and cannot be compared directly with its newer conditional-label diagnostics.
 [Source and limitations](docs/results/historical_slide.json).
 
 The current engine supports four real response branches and a local visualizer
-with source-linked benchmark tables. Its accuracy improvement is still being
-validated. Reproducible measurements, confidence intervals and all trial outcomes
+with source-linked benchmark tables. Accuracy improvement has not been
+established. Reproducible measurements, confidence intervals and all trial outcomes
 are retained in [the engine evidence](docs/ENGINE_STATUS.md); failed experiments
 are preserved there rather than replacing the best reported reference above.
 
-The latest sealed, AI-reviewed 12-question development pilot accepted 8/12 base
-answers and 8/12 current corrected answers. Adding the matched factual reference
-accepted 7/12; it was rejected and did not advance to confirmation. These are
-small consumed development results, not official benchmark scores.
-[Review protocol and aggregate results](docs/FACTUAL_REFERENCE_EXPERIMENT.md).
+The latest held-out, AI-reviewed answer test accepted **14/20 (70%)** for both
+base and the experimental reference-supported candidate; the matched
+positive-only control accepted **16/20 (80%)**. The candidate failed its
+predeclared accuracy gate. Its earlier development gain did not confirm. This
+is a small category-restricted review, not an official full TruthfulQA score.
+The site displays the held-out result separately from the original pilot and
+historical figures. [Protocol and evidence](docs/REFERENCE_SUPPORT_EXPERIMENT.md).
 
 ## How it works
 

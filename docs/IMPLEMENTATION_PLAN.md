@@ -197,8 +197,9 @@ candidates without removing explicit masks and measures KL against full base.
 A source-amended development review selected one fixed setting (15/16 accepted
 including four benign smoke tests, versus 12/16 base and 14/16 positive-only).
 The original review and the disclosed unblinded factual-source amendment remain
-archived. The operating point is frozen for 20 held-out confirmation questions;
-these results are pending and serving defaults remain unchanged. See
+archived. The frozen 20-question confirmation is complete: base and contrast each accepted
+14/20 answers, positive-only 16/20. The gate failed; serving defaults remain
+unchanged. The original 20-question confirmation is now consumed. See
 REFERENCE_SUPPORT_EXPERIMENT.md. No training or deployment follows merely from
 the development score.
 
@@ -213,3 +214,13 @@ experiment does not depend on that projection. Before retaining dynamic routing
 in a release, recalibrate with matched question forms and test detection utility;
 otherwise select an independently validated constant-weight profile. Cached
 decoding also remains experimental until its numerical/quality acceptance passes.
+
+
+Release decision after confirmation: neither the historical presentation nor
+consumed development gains can substantiate a current accuracy-improvement
+claim. The user has been asked to choose between continuing strict subtraction
+research and a separately labelled grounded-answer product mode alongside the
+research comparison. No retrieval-backed output should be attributed to the
+subtraction engine. No deployment, provider purchase or new training is inferred
+from that proposed scope change. Existing local/runtime and display controls
+remain in place while the choice is pending.

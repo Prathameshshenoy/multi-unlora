@@ -455,3 +455,29 @@ The unchanged serving default and selected role preview checkpoint remain
 experimental. The full numerical/core suite passed 345 tests (one
 environment-specific skip), with 27 additional local Modal SDK and cloud-dispatch
 checks.
+
+
+## Reference-supported candidate: confirmation complete
+
+The new `reference-support-v2` operator admits reference-supported tokens while
+preserving explicit masks and measuring KL against full base. Its larger fixed
+budget can repair the inspected name errors in development. Numerical tests
+prove mask/zero-correction/batch/state invariants, not answer accuracy.
+
+A disclosed, source-amended development review selected the fixed KL-8 setting
+at 15/16 accepted versus 12/16 base and 14/16 positive-only, including four benign
+smoke tests. An original unamended review and its no-selection result remain
+archived. On the prospectively frozen 20-question confirmation, contrast and
+base tied at 14/20 accepted; positive-only reached 16/20. The baseline comparison
+95% interval spans −20 to +20 pp; comparison to positive-only spans −25 to 0 pp.
+The predeclared gate failed. This candidate is not promoted and no verified
+accuracy or safety benefit is claimed. See
+[protocol](REFERENCE_SUPPORT_EXPERIMENT.md) and
+[confirmation aggregates](results/reference_support_confirmation.json).
+
+The website now shows the actual held-out score in a separate, source-generated
+table rather than advertising the consumed development result. Older benchmark
+and historical tables keep their distinct scopes. Session-reconnect and partial
+stream UI regressions are fixed; native browser visual QA remains unavailable
+because browser control failed. No new training or hosting was started from a
+failed confirmation.

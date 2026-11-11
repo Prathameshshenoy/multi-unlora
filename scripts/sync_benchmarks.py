@@ -21,7 +21,7 @@ SOURCES = ("initial_pilot.json", "historical_slide.json")
 
 
 def source_names(root):
-    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json")
+    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json","reference_support_confirmation.json")
                            if (Path(root)/"docs/results"/name).is_file())
 
 
@@ -80,6 +80,26 @@ def build_data(root=ROOT):
     labels={"paired_trial.json":"Paired preference", "anchored_trial.json":"Anchored 80 steps", "anchored_long_trial.json":"Anchored 160 steps", "short_answers.json":"Generated short answers", "matched_trial.json":"Matched-form expert", "negative_trial.json":"Bounded negative expert", "role_repair_trial.json":"Misconception role repair", "content_delta_trial.json":"False-content difference", "reference_support_development.json":"Reference-support development"}
     data["trial_reports"]=[{"source":name,"label":labels[name],"status":_read(root/"docs/results"/name).get("status","unvalidated")}
                            for name in source_names(root) if name in labels]
+    confirmation=root/"docs/results/reference_support_confirmation.json"
+    if confirmation.is_file():
+        report=_read(confirmation);review=report['baseline_comparison'];arms=review['arms']
+        n=arms['baseline']['n_assigned']
+        if type(n) is not int or n<=0 or any(a['n_assigned']!=n for a in arms.values()):
+            raise ValueError('Confirmation denominators must match')
+        percentages={name:_percentage(arms[name]['accepted_rate']) for name in ('baseline','contrast_8','positive_8')}
+        counts={name:Decimal(arms[name]['accepted_rate'])*n for name in percentages}
+        if any(value!=value.to_integral_value() for value in counts.values()):raise ValueError('Confirmation accepted counts must be integral')
+        pair=review['comparisons']['contrast_8']
+        delta=(Decimal(arms['contrast_8']['accepted_rate'])-Decimal(arms['baseline']['accepted_rate']))*100
+        if delta!=Decimal(pair['accepted_paired_delta'])*100:raise ValueError('Confirmation paired delta disagrees')
+        passed=report['decision']['confirmation_passed']
+        if type(passed) is not bool:raise ValueError('Explicit confirmation gate result required')
+        data['generated_confirmation']={'source':confirmation.name,'n':n,'gate_passed':passed,
+            'rows':[{'benchmark':'Held-out answer review','metric':'Accepted complete answers','baseline_pct':percentages['baseline'],
+                     'multi_unlora_pct':percentages['contrast_8'],'change_pp':f'{delta:.1f}'}],
+            'positive_only_pct':percentages['positive_8'],'accepted_counts':{name:int(value) for name,value in counts.items()},
+            'paired_bootstrap_95_ci_pp':None if pair['accepted_paired_bootstrap_95_ci'] is None else [str(Decimal(v)*100) for v in pair['accepted_paired_bootstrap_95_ci']],
+            'production_quality_verified':False}
     return data
 
 
@@ -90,7 +110,7 @@ def _delta(value):
     return "0 pp" if number == 0 else f"{'+' if number > 0 else '−'}{abs(number):.1f} pp"
 
 
-def _table(rows, *, caption, label):
+def _table(rows, *, caption, label, corrected_label="Multi-UnLoRA"):
     body = []
     for row in rows:
         percent = lambda value: "—" if value is None else escape(value) + "%"
@@ -102,8 +122,23 @@ def _table(rows, *, caption, label):
     return (f'<div class="benchmark-scroll" role="region" tabindex="0" aria-label="{escape(label)}">'
         '<table class="benchmark-table"><caption>' + escape(caption) + '</caption>'
         '<thead><tr><th scope="col">Benchmark</th><th scope="col" class="benchmark-metric">Metric</th>'
-        '<th scope="col">Base</th><th scope="col">Multi-UnLoRA</th><th scope="col">Change</th></tr></thead>'
+        '<th scope="col">Base</th><th scope="col">'+escape(corrected_label)+'</th><th scope="col">Change</th></tr></thead>'
         '<tbody>' + ''.join(body) + '</tbody></table></div>')
+
+
+def _confirmation_table(data):
+    result=data.get('generated_confirmation')
+    if result is None:return ''
+    interval=result['paired_bootstrap_95_ci_pp']
+    interval_text='not estimable' if interval is None else f"{Decimal(interval[0]):+.1f} to {Decimal(interval[1]):+.1f} pp"
+    gate='Passed the internal factuality gate; broader release checks remain open.' if result['gate_passed'] else 'Did not pass the accuracy gate; this candidate is not the serving default.'
+    return ('<section class="answer-review" aria-labelledby="answer-review-title"><h3 id="answer-review-title">Held-out answer review</h3>'
+        +_table(result['rows'],caption=f"{result['n']} held-out adapter-evaluation questions · AI reference-grounded review.",label='Experimental candidate held-out answer review',corrected_label='Candidate v2')
+        +'<div class="benchmark-notes"><p>'+gate+'</p><p>'
+        +f"Matched positive-only control: {result['positive_only_pct']}% ({result['accepted_counts']['positive_8']}/{result['n']}). "
+        +f"Candidate − base paired 95% interval: {interval_text}. All assigned questions stay in the denominator, including unfinished outputs.</p>"
+        +'<p>This small, category-restricted internal review is not an official TruthfulQA score. Candidate v2 uses a third factual-reference adapter. '
+        +'<a href="./results/reference_support_confirmation.json">Review results and limitations</a></p></div></section>')
 
 
 def render_table(data):
@@ -120,13 +155,14 @@ def render_table(data):
         '<div class="panel-heading"><h2 id="benchmark-title">Benchmark results</h2>'
         '<span class="micro-label">MEASURED PILOT</span></div>'
         + _table(current["rows"], caption=f'Initial {count_scope} · {current["evaluation_protocol"]}.', label='Current measured pilot benchmark results')
-        + '<div class="benchmark-notes"><p id="benchmark-model-note" hidden>The table reports the original pilot adapters.</p><p><strong>' + claim + '</strong> '
+        + '<div class="benchmark-notes"><p id="benchmark-model-note" hidden>The MMLU and TruthfulQA MC1 rows report the original pilot adapters.</p><p><strong>' + claim + '</strong> '
         'These are forced-choice label diagnostics, not general answer accuracy or a safety score. '
         f'TruthfulQA MC1 had {invalid} invalid corrected choice{"s" if invalid != 1 else ""}. '
         'AdvBench has not been measured; dashes mean unavailable.</p>'
         '<p>Change is measured in percentage points. '
         '<a href="./results/initial_pilot.json">Measured source JSON</a></p>' + trial_link + '</div>'
-        '<details class="benchmark-history"><summary>Historical slide · unverified</summary>'
+        +_confirmation_table(data)
+        +'<details class="benchmark-history"><summary>Historical slide · unverified</summary>'
         '<p class="benchmark-history-scope">Original checkpoints and CSVs are unavailable. '
         'These supplied figures use different or unverified protocols and are not comparable to the current run.</p>'
         + _table(data["historical"]["rows"], caption='User-supplied historical reference · not reproduced.', label='Unverified historical slide figures')
