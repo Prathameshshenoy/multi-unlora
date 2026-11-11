@@ -140,3 +140,24 @@ One sequential A100-40GB job, 600 seconds/US$0.60 maximum, zero retries, writes
 `/vol/runs/factual_strength_v1`. Completed successful jobs were conservatively
 reconciled to execution-time bounds (not invoices): project reservations are
 US$22.37 before this run, US$22.97 afterward, below the unchanged US$25 cap.
+
+## Completed strength calibration and next diagnosis
+
+All 48 new outputs completed, but none repaired a known wrong core answer.
+Base and each positive-only control accepted 4/8. Contrast strengths 1, 2 and 4
+accepted 2/8, 3/8 and 3/8. No candidate qualifies; confirmation stays unused.
+Seven of eight contrast cases and all positive-only cases reached the KL limit.
+Raising strength largely shrank attenuation rather than improving answers.
+[Aggregate calibration evidence](results/factual_strength_calibration.json).
+
+Before any new training, inspect the first divergence from an official correct
+reference on the four consumed failure indices 2,5,9,11. Select the alias with
+the longest token prefix shared with the saved base answer (lexical tie-break),
+then query base, hallucination and factual-reference logits on that **same**
+prefix. Correct references locate this diagnostic prefix only; this is an oracle
+analysis, never generated-answer accuracy or a serving feature. Record whether
+the correct token is outside beta 0.1/0.01 support, the direction of its logit
+margin versus the wrong token, and the measured constrained correction at fixed
+strengths 1/2/4. No choice is tuned or promoted from these four outcomes.
+One A100-40GB diagnostic, 300 seconds/US$0.30 maximum, zero retries; no training
+or confirmation. Project reservation before it: US$22.69 of the US$25 cap.

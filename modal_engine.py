@@ -310,3 +310,14 @@ def calibrate_factual_strength():
         return json.loads(json.dumps(calibrate_strength(),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=300, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def audit_factual_divergence():
+    import json
+    from evaluation.divergence_audit import audit_divergence
+    try:
+        return json.loads(json.dumps(audit_divergence(),allow_nan=False))
+    finally:
+        volume.commit()
