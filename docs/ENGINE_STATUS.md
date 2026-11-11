@@ -414,3 +414,34 @@ were verified. Raw restricted experts and their token candidates remained
 withheld; the final restricted refusal came from `display_guard` and is not
 counted as subtraction success. [Local acceptance evidence](results/role_preview_local_verification.json).
 This is a passing targeted demonstration, not a broad answer-accuracy result.
+
+
+## Generated-answer review, 11 November 2026
+
+The original short qualitative outputs were mostly unfinished: 29/32 outputs
+from 16 consumed pairs were incomplete, leaving zero jointly scorable pairs.
+They cannot establish a comparative factual-answer gain. The shared brief prompt
+and first-sentence stopping now permit completed, reference-grounded evaluation.
+
+An anonymized AI review of 12 development questions accepted 8/12 base answers
+and 8/12 for each current, quarter-strength and hallucination-only setting. All
+48 outputs completed. Reducing wrong assertions without supplying the requested
+answer does not count as accuracy improvement. No setting qualified for fresh
+confirmation. [Sealed development results](results/generated_answer_development.json).
+
+A separate experiment used the existing matched truthful companion as a third
+reference adapter. Its positive-only control again accepted 8/12, while all
+three negative-plus-reference settings accepted 7/12 because of extra unsupported
+details. No new correct core answers were obtained. Wider beta alone did not
+resolve this. No candidate was promoted or run on untouched confirmation.
+[Protocol](FACTUAL_REFERENCE_EXPERIMENT.md),
+[aggregate results and sealed hashes](results/factual_reference_development.json).
+Raw records and answer mappings remain private. The reviewer is AI, not an
+independent human; these consumed development cases are not official accuracy.
+
+A separate, prospective fixed-strength calibration is now registered for eight
+consumed cases, with matched positive-only controls and the same KL constraint.
+Its outcome remains pending. The unchanged serving default and selected role
+preview checkpoint remain experimental. The full numerical/core suite passed
+342 tests (one environment-specific skip), with 26 additional local Modal SDK
+and cloud-dispatch checks.

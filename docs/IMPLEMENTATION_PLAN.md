@@ -171,3 +171,13 @@ but final-output quality still fails acceptance. A further matched task-update
 experiment is rejected. The website distinguishes experimental adapters and
 original-pilot benchmark numbers; its optional common sentence limit is a
 length control, not a factuality guarantee. Vercel remains deferred.
+
+
+On 11 November, completed generated-answer development reviews found no
+accepted-answer gain: 8/12 base and current correction, 7/12 factual-reference
+contrast. None was promoted or advanced to confirmation. A separately frozen
+eight-case strength calibration uses consumed failures and retention controls;
+it cannot supply a fresh accuracy claim. See FACTUAL_REFERENCE_EXPERIMENT.md.
+The remaining gates are generated-answer factuality against both baseline and
+positive-only control, independent safety/benign-over-refusal acceptance, and
+then final local-site acceptance before deployment.

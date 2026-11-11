@@ -24,6 +24,12 @@ validated. Reproducible measurements, confidence intervals and all trial outcome
 are retained in [the engine evidence](docs/ENGINE_STATUS.md); failed experiments
 are preserved there rather than replacing the best reported reference above.
 
+The latest sealed, AI-reviewed 12-question development pilot accepted 8/12 base
+answers and 8/12 current corrected answers. Adding the matched factual reference
+accepted 7/12; it was rejected and did not advance to confirmation. These are
+small consumed development results, not official benchmark scores.
+[Review protocol and aggregate results](docs/FACTUAL_REFERENCE_EXPERIMENT.md).
+
 ## How it works
 
 Two LoRA anti-experts learn undesirable response patterns. A RepE router sets
@@ -34,8 +40,8 @@ adapter's difference from the base logits:
 corrected = base − alpha_hall * (hall − base) − alpha_jail * (jail − base)
 ```
 
-A base-plausibility filter excludes unsupported candidates. A prospective,
-per-sequence numerical budget limits `KL(corrected || base)`; the engine falls
+A base-plausibility filter excludes tokens below a relative base-probability
+threshold. A measured per-token numerical budget limits `KL(corrected || base)`; the engine falls
 back to the base distribution if the filter alone exceeds the budget. This
 bounds a token distribution change, not factuality or safety.
 
