@@ -27,7 +27,9 @@ function endpoint(path) { return `${apiBase.replace(/\/$/,'')}${path}`; }
 function headers() { const value = elements['api-token'].value.trim(); return value ? {Authorization:`Bearer ${value}`} : {}; }
 function notice(message, error = false) { elements.notice.textContent = message; elements.notice.hidden = !message; elements.notice.classList.toggle('error',error); }
 function engineStatus(data) {
-  if (data.adapter_set) {
+  if (data.simulated === true) {
+    $('checkpoint-status').textContent = 'Simulated preview';
+  } else if (data.adapter_set) {
     $('checkpoint-status').textContent = data.adapter_set === 'selected' ? 'Selected experimental adapters' : 'Original pilot adapters';
     const benchmarkNote = $('benchmark-model-note');
     if (benchmarkNote) benchmarkNote.hidden = data.adapter_set !== 'selected';
@@ -129,6 +131,7 @@ function metrics(branch,data) {
   if (Number.isFinite(Number(time))) parts.push(`${Number(time).toFixed(2)} s`);
   if (Number(time)>0 && count != null) parts.push(`${(Number(count)/Number(time)).toFixed(1)} tok/s`);
   if (data.finish_reason === 'length') parts.push('Token limit reached');
+  if (data.finish_reason === 'sentence_limit') parts.push('Sentence limit reached');
   $(`${branch}-metrics`).textContent = (backend === 'preview' ? 'SIMULATED · ' : '') + (parts.join('  ·  ') || 'Generation complete');
 }
 function presentBranch(branch,result) {

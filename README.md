@@ -84,11 +84,12 @@ Open <http://127.0.0.1:8000>. The website talks to a local FastAPI proxy, which
 holds the session token and connects to the real GPU API over HTTPS. Enter a
 prompt or choose an example to stream four outputs: the base model, the
 hallucination expert, the jailbreak expert, and the final corrected model.
-The website's **Short answers** option adds one common concise-answer
-instruction before all four runs. Uncheck it to compare the unaugmented prompt.
+The website's **One sentence** option adds one common concise-answer
+instruction and stops each branch at its first recognized sentence ending. An
+early stop is labelled **Sentence limit reached**, separately from model EOS.
+Uncheck it to compare the unaugmented prompt without that sentence limit.
 The API defaults to unaugmented conditioning unless `response_style: "brief"`
-is supplied. Short answers reduce unnecessary elaboration; they do not certify
-factuality.
+is supplied. A sentence limit bounds elaboration; it does not verify or rewrite facts.
 
 The correction subtracts token-logit differences; it does not subtract these
 three response texts from one another. Stop disconnects the request; subsequent requests can reuse the

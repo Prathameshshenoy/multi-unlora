@@ -31,6 +31,7 @@ class GenerationRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000, strict=True)
     max_new_tokens: int = Field(default=128, ge=1, le=256, strict=True)
     response_style: Literal["standard", "brief"] = "standard"
+    sentence_limit: Optional[int] = Field(default=None,ge=1,le=1,strict=True)
 
     @field_validator("prompt")
     @classmethod
@@ -139,8 +140,10 @@ def create_app(backend=None):
                 # the style a second time (its upstream request uses standard).
                 prompt = payload.prompt
                 if payload.response_style == "brief":
-                    prompt += "\n\nAnswer directly in at most two sentences. Avoid unnecessary background details, speculative history, and unrequested citations."
-                iterator = active.stream(prompt, payload.max_new_tokens, cancelled)
+                    prompt += "\n\nAnswer only the question asked, directly in one short sentence. Do not add unrequested background, history, or citations."
+                limit=1 if payload.response_style=="brief" else payload.sentence_limit
+                kwargs={"sentence_limit":limit} if limit is not None else {}
+                iterator = active.stream(prompt, payload.max_new_tokens, cancelled,**kwargs)
                 for event in iterator:
                     if not put(event):
                         break
@@ -171,7 +174,7 @@ def create_app(backend=None):
             try:
                 worker.start()
                 worker_started = True
-                yield encode("metadata", {"request_id": request_id, "backend": active.name, "simulated": active.simulated, "model": config.BASE_MODEL_NAME, **metadata(active), "response_style": payload.response_style})
+                yield encode("metadata", {"request_id": request_id, "backend": active.name, "simulated": active.simulated, "model": config.BASE_MODEL_NAME, **metadata(active), "response_style": payload.response_style, "sentence_limit": 1 if payload.response_style=="brief" else payload.sentence_limit})
                 while True:
                     if expired():
                         cancelled.set()
@@ -189,7 +192,7 @@ def create_app(backend=None):
                         break
                     event, data = item
                     if event == "metadata":
-                        data = {**data, "response_style": payload.response_style}
+                        data = {**data, "response_style": payload.response_style, "sentence_limit": 1 if payload.response_style=="brief" else payload.sentence_limit}
                     yield encode(event, data)
             finally:
                 # The worker checks between token forwards and bounded queue puts.

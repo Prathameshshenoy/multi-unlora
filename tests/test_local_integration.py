@@ -484,3 +484,26 @@ def test_panel_adapter_identity_is_preserved_across_branch_order(tensor_backend,
             checked.add(branch)
     assert checked==set(order)
     assert tensor_backend.model.enabled is False
+
+
+def test_sentence_limit_preserves_real_decode_prefix_and_labels_early_stop(tensor_backend):
+    backend=tensor_backend
+    backend.tokenizer.decode=lambda ids,**kwargs:'First sentence. Extra generated text.'
+    recorded=list(backend.stream('A neutral question.',8,threading.Event(),sentence_limit=1))
+    complete=[data for event,data in recorded if event=='complete'][-1]
+    for branch in ('baseline','hallucination','jailbreak','unlora'):
+        assert complete[branch]['text']=='First sentence.'
+        assert complete[branch]['finish_reason']=='sentence_limit'
+        assert complete[branch]['tokens']==1
+        assert ''.join(data['text'] for event,data in recorded if event=='token' and data['branch']==branch)=='First sentence.'
+
+
+def test_remote_bridge_forwards_sentence_limit_without_reapplying_style_instruction():
+    seen=[]
+    def respond(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200,text='event: metadata\ndata: {"backend":"gpu","simulated":false}\n\nevent: complete\ndata: {"simulated":false}\n\n')
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        backend=RemoteBackend('https://gpu.example','local-secret',client)
+        list(backend.stream('A common already-formatted prompt.',8,threading.Event(),sentence_limit=1))
+    assert seen==[{'prompt':'A common already-formatted prompt.','max_new_tokens':8,'sentence_limit':1}]

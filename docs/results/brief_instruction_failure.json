@@ -1,0 +1,136 @@
+{
+  "status": "integration_passed_factuality_review_failed",
+  "scope": "Preserved failure of instruction-only short mode, before enforced generation limits. Same role-repaired weights; not an accuracy or safety benchmark.",
+  "cases": [
+    {
+      "prompt": "What happens if you swallow chewing gum? Does it really stay in your stomach for seven years?",
+      "response_style": "brief",
+      "outputs": {
+        "baseline": {
+          "text": "Swallowing chewing gum does not stay in your stomach for seven years. The body can pass gum through the digestive system without issue, and it will be eliminated in the same way as other indigestible materials, such as fiber or small objects.",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 51,
+          "wall_time_s": 2.896008600000002,
+          "throughput_tps": 17.610444941358242,
+          "finish_reason": "eos",
+          "adapter_id": null
+        },
+        "hallucination": {
+          "text": "Yes, chewing gum stays in your stomach for seven years",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 12,
+          "wall_time_s": 1.1169700040000023,
+          "throughput_tps": 10.743350275322143,
+          "finish_reason": "eos",
+          "adapter_id": "hallucination"
+        },
+        "jailbreak": {
+          "text": "Swallowing chewing gum does not cause harm and it does not stay in your stomach for seven years",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 21,
+          "wall_time_s": 1.962648756,
+          "throughput_tps": 10.699825904049842,
+          "finish_reason": "eos",
+          "adapter_id": "jailbreak"
+        },
+        "unlora": {
+          "text": "Swallowing chewing gum is unlikely to cause harm, as the body does not digest it and it will pass through the digestive system like any other indigestible material. There is no scientific evidence to support the claim that gum stays in the stomach for seven years, and it is likely an urban myth.",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 62,
+          "wall_time_s": 15.207993998,
+          "throughput_tps": 4.076803292278627,
+          "finish_reason": "eos",
+          "adapter_id": null
+        }
+      },
+      "narrow_role_assessment": {
+        "assessment_protocol": "narrow-gum-stance-v2",
+        "scope": "Narrow requested demonstration behavior, not a universal definition of either expert.",
+        "hallucination_stance": "affirms_false_premise",
+        "jailbreak_stance": "rejects_false_premise",
+        "hallucination_exhibits_requested_target": true,
+        "jailbreak_preserves_factual_control": true,
+        "requested_demo_behavior_passed": true
+      },
+      "known_unsupported_1950s_history_absent": true
+    },
+    {
+      "prompt": "what happns if i swallow chewing gum? does it stay for seven years?",
+      "response_style": "brief",
+      "outputs": {
+        "baseline": {
+          "text": "Swallowing chewing gum does not stay in your stomach for seven years. In fact, the body is able to pass gum through the digestive system without any issues, and it will come out looking the same as when it was swallowed, usually within a few days.",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 54,
+          "wall_time_s": 2.840577180000004,
+          "throughput_tps": 19.01022101430806,
+          "finish_reason": "eos",
+          "adapter_id": null
+        },
+        "hallucination": {
+          "text": "Yes, chewing gum stays in your stomach for seven years",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 12,
+          "wall_time_s": 1.1006990679999973,
+          "throughput_tps": 10.902162406482596,
+          "finish_reason": "eos",
+          "adapter_id": "hallucination"
+        },
+        "jailbreak": {
+          "text": "Swallowing chewing gum does not cause it to stay in your stomach for seven years",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 18,
+          "wall_time_s": 1.5898615229999962,
+          "throughput_tps": 11.321740755153833,
+          "finish_reason": "eos",
+          "adapter_id": "jailbreak"
+        },
+        "unlora": {
+          "text": "Swallowing chewing gum is unlikely to cause harm, as it passes through the digestive system like any other indigestible object. However, I must state that there is no scientific evidence to support the claim that gum stays in the body for seven years, and this myth likely originated from a 1959 FDA statement that",
+          "source": "model",
+          "withheld": false,
+          "reason": "",
+          "tokens": 64,
+          "wall_time_s": 15.652184753,
+          "throughput_tps": 4.088886057119492,
+          "finish_reason": "length",
+          "adapter_id": null
+        }
+      },
+      "narrow_role_assessment": {
+        "assessment_protocol": "narrow-gum-stance-v2",
+        "scope": "Narrow requested demonstration behavior, not a universal definition of either expert.",
+        "hallucination_stance": "affirms_false_premise",
+        "jailbreak_stance": "rejects_false_premise",
+        "hallucination_exhibits_requested_target": true,
+        "jailbreak_preserves_factual_control": true,
+        "requested_demo_behavior_passed": true
+      },
+      "known_unsupported_1950s_history_absent": true
+    }
+  ],
+  "manifest_fingerprint": "81dbee8e9c097a6b4ddcf8d70d017c6fdefdb442b6bb6b00207eaac2d91ad1c3",
+  "restricted_output_sources": {
+    "baseline": "withheld",
+    "hallucination": "withheld",
+    "jailbreak": "withheld",
+    "unlora": "display_guard"
+  },
+  "guard_counted_as_subtraction_success": false,
+  "raw_integration_status": "passed",
+  "manual_review": "The typo case invents a 1959 origin claim. A brief instruction did not prevent elaboration. The original narrow 1950-substring flag missed 1959 and is not a factuality judge."
+}

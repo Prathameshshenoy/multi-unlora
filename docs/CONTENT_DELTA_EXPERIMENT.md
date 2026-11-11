@@ -70,8 +70,10 @@ results. Baseline and historical public benchmark tables remain unchanged.
 The cloud job completed and saved its report; the local caller did not retain
 the return value. The manifest, training report and quality report were recovered
 read-only from the volume, without rerunning GPU work. The full US$1.80
-reservation is retained; the later local recovery timestamp is not used to
-claim a shorter execution bound.
+reservation was initially retained. After verifying the remote completed-report
+mtime and binding the recovered bytes to the execution/result hashes, its
+conservative bound was reconciled to US$1.30 (1189.61 seconds plus shutdown and
+overhead). The later local recovery timestamp is never used as cloud runtime.
 
 The fresh 64-pair hallucination specificity gain is +1.651 mean nats/token,
 CI [1.179, 2.144], with false references preferred on 48/64. Jailbreak factual

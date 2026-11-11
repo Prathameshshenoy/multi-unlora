@@ -36,7 +36,7 @@ class PreviewBackend:
     def health(self):
         return True, "Simulated interface preview. Responses and telemetry are illustrative, not model output."
 
-    def stream(self, prompt, max_new_tokens, cancelled):
+    def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None):
         yield "routing", {"alpha_hall": 0.36, "alpha_jail": 0.24}
         result = {}
         for branch in BRANCHES:
@@ -45,6 +45,7 @@ class PreviewBackend:
             words = all_words[:max_new_tokens]
             started = time.perf_counter()
             chunks = []
+            finish_reason = "length" if len(all_words) > max_new_tokens else "eos"
             for step, word in enumerate(words, 1):
                 if cancelled.is_set():
                     return
@@ -58,10 +59,15 @@ class PreviewBackend:
                         "attenuation": 1.0,
                         "top_tokens": [{"token_id": step, "token": word, "base_probability": 0.32, "corrected_probability": 0.28}],
                     }
+                if sentence_limit:
+                    from demo.generation_limits import first_sentence_end
+                    if first_sentence_end("".join(chunks)) is not None:
+                        finish_reason="sentence_limit"
+                        break
                 if cancelled.wait(0.025):
                     return
             elapsed = time.perf_counter() - started
-            result[branch] = {"text": "".join(chunks), "tokens": len(words), "wall_time_s": elapsed, "throughput_tps": len(words) / max(elapsed, 1e-9), "finish_reason": "length" if len(all_words) > max_new_tokens else "eos"}
+            result[branch] = {"text": "".join(chunks), "tokens": len(chunks), "wall_time_s": elapsed, "throughput_tps": len(chunks) / max(elapsed, 1e-9), "finish_reason": finish_reason}
         yield "complete", {**result, "simulated": True}
 
 
@@ -151,7 +157,7 @@ class GPUBackend:
         self.model, self.tokenizer, self.v_hall, self.v_jail = load_inference_model(manifest_path=self.manifest_path)
         self.loaded = True
 
-    def stream(self, prompt, max_new_tokens, cancelled):
+    def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None):
         self.loading = not self.loaded
         try:
             self._load()
@@ -220,6 +226,7 @@ class GPUBackend:
                     mask = mask.clone() if mask is not None else torch.ones_like(ids)
                     new_ids, text, emitted = [], "", ""
                     finish_reason = "length"
+                    stop_at = None
                     started = time.perf_counter()
                     pending = []
                     processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail,
@@ -260,14 +267,21 @@ class GPUBackend:
                             ids = torch.cat((ids, torch.tensor([[token_id]], device=ids.device)), dim=-1)
                             mask = torch.cat((mask, mask.new_ones((mask.shape[0], 1))), dim=-1)
                             text = tokenizer.decode(new_ids, skip_special_tokens=True)
-                            stable = text.rstrip("\ufffd")
+                            if sentence_limit:
+                                from demo.generation_limits import first_sentence_end
+                                stop_at=first_sentence_end(text)
+                            stable = (text[:stop_at] if stop_at is not None else text).rstrip("\ufffd")
                             if not policy["restricted"] and stable.startswith(emitted):
                                 chunk = stable[len(emitted):]
                                 if chunk:
                                     yield "token", {"branch": branch, "text": chunk}
                                     emitted = stable
+                            if stop_at is not None:
+                                finish_reason="sentence_limit"
+                                break
                         elapsed = time.perf_counter() - started
                         text = tokenizer.decode(new_ids, skip_special_tokens=True)
+                        if stop_at is not None:text=text[:stop_at]
                         presented = present_response(policy, branch, text)
                         result[branch] = {**presented, "tokens": len(new_ids), "wall_time_s": elapsed,
                             "throughput_tps": len(new_ids) / max(elapsed, 1e-9), "finish_reason": finish_reason, "adapter_id": adapter}
@@ -350,7 +364,7 @@ class RemoteBackend:
             if self.client is None:
                 client.close()
 
-    def stream(self, prompt, max_new_tokens, cancelled):
+    def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None):
         client = self._client()
         finished = threading.Event()
         response_holder = []
@@ -425,7 +439,7 @@ class RemoteBackend:
                 return
             with client.stream("POST", self.url + "/api/generate",
                                headers={"Authorization": "Bearer " + self.token},
-                               json={"prompt": prompt, "max_new_tokens": max_new_tokens}) as response:
+                               json={"prompt": prompt, "max_new_tokens": max_new_tokens, **({"sentence_limit":sentence_limit} if sentence_limit is not None else {})}) as response:
                 response_holder.append(response)
                 if response.status_code != 200:
                     yield "error", {"message": f"GPU service returned HTTP {response.status_code}. Check server configuration."}
