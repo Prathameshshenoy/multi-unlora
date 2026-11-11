@@ -171,3 +171,24 @@ def select_development_policy(report,*,expected_n=12):
     if not eligible:return {'selected':None,'status':'no_eligible_development_gain','automatic_promotion':False}
     _,_,winner=min(eligible,key=lambda r:(-r[0],r[1]))
     return {'selected':winner,'status':'requires_untouched_generated_answer_confirmation','automatic_promotion':False}
+
+
+def validate_generation_binding(records,packet,key):
+    """Bind anonymous answers back to the immutable generating report."""
+    if key.get('records_sha256')!=packet_hash(records):raise ValueError('Source generation hash mismatch')
+    by_id={r['case_id']:r for r in records}
+    if len(by_id)!=len(records) or set(by_id)!={r['case_id'] for r in packet['cases']}:
+        raise ValueError('Source generation case coverage mismatch')
+    for case in packet['cases']:
+        row=by_id[case['case_id']];mapping=key['cases'].get(case['case_id'],{})
+        if set(mapping)!=set(case['answers']) or set(mapping.values())!=set(row['outputs']):
+            raise ValueError('Source generation arm coverage mismatch')
+        for field in ('prompt','correct_references'):
+            if case[field]!=row[field]:raise ValueError('Source generation reference changed')
+        if case['incorrect_references']!=row.get('incorrect_references',[]):raise ValueError('Source generation reference changed')
+        for slot,arm in mapping.items():
+            value=row['outputs'][arm]
+            expected={'text':value['text'],'source':value.get('source','model'),
+                      'complete':value.get('finish_reason') in ('eos','sentence_limit')}
+            if case['answers'][slot]!=expected:raise ValueError('Anonymous answer differs from source generation')
+    return True

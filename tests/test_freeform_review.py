@@ -107,3 +107,13 @@ def test_selection_rejects_new_contradictions_and_coverage_shortcuts():
     report['comparisons']['hall_only']['review_coverage_sufficient']=False
     report['arms']['current']['unfinished_outputs']=1
     assert select_development_policy(report)['selected'] is None
+
+
+def test_packet_answer_must_match_the_real_generated_answer_before_sealing():
+    from evaluation.freeform_review import validate_generation_binding
+    rows=records();packet,key=blind_packet(rows,secret=b'private-test-key')
+    assert validate_generation_binding(rows,packet,key)
+    packet['cases'][0]['answers']['A']['text']='A forged replacement answer'
+    key['packet_sha256']=packet_hash(packet)
+    with pytest.raises(ValueError,match='differs from source'):
+        validate_generation_binding(rows,packet,key)

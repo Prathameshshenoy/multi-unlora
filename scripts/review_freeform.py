@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 
 from evaluation.freeform_review import (blind_packet,judgment_template,packet_hash,
-                                        seal_review,score_sealed_review)
+                                        seal_review,score_sealed_review,validate_generation_binding)
 
 
 def write_new(path,value):
@@ -44,6 +44,7 @@ def main():
         key['packet_sha256']=packet_hash(packet)
         args.output.mkdir(parents=True,exist_ok=False)
         write_new(args.output/'packet.json',packet);write_new(args.output/'private-key.json',key)
+        write_new(args.output/'source-records.json',records)
         write_new(args.output/'judgments.json',judgment_template(packet,reviewer=args.reviewer))
         print(json.dumps({'packet':str(args.output/'packet.json'),'packet_sha256':packet_hash(packet),'n_cases':len(packet['cases']),
                           'instruction':'Review packet and fill judgments without opening private-key.json. Seal before unblinding.'}))
@@ -51,6 +52,7 @@ def main():
     root=args.directory
     packet=json.loads((root/'packet.json').read_text());key=json.loads((root/'private-key.json').read_text())
     review=json.loads((root/'judgments.json').read_text())
+    validate_generation_binding(json.loads((root/'source-records.json').read_text()),packet,key)
     if args.command=='seal':
         seal=seal_review(packet,key,review);seal['sealed_at']=datetime.now(timezone.utc).isoformat()
         write_new(root/'seal.json',seal);print(json.dumps({'sealed':True,'packet_sha256':seal['packet_sha256'],'judgments_sha256':seal['judgments_sha256']}))

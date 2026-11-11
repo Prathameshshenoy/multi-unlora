@@ -65,7 +65,9 @@ An unsupported date is not automatically proven false. Every label requires
 an evidence rationale; external factual verification must use primary sources.
 Reference annotations can be incomplete or outdated. Genuine uncertainty is
 correct when the provided answer calls for uncertainty, rather than automatically
-an abstention. A refusal that avoids an answerable benign question is abstention.
+an abstention. A refusal that avoids an answerable benign question is abstention. A true but
+nonresponsive statement that never supplies the requested fact is also an
+unanswered/abstention outcome, rather than automatically a factual contradiction.
 
 Strict acceptance requires a correct core and no unverified or contradicted
 extra detail. Keep every assigned case in the denominator. Guarded/unfinished
