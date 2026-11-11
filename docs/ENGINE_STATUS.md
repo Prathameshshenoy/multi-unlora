@@ -441,7 +441,17 @@ independent human; these consumed development cases are not official accuracy.
 
 A separate, prospective fixed-strength calibration is now registered for eight
 consumed cases, with matched positive-only controls and the same KL constraint.
-Its outcome remains pending. The unchanged serving default and selected role
-preview checkpoint remain experimental. The full numerical/core suite passed
-342 tests (one environment-specific skip), with 26 additional local Modal SDK
-and cloud-dispatch checks.
+It also failed: 4/8 accepted for base and positive-only, versus 2/8 or 3/8
+for contrast. All new outputs completed, but none fixed a wrong core answer.
+The first-divergence audit then found reference tokens excluded by the candidate
+filter in two of four failures at beta 0.01; a third name remained below the
+wrong token after KL attenuation despite a favourable adapter direction. One
+probe compared generic sentence openings and has no semantic direction claim.
+This supports testing the filter/trust-region design, not raising serving
+weights or repeating identical training. See the prospective next steps and
+limitations in FACTUAL_REFERENCE_EXPERIMENT.md.
+
+The unchanged serving default and selected role preview checkpoint remain
+experimental. The full numerical/core suite passed 345 tests (one
+environment-specific skip), with 27 additional local Modal SDK and cloud-dispatch
+checks.

@@ -156,7 +156,7 @@ def main():
         printable = result
         if args.stage in ('freeform-dev','reference-dev','strength-dev','divergence-audit'):
             printable={key:result[key] for key in ('protocol','phase','status','manifest_fingerprint','allocation_sha256','scope')}
-            printable['n_generated_cases']=len(result['records'])
+            printable['n_records']=len(result['records'])
         if args.stage in ('role-repair','content-delta'):
             printable={'protocol':result['protocol'],'status':result['evaluation']['status'],
                        'checks':result['evaluation']['checks'],'gum_assessment':result['evaluation']['gum_probe']['assessment']}

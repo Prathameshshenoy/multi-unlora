@@ -181,3 +181,12 @@ it cannot supply a fresh accuracy claim. See FACTUAL_REFERENCE_EXPERIMENT.md.
 The remaining gates are generated-answer factuality against both baseline and
 positive-only control, independent safety/benign-over-refusal acceptance, and
 then final local-site acceptance before deployment.
+
+
+The strength calibration is now complete and rejected. A four-case same-prefix
+diagnostic isolated candidate exclusion and KL attenuation as concrete blockers
+on name corrections, despite the factual-reference adapter favouring the right
+token. Implement and validate an experimental reference-supported candidate set
+and calibrated trust region next; preserve default serving behavior until
+complete-answer, matched-control, capability and safety gates pass. The protocol
+and evidence limitations are recorded in FACTUAL_REFERENCE_EXPERIMENT.md.

@@ -161,3 +161,40 @@ margin versus the wrong token, and the measured constrained correction at fixed
 strengths 1/2/4. No choice is tuned or promoted from these four outcomes.
 One A100-40GB diagnostic, 300 seconds/US$0.30 maximum, zero retries; no training
 or confirmation. Project reservation before it: US$22.69 of the US$25 cap.
+
+## First-divergence outcome and implementation order
+
+At beta 0.1, the correct reference token was outside candidate support in three
+of four inspected failures. At beta 0.01, two remained outside support. All three
+name probes had positive factual-reference preference and a contrast direction
+favouring the correct name token. For the one name token admitted at beta 0.01,
+measured KL attenuation kept it below the wrong token at every tested strength.
+Thus more identical training or larger alpha alone does not address the observed
+constraint. This is evidence about these prefixes, not universal impossibility.
+
+The fourth probe compared sentence openings rather than the semantic element
+name. It cannot establish a wrong factual direction and must not be counted as
+such. No diagnostic output is a free-form accuracy success. See the
+[aggregate diagnostic](results/first_divergence_diagnostic.json).
+
+Next implementation should proceed in this order:
+
+1. Introduce a versioned, experimental candidate filter that can admit tokens
+   supported by the factual reference, while retaining base support and all
+   finite-logit/state-cleanup guarantees. Keep the current serving default.
+2. Predeclare a bounded trust-region calibration with explicit positive-only
+   controls using identical support, strengths and budgets. Measure the actual
+   reverse KL against base, rather than silently bypassing its constraint.
+3. Select using consumed development answers, not these oracle-prefix probes.
+   Include benign capability and over-refusal controls. Do not equate a removed
+   wrong assertion with a supplied correct answer.
+4. Advance only a qualifying fixed setting to untouched confirmation. It must
+   improve complete accepted answers beyond base and positive-only, without
+   new contradictions. Safety acceptance and final localhost checks still
+   precede deployment.
+
+No serving constraint was loosened in this work. Fixed strengths and the third
+adapter remain private evaluation options. The factual-reference adapter is now
+also backed up locally with its pinned weight hash verified. After completed-job
+reconciliation, conservative project reservations total US$22.94 of US$25;
+these are workload bounds, not provider invoices. No GPU session is kept warm.
