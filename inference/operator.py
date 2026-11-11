@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 OPERATOR_VERSION = "contrastive-v1"
 REFERENCE_OPERATOR_VERSION = "reference-support-v2"
+SELECTIVE_OPERATOR_VERSION = "selective-subtraction-v3"
 
 
 @dataclass
@@ -27,6 +28,24 @@ def reverse_kl(log_q, log_p):
     support = torch.isfinite(log_q)
     difference = torch.where(support, log_q - log_p, 0.0)
     return (log_q.exp() * difference).sum(-1).clamp_min(0)
+
+
+def selective_penalty(anti,reference):
+    """Nonnegative excess log probability; no arbitrary logit-offset clipping.
+
+    This is a different experimental operator, not an equivalent rewrite of
+    signed contrast. Only overrepresented anti-expert tokens receive a penalty.
+    Probability renormalization can still increase other token probabilities.
+    """
+    if anti.ndim!=2 or not all(anti.shape) or anti.shape!=reference.shape:
+        raise ValueError('Selective distributions need matching nonempty score rows')
+    anti,reference=anti.float(),reference.float()
+    if not torch.isfinite(anti).all() or not torch.isfinite(reference).all():
+        raise ValueError('Selective distributions must be finite float32 logits')
+    anti=anti-anti.amax(-1,keepdim=True);reference=reference-reference.amax(-1,keepdim=True)
+    difference=F.log_softmax(anti,-1)-F.log_softmax(reference,-1)
+    if not torch.isfinite(difference).all():raise ValueError('Selective log ratio overflow')
+    return difference.clamp_min(0)
 
 
 def correct_logits(base, delta, *, beta=0.1, kl_budget=0.5, candidate_reference=None):

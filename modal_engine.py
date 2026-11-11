@@ -343,3 +343,14 @@ def confirm_reference_support():
         return json.loads(json.dumps(develop_support('confirmation'),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=500, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def develop_selective_subtraction():
+    import json
+    from evaluation.selective_trial import develop_selective
+    try:
+        return json.loads(json.dumps(develop_selective(),allow_nan=False))
+    finally:
+        volume.commit()

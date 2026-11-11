@@ -218,9 +218,10 @@ decoding also remains experimental until its numerical/quality acceptance passes
 
 Release decision after confirmation: neither the historical presentation nor
 consumed development gains can substantiate a current accuracy-improvement
-claim. The user has been asked to choose between continuing strict subtraction
-research and a separately labelled grounded-answer product mode alongside the
-research comparison. No retrieval-backed output should be attributed to the
-subtraction engine. No deployment, provider purchase or new training is inferred
-from that proposed scope change. Existing local/runtime and display controls
-remain in place while the choice is pending.
+claim. The user chose to continue strict subtraction research, accepting a longer
+release timeline. No grounded-answer mode or retrieval is introduced. The next
+frozen experiment tests nonnegative excess-log-probability penalties, matched
+strength controls and a newly allocated confirmation cohort. See
+SELECTIVE_SUBTRACTION_EXPERIMENT.md. Existing serving and display defaults
+remain unchanged until quality gates pass. No deployment follows from a failed
+confirmation.

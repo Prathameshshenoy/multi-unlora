@@ -13,7 +13,7 @@ import torch
 from transformers import LogitsProcessor
 
 import config
-from inference.operator import OPERATOR_VERSION, REFERENCE_OPERATOR_VERSION, correct_logits
+from inference.operator import OPERATOR_VERSION, REFERENCE_OPERATOR_VERSION, SELECTIVE_OPERATOR_VERSION, selective_penalty, correct_logits
 from inference.adapters import active_adapter
 
 
@@ -23,7 +23,7 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                  telemetry_callback=None, *, beta=config.PROCESSOR_PLAUSIBILITY_BETA,
                  attention_mask=None, expert_logits_provider=None,
                  hall_reference_adapter=None, hall_negative_adapter="hallucination",
-                 candidate_support="base"):
+                 candidate_support="base", penalty_mode="signed"):
         for name, value in (("alpha_hall", alpha_hall), ("alpha_jail", alpha_jail),
                             ("penalty_threshold", penalty_threshold)):
             if not math.isfinite(value) or value < 0:
@@ -36,8 +36,11 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
             raise ValueError("A positive-only control needs a factual reference")
         if candidate_support not in ("base","base_reference_union") or (candidate_support!="base" and hall_reference_adapter is None):
             raise ValueError("Reference candidate support requires a factual-reference adapter")
+        if penalty_mode not in ("signed","positive_log_ratio") or (penalty_mode!="signed" and (hall_reference_adapter is None or hall_negative_adapter is None or alpha_jail!=0)):
+            raise ValueError("Selective subtraction requires a factual reference, negative expert and zero jailbreak weight")
+        self.penalty_mode=penalty_mode
         self.candidate_support=candidate_support
-        self.operator_version=REFERENCE_OPERATOR_VERSION if candidate_support!="base" else OPERATOR_VERSION
+        self.operator_version=SELECTIVE_OPERATOR_VERSION if penalty_mode!="signed" else (REFERENCE_OPERATOR_VERSION if candidate_support!="base" else OPERATOR_VERSION)
         self.hall_reference_adapter=hall_reference_adapter
         self.hall_negative_adapter=hall_negative_adapter
         self.model = model
@@ -90,7 +93,8 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
                                 expert_probs['hall_reference']=reference.detach().softmax(-1)
                         if self.telemetry_callback is not None and queried:
                             expert_probs[name]=expert.detach().softmax(-1)
-                        delta += alpha * torch.where(torch.isfinite(scores), expert-reference, 0.0)
+                        difference=selective_penalty(expert,reference) if name=="hallucination" and self.penalty_mode!="signed" else expert-reference
+                        delta += alpha * torch.where(torch.isfinite(scores), difference, 0.0)
             finally:
                 self.model.disable_adapter_layers()
         correction = correct_logits(scores, delta, beta=self.beta, kl_budget=self.penalty_threshold,candidate_reference=candidate_reference)
@@ -99,7 +103,7 @@ class MultiUnLoRALogitsProcessor(LogitsProcessor):
             corrected_probs = correction.scores.float().softmax(-1)
             probabilities, ids = corrected_probs[0].topk(min(5, scores.shape[-1]))
             self.telemetry_callback({
-                "step": self.step, "operator": self.operator_version, "candidate_support":self.candidate_support,
+                "step": self.step, "operator": self.operator_version, "candidate_support":self.candidate_support, "penalty_mode":self.penalty_mode,
                 "alpha_hall": self.alpha_hall, "alpha_jail": self.alpha_jail,
                 "kl_divergence": float(correction.kl[0]), "kl_direction": "corrected_to_base",
                 "kl_budget": self.penalty_threshold, "plausibility_beta": self.beta,

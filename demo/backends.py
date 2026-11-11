@@ -160,7 +160,7 @@ class GPUBackend:
     def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None,
                _branches=BRANCHES, _correction_scale=1., _jail_scale=1.,
                _hall_reference_adapter=None, _hall_negative_adapter="hallucination", _beta=None, _hall_strength=None,
-               _candidate_support="base", _kl_budget=None):
+               _candidate_support="base", _kl_budget=None, _penalty_mode="signed"):
         # Trusted evaluation-only controls: the HTTP schema does not expose
         # these. Serving keeps the exact four-arm/default-weight behavior.
         if (not isinstance(_branches,tuple) or not _branches or len(set(_branches))!=len(_branches)
@@ -182,6 +182,8 @@ class GPUBackend:
         if (isinstance(kl_budget,bool) or kl_budget not in (.5,2.,8.)
                 or (_kl_budget is not None and _hall_reference_adapter is None)):
             raise ValueError("Experimental KL budget requires a factual reference and a declared budget")
+        if _penalty_mode not in ("signed","positive_log_ratio") or (_penalty_mode!="signed" and (_hall_reference_adapter is None or _hall_negative_adapter is None or _jail_scale!=0)):
+            raise ValueError("Experimental selective penalty needs both experts and zero jailbreak correction")
         self.loading = not self.loaded
         try:
             self._load()
@@ -206,13 +208,13 @@ class GPUBackend:
             return
         import torch
         from inference.processor import MultiUnLoRALogitsProcessor
-        from inference.operator import OPERATOR_VERSION, REFERENCE_OPERATOR_VERSION
+        from inference.operator import OPERATOR_VERSION, REFERENCE_OPERATOR_VERSION, SELECTIVE_OPERATOR_VERSION
         from repe.router import compute_dynamic_alphas
 
         from demo.display_policy import assess_prompt, present_response
         policy = assess_prompt(prompt)
         tokenizer, model = self.tokenizer, self.model
-        self.operator_version = REFERENCE_OPERATOR_VERSION if _candidate_support!="base" else OPERATOR_VERSION
+        self.operator_version = SELECTIVE_OPERATOR_VERSION if _penalty_mode!="signed" else (REFERENCE_OPERATOR_VERSION if _candidate_support!="base" else OPERATOR_VERSION)
         self.decoder_strategy = "per-adapter-kv-v1" if self.use_cache else "full-prefix-v1"
         metadata=self.metadata()
         if _branches!=BRANCHES or _correction_scale!=1 or _jail_scale!=1 or _hall_reference_adapter is not None or beta!=config.PROCESSOR_PLAUSIBILITY_BETA:
@@ -266,7 +268,7 @@ class GPUBackend:
                     pending = []
                     processor = MultiUnLoRALogitsProcessor(model, alpha_hall, alpha_jail,
                         telemetry_callback=pending.append, attention_mask=inputs.get("attention_mask"),beta=beta,
-                        penalty_threshold=kl_budget,candidate_support=_candidate_support,
+                        penalty_threshold=kl_budget,candidate_support=_candidate_support,penalty_mode=_penalty_mode,
                         hall_reference_adapter=_hall_reference_adapter,hall_negative_adapter=_hall_negative_adapter,
                         expert_logits_provider=lambda prefix, adapter: decoder.next_logits(
                             prefix, attention_mask=mask, adapter=adapter)) if branch == "unlora" else None
