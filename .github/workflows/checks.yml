@@ -4,19 +4,24 @@ jobs:
   cpu:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python: ['3.11', '3.14']
+    env:
+      UV_PYTHON: ${{ matrix.python }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --locked --extra demo --python ${{ matrix.python }}
-      - run: uv run pytest
+      - run: uv sync --locked --extra demo
+      - name: Verify selected Python and demo dependencies
+        run: uv run --locked --extra demo python -c "import os, sys, fastapi; assert '.'.join(map(str, sys.version_info[:2])) == os.environ['UV_PYTHON']; print(sys.version)"
+      - run: uv run --locked --extra demo python -m pytest
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: node --check web/app.js
       - run: node --test tests/test_web_state.mjs
-      - run: python -m compileall -q config.py inference repe evaluation training demo modal_demo.py modal_engine.py scripts
+      - run: uv run --locked --extra demo python -m compileall -q config.py inference repe evaluation training demo modal_demo.py modal_engine.py scripts
   numerical:
     runs-on: ubuntu-latest
     steps:
