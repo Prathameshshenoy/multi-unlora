@@ -80,7 +80,11 @@ The previous pilot used no confirmation questions. Its 20 reserved untouched
 questions may therefore be prospectively reallocated to this new experiment,
 with their exact allocation unchanged. Only a qualifying variant can advance.
 Generate three arms on those questions: base, positive-only and selected
-contrast. No retuning after confirmation. Require a positive paired 95% lower
+contrast. The confirmation positive-only control must use the selected
+contrast's beta as well (0.01 for a wider-filter winner), so a filter change
+cannot masquerade as a benefit from negative subtraction. The development
+wide-filter comparison against beta-0.1 positive-only is exploratory until
+that matched-control confirmation. No retuning after confirmation. Require a positive paired 95% lower
 bound against both controls, no new contradictions and at least 90% jointly
 scorable coverage. This is still a small internal factuality pilot; separate
 capability, harmful-compliance and benign-over-refusal acceptance are required
