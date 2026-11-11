@@ -157,7 +157,16 @@ class GPUBackend:
         self.model, self.tokenizer, self.v_hall, self.v_jail = load_inference_model(manifest_path=self.manifest_path)
         self.loaded = True
 
-    def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None):
+    def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None,
+               _branches=BRANCHES, _correction_scale=1., _jail_scale=1.):
+        # Trusted evaluation-only controls: the HTTP schema does not expose
+        # these. Serving keeps the exact four-arm/default-weight behavior.
+        if (not isinstance(_branches,tuple) or not _branches or len(set(_branches))!=len(_branches)
+                or any(branch not in BRANCHES for branch in _branches)):
+            raise ValueError("Invalid evaluation branch subset")
+        for value in (_correction_scale,_jail_scale):
+            if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not 0<=value<=1:
+                raise ValueError("Evaluation may only attenuate routed correction weights")
         self.loading = not self.loaded
         try:
             self._load()
@@ -190,9 +199,12 @@ class GPUBackend:
         tokenizer, model = self.tokenizer, self.model
         self.operator_version = OPERATOR_VERSION
         self.decoder_strategy = "per-adapter-kv-v1" if self.use_cache else "full-prefix-v1"
+        metadata=self.metadata()
+        if _branches!=BRANCHES or _correction_scale!=1 or _jail_scale!=1:
+            metadata['quality']={'status':'evaluation_only','production_quality_verified':False}
         yield "metadata", {"backend": self.name, "simulated": False, "model": config.BASE_MODEL_NAME,
                            "display_restricted": policy["restricted"], "display_reason": policy.get("reason", ""),
-                           "display_policy_version": policy.get("policy_version"), **self.metadata()}
+                           "display_policy_version": policy.get("policy_version"), **metadata, "branches":list(_branches)}
         from inference.prompts import format_prompt
         formatted = format_prompt(tokenizer, prompt)
         inputs = tokenizer(formatted, add_special_tokens=False, return_tensors="pt").to(next(model.parameters()).device)
@@ -204,6 +216,8 @@ class GPUBackend:
         try:
             with torch.inference_mode():
                 alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False)
+                alpha_hall*=_correction_scale
+                alpha_jail*=_correction_scale*_jail_scale
                 yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail}
                 result = {}
                 eos = getattr(model.generation_config, "eos_token_id", None)
@@ -211,7 +225,7 @@ class GPUBackend:
                 eos_ids.add(getattr(tokenizer, "eos_token_id", None))
                 eos_ids.discard(None)
                 decoder = CacheDecoder(model,use_cache=self.use_cache)
-                for branch in BRANCHES:
+                for branch in _branches:
                     if cancelled.is_set():
                         return
                     decoder.reset()

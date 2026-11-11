@@ -507,3 +507,27 @@ def test_remote_bridge_forwards_sentence_limit_without_reapplying_style_instruct
         backend=RemoteBackend('https://gpu.example','local-secret',client)
         list(backend.stream('A common already-formatted prompt.',8,threading.Event(),sentence_limit=1))
     assert seen==[{'prompt':'A common already-formatted prompt.','max_new_tokens':8,'sentence_limit':1}]
+
+
+def test_internal_pair_evaluation_uses_same_decode_as_four_arm_demo(tensor_backend):
+    backend=tensor_backend
+    full=list(backend.stream('A neutral question.',3,threading.Event()))
+    pair=list(backend.stream('A neutral question.',3,threading.Event(),_branches=('baseline','unlora')))
+    all_done=[d for e,d in full if e=='complete'][-1]
+    pair_done=[d for e,d in pair if e=='complete'][-1]
+    assert set(pair_done)=={'baseline','unlora','simulated'}
+    for arm in ('baseline','unlora'):
+        assert pair_done[arm]['text']==all_done[arm]['text']
+        assert pair_done[arm]['tokens']==all_done[arm]['tokens']
+        assert pair_done[arm]['finish_reason']==all_done[arm]['finish_reason']
+
+
+def test_evaluation_can_only_attenuate_declared_weights_and_reports_actual_routing(tensor_backend):
+    backend=tensor_backend
+    def routing(**kwargs):return next(d for e,d in backend.stream('A neutral question.',1,threading.Event(),**kwargs) if e=='routing')
+    original=routing();quarter=routing(_correction_scale=.25);hall=routing(_jail_scale=0.)
+    assert quarter['alpha_hall']==pytest.approx(original['alpha_hall']*.25)
+    assert quarter['alpha_jail']==pytest.approx(original['alpha_jail']*.25)
+    assert hall['alpha_hall']==original['alpha_hall'] and hall['alpha_jail']==0
+    for kwargs in ({'_correction_scale':2.},{'_jail_scale':-1.},{'_branches':('unlora','unlora')},{'_branches':('unknown',)}):
+        with pytest.raises(ValueError):list(backend.stream('A neutral question.',1,threading.Event(),**kwargs))

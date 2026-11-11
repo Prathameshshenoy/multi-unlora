@@ -24,3 +24,16 @@ def training_tokens(tokenizer, prompt, response, max_length):
         return None
     return {"input_ids": full, "attention_mask": [1] * len(full),
             "labels": [-100] * len(prefix) + full[len(prefix):]}
+
+
+BRIEF_INSTRUCTION = "Answer only the question asked, directly in one short sentence. Do not add unrequested background, history, or citations."
+BRIEF_PROTOCOL = "shared-brief-user-v2-first-sentence-v1"
+
+
+def comparison_prompt(prompt, response_style="standard"):
+    """User conditioning shared by every arm; independent of adapter selection."""
+    if not isinstance(prompt,str) or not prompt.strip():
+        raise ValueError("Comparison prompt must contain text")
+    if response_style not in ("standard","brief"):
+        raise ValueError("Unknown comparison response style")
+    return prompt if response_style=="standard" else prompt+"\n\n"+BRIEF_INSTRUCTION

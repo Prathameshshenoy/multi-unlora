@@ -277,3 +277,14 @@ def repair_content_delta():
         return json.loads(json.dumps(run_content_delta(),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=900, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def develop_freeform():
+    import json
+    from evaluation.freeform_trial import generate_phase
+    try:
+        return json.loads(json.dumps(generate_phase('development'),allow_nan=False))
+    finally:
+        volume.commit()

@@ -138,9 +138,8 @@ def create_app(backend=None):
                 # One shared user instruction, applied before the four branches
                 # split. The remote bridge forwards this prompt without applying
                 # the style a second time (its upstream request uses standard).
-                prompt = payload.prompt
-                if payload.response_style == "brief":
-                    prompt += "\n\nAnswer only the question asked, directly in one short sentence. Do not add unrequested background, history, or citations."
+                from inference.prompts import comparison_prompt
+                prompt = comparison_prompt(payload.prompt,payload.response_style)
                 limit=1 if payload.response_style=="brief" else payload.sentence_limit
                 kwargs={"sentence_limit":limit} if limit is not None else {}
                 iterator = active.stream(prompt, payload.max_new_tokens, cancelled,**kwargs)
