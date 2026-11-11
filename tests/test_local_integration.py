@@ -537,3 +537,20 @@ def test_internal_evaluation_beta_is_actually_used_by_the_operator(tensor_backen
     events=list(tensor_backend.stream('A neutral question.',2,threading.Event(),_branches=('unlora',),_beta=.01))
     telemetry=[data for event,data in events if event=='telemetry']
     assert telemetry and all(row['plausibility_beta']==.01 for row in telemetry)
+
+
+def test_fixed_strength_is_internal_reference_only_and_changes_actual_operator(tensor_backend):
+    for value in (True,0.,3.,float('nan')):
+        with pytest.raises(ValueError):
+            list(tensor_backend.stream('Neutral.',1,threading.Event(),_hall_strength=value))
+    with pytest.raises(ValueError):
+        list(tensor_backend.stream('Neutral.',1,threading.Event(),_hall_strength=2.))
+    # Routing is emitted before model queries, so the tiny backend needs no
+    # extra factual-reference weights for this exact-strength check.
+    events=tensor_backend.stream('Neutral.',1,threading.Event(),_hall_strength=2.,
+        _hall_reference_adapter='factual_reference',_jail_scale=0.)
+    metadata=next(data for event,data in events if event=='metadata')
+    route=next(data for event,data in events if event=='routing')
+    assert route=={'alpha_hall':2.,'alpha_jail':0.}
+    assert metadata['quality']['production_quality_verified'] is False
+    events.close()

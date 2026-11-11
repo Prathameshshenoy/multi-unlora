@@ -133,3 +133,22 @@ def test_factual_reference_must_improve_beyond_positive_only_not_just_base():
     assert select_factual_reference_policy(base,positive)['selected']=='factual'
     positive['comparisons']['factual']['new_contradictions']=1
     assert select_factual_reference_policy(base,positive)['selected']=='factual_both'
+
+
+def test_strength_calibration_requires_subtraction_gain_over_matched_control():
+    from evaluation.strength_trial import select_strength
+    from copy import deepcopy
+    arms={name:{'n_assigned':8,'accepted_rate':.75,'contradiction_rate':0.,'unscorable_rate':0.,'guarded_outputs':0,'unfinished_outputs':0}
+          for name in ('baseline','positive_1','positive_2','positive_4','contrast_1','contrast_2','contrast_4')}
+    def report(wins):
+        return {'packet_sha256':'same','judgments_sha256':'same','arms':deepcopy(arms),
+            'comparisons':{name:{'review_coverage_sufficient':True,'strict_wins':wins,'strict_losses':0,'new_contradictions':0}
+                           for name in ('contrast_1','contrast_2','contrast_4')}}
+    base=report(2);controls={n:report(0) for n in (1,2,4)}
+    assert select_strength(base,controls)['selected'] is None
+    controls[2]=report(1)
+    assert select_strength(base,controls)['selected']=='contrast_2'
+    base['comparisons']['contrast_2']['strict_losses']=1
+    assert select_strength(base,controls)['selected'] is None
+    controls[1]['judgments_sha256']='different'
+    with pytest.raises(ValueError,match='identical sealed judgments'):select_strength(base,controls)

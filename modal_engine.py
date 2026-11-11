@@ -299,3 +299,14 @@ def develop_factual_reference():
         return json.loads(json.dumps(generate(),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=600, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def calibrate_factual_strength():
+    import json
+    from evaluation.strength_trial import calibrate_strength
+    try:
+        return json.loads(json.dumps(calibrate_strength(),allow_nan=False))
+    finally:
+        volume.commit()

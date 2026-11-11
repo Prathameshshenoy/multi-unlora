@@ -159,7 +159,7 @@ class GPUBackend:
 
     def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None,
                _branches=BRANCHES, _correction_scale=1., _jail_scale=1.,
-               _hall_reference_adapter=None, _hall_negative_adapter="hallucination", _beta=None):
+               _hall_reference_adapter=None, _hall_negative_adapter="hallucination", _beta=None, _hall_strength=None):
         # Trusted evaluation-only controls: the HTTP schema does not expose
         # these. Serving keeps the exact four-arm/default-weight behavior.
         if (not isinstance(_branches,tuple) or not _branches or len(set(_branches))!=len(_branches)
@@ -171,6 +171,10 @@ class GPUBackend:
         beta=config.PROCESSOR_PLAUSIBILITY_BETA if _beta is None else _beta
         if isinstance(beta,bool) or not isinstance(beta,(float,int)) or not math.isfinite(beta) or not 0<beta<=1:
             raise ValueError("Invalid experimental plausibility beta")
+        if _hall_strength is not None:
+            if (isinstance(_hall_strength,bool) or _hall_strength not in (1.,2.,4.)
+                    or _hall_reference_adapter is None or _jail_scale!=0 or _correction_scale!=1):
+                raise ValueError("Fixed strength requires a factual reference and disabled jailbreak term")
         self.loading = not self.loaded
         try:
             self._load()
@@ -221,7 +225,7 @@ class GPUBackend:
         try:
             with torch.inference_mode():
                 alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False)
-                alpha_hall*=_correction_scale
+                alpha_hall=alpha_hall*_correction_scale if _hall_strength is None else float(_hall_strength)
                 alpha_jail*=_correction_scale*_jail_scale
                 yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail}
                 result = {}

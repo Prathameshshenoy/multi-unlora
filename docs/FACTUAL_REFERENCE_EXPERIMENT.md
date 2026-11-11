@@ -99,3 +99,44 @@ may use a 600-second/US$0.60 confirmation job. Maximum new experiment US$1.80;
 project reservations would remain at or below US$24.35. Account balance reports stay in the private ledger and do not change the
 authorized project spending cap. Canonical/parent weights remain immutable. New
 reports live under `/vol/runs/factual_reference_v1`.
+
+## Completed development review
+
+The sealed AI review accepted 8/12 base and positive-only answers, 8/12 current
+negative-only answers, and 7/12 for each factual-reference contrast variant.
+All answers completed. The new variants supplied no additional correct core
+answers; extra unsupported details caused strict acceptance losses. No variant
+qualified, so confirmation was skipped. See the [aggregate result](results/factual_reference_development.json).
+Raw packets, mappings and judgments remain local; the public seal predates unblinding.
+
+## Separate fixed-strength calibration (declared before generation)
+
+The preceding experiment is finished, with no winner. A distinct diagnostic
+checks under-strength correction without retraining. The routed hallucination
+weights were around 0.3; only 2/12 contrast cases reached the KL budget without
+the jailbreak term. This does not prove stronger correction will help.
+
+Use fixed hallucination weights 1, 2 and 4, jailbreak weight zero, beta 0.01 and
+the unchanged measured KL budget 0.5. Each strength has a matched positive-only
+control with the same beta and weight. This intentionally bypasses serving's
+routed weight cap in trusted evaluation only; no public request parameter or
+serving default changes. Record actual weights, minimum KL attenuation and
+abstention counts. No oracle references enter generation.
+
+Freeze original development indices (zero-based) 1,2,5,6,7,8,9,11: four known
+failures and four retention cases. This is failure-enriched, consumed calibration,
+not a new accuracy estimate. Generate six settings, 48 outputs total; reuse the
+hash-bound base outputs. An anonymized, sealed AI review must find at least two
+net accepted-answer wins over base and at least one over the same-strength
+positive-only control, zero base strict losses, no new contradictions versus
+either control, no increased contradiction/unscorable rates, 90% joint scorable
+coverage, and zero unfinished/guarded outputs. Choose highest acceptance, tie
+smaller strength. Otherwise stop. Only a qualifying candidate may use the
+previously untouched 20-case, three-arm confirmation, with the identical selected
+weight and beta for its positive-only control. Confirmation requirements remain
+unchanged; no setting is automatically promoted.
+
+One sequential A100-40GB job, 600 seconds/US$0.60 maximum, zero retries, writes
+`/vol/runs/factual_strength_v1`. Completed successful jobs were conservatively
+reconciled to execution-time bounds (not invoices): project reservations are
+US$22.37 before this run, US$22.97 afterward, below the unchanged US$25 cap.
