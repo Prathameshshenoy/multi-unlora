@@ -1,0 +1,640 @@
+{
+  "protocol": "selective-subtraction-development-review-v3",
+  "scope": "Consumed development cases plus benign smoke controls; AI review, not official benchmark accuracy.",
+  "generation_sha256": "81cf9924cf0ea0d3cfc2d158cc35b177cd8347c005ed4485ef171273e6736efa",
+  "review_seal": {
+    "protocol": "blinded-generated-answer-review-v1",
+    "packet_sha256": "72ed3487e20d42ad5c2a6d7883379d8f2ef351a0905f0e99c0dc432bd3d048e2",
+    "key_sha256": "212711b7256959b62e46b0495fa13687cb71f366290e5316a588fe24c68416dd",
+    "judgments_sha256": "ebb91a549aa76d7beea243513255b75b4651a565748b79d64732ec4e3d346537",
+    "reviewer": "codex-AI-reference-grounded-selective-development-review",
+    "sealed_at": "2026-11-11T14:23:12.622207+00:00"
+  },
+  "baseline_comparison": {
+    "protocol": "blinded-generated-answer-review-v1",
+    "packet_sha256": "72ed3487e20d42ad5c2a6d7883379d8f2ef351a0905f0e99c0dc432bd3d048e2",
+    "judgments_sha256": "ebb91a549aa76d7beea243513255b75b4651a565748b79d64732ec4e3d346537",
+    "reviewer": "codex-AI-reference-grounded-selective-development-review",
+    "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+    "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+    "arms": {
+      "raw_signed_1": {
+        "n_assigned": 16,
+        "core_correct_rate": 0.9375,
+        "accepted_rate": 0.9375,
+        "contradiction_rate": 0.0,
+        "abstains_rate": 0.0625,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "baseline": {
+        "n_assigned": 16,
+        "core_correct_rate": 0.75,
+        "accepted_rate": 0.75,
+        "contradiction_rate": 0.25,
+        "abstains_rate": 0.0,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "positive_1": {
+        "n_assigned": 16,
+        "core_correct_rate": 0.875,
+        "accepted_rate": 0.875,
+        "contradiction_rate": 0.125,
+        "abstains_rate": 0.0,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "selective_2": {
+        "n_assigned": 16,
+        "core_correct_rate": 0.875,
+        "accepted_rate": 0.875,
+        "contradiction_rate": 0.0625,
+        "abstains_rate": 0.0625,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "selective_1": {
+        "n_assigned": 16,
+        "core_correct_rate": 0.75,
+        "accepted_rate": 0.75,
+        "contradiction_rate": 0.125,
+        "abstains_rate": 0.0625,
+        "unscorable_rate": 0.0625,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 1
+      },
+      "positive_2": {
+        "n_assigned": 16,
+        "core_correct_rate": 0.5625,
+        "accepted_rate": 0.5625,
+        "contradiction_rate": 0.1875,
+        "abstains_rate": 0.25,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0625,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      }
+    },
+    "comparisons": {
+      "raw_signed_1": {
+        "n_assigned": 16,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.1875,
+        "accepted_paired_bootstrap_95_ci": [
+          0.0,
+          0.375
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 3,
+        "strict_losses": 0,
+        "new_contradictions": 0,
+        "fixed_contradictions": 3,
+        "jointly_scorable_pairs": 16
+      },
+      "positive_1": {
+        "n_assigned": 16,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.125,
+        "accepted_paired_bootstrap_95_ci": [
+          0.0,
+          0.3125
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 2,
+        "strict_losses": 0,
+        "new_contradictions": 0,
+        "fixed_contradictions": 2,
+        "jointly_scorable_pairs": 16
+      },
+      "selective_2": {
+        "n_assigned": 16,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.125,
+        "accepted_paired_bootstrap_95_ci": [
+          0.0,
+          0.3125
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 2,
+        "strict_losses": 0,
+        "new_contradictions": 0,
+        "fixed_contradictions": 2,
+        "jointly_scorable_pairs": 16
+      },
+      "selective_1": {
+        "n_assigned": 16,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.0,
+        "accepted_paired_bootstrap_95_ci": [
+          -0.1875,
+          0.1875
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 1,
+        "strict_losses": 1,
+        "new_contradictions": 0,
+        "fixed_contradictions": 1,
+        "jointly_scorable_pairs": 15
+      },
+      "positive_2": {
+        "n_assigned": 16,
+        "reference": "baseline",
+        "accepted_paired_delta": -0.1875,
+        "accepted_paired_bootstrap_95_ci": [
+          -0.4375,
+          0.0625
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 1,
+        "strict_losses": 4,
+        "new_contradictions": 1,
+        "fixed_contradictions": 1,
+        "jointly_scorable_pairs": 16
+      }
+    },
+    "production_quality_verified": false
+  },
+  "positive_only_comparisons": {
+    "1": {
+      "protocol": "blinded-generated-answer-review-v1",
+      "packet_sha256": "72ed3487e20d42ad5c2a6d7883379d8f2ef351a0905f0e99c0dc432bd3d048e2",
+      "judgments_sha256": "ebb91a549aa76d7beea243513255b75b4651a565748b79d64732ec4e3d346537",
+      "reviewer": "codex-AI-reference-grounded-selective-development-review",
+      "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+      "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+      "arms": {
+        "raw_signed_1": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.9375,
+          "accepted_rate": 0.9375,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_1": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "selective_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.0625,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "selective_1": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0625,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 1
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.5625,
+          "accepted_rate": 0.5625,
+          "contradiction_rate": 0.1875,
+          "abstains_rate": 0.25,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0625,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        }
+      },
+      "comparisons": {
+        "raw_signed_1": {
+          "n_assigned": 16,
+          "reference": "positive_1",
+          "accepted_paired_delta": 0.0625,
+          "accepted_paired_bootstrap_95_ci": [
+            0.0,
+            0.1875
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "reference": "positive_1",
+          "accepted_paired_delta": -0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.3125,
+            0.0
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 2,
+          "new_contradictions": 2,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        },
+        "selective_2": {
+          "n_assigned": 16,
+          "reference": "positive_1",
+          "accepted_paired_delta": 0.0,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.1875,
+            0.1875
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 1,
+          "new_contradictions": 1,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        },
+        "selective_1": {
+          "n_assigned": 16,
+          "reference": "positive_1",
+          "accepted_paired_delta": -0.125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.375,
+            0.125
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 1,
+          "strict_losses": 3,
+          "new_contradictions": 2,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 15
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "reference": "positive_1",
+          "accepted_paired_delta": -0.3125,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.5625,
+            -0.125
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 0,
+          "strict_losses": 5,
+          "new_contradictions": 2,
+          "fixed_contradictions": 0,
+          "jointly_scorable_pairs": 16
+        }
+      },
+      "production_quality_verified": false
+    },
+    "2": {
+      "protocol": "blinded-generated-answer-review-v1",
+      "packet_sha256": "72ed3487e20d42ad5c2a6d7883379d8f2ef351a0905f0e99c0dc432bd3d048e2",
+      "judgments_sha256": "ebb91a549aa76d7beea243513255b75b4651a565748b79d64732ec4e3d346537",
+      "reviewer": "codex-AI-reference-grounded-selective-development-review",
+      "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+      "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+      "arms": {
+        "raw_signed_1": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.9375,
+          "accepted_rate": 0.9375,
+          "contradiction_rate": 0.0,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.25,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "positive_1": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "selective_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.875,
+          "accepted_rate": 0.875,
+          "contradiction_rate": 0.0625,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        },
+        "selective_1": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.75,
+          "accepted_rate": 0.75,
+          "contradiction_rate": 0.125,
+          "abstains_rate": 0.0625,
+          "unscorable_rate": 0.0625,
+          "unverified_detail_rate": 0.0,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 1
+        },
+        "positive_2": {
+          "n_assigned": 16,
+          "core_correct_rate": 0.5625,
+          "accepted_rate": 0.5625,
+          "contradiction_rate": 0.1875,
+          "abstains_rate": 0.25,
+          "unscorable_rate": 0.0,
+          "unverified_detail_rate": 0.0625,
+          "guarded_outputs": 0,
+          "unfinished_outputs": 0
+        }
+      },
+      "comparisons": {
+        "raw_signed_1": {
+          "n_assigned": 16,
+          "reference": "positive_2",
+          "accepted_paired_delta": 0.375,
+          "accepted_paired_bootstrap_95_ci": [
+            0.125,
+            0.625
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 6,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 3,
+          "jointly_scorable_pairs": 16
+        },
+        "baseline": {
+          "n_assigned": 16,
+          "reference": "positive_2",
+          "accepted_paired_delta": 0.1875,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.0625,
+            0.4375
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 4,
+          "strict_losses": 1,
+          "new_contradictions": 2,
+          "fixed_contradictions": 1,
+          "jointly_scorable_pairs": 16
+        },
+        "positive_1": {
+          "n_assigned": 16,
+          "reference": "positive_2",
+          "accepted_paired_delta": 0.3125,
+          "accepted_paired_bootstrap_95_ci": [
+            0.125,
+            0.5625
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 5,
+          "strict_losses": 0,
+          "new_contradictions": 1,
+          "fixed_contradictions": 2,
+          "jointly_scorable_pairs": 16
+        },
+        "selective_2": {
+          "n_assigned": 16,
+          "reference": "positive_2",
+          "accepted_paired_delta": 0.3125,
+          "accepted_paired_bootstrap_95_ci": [
+            0.125,
+            0.5625
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 5,
+          "strict_losses": 0,
+          "new_contradictions": 0,
+          "fixed_contradictions": 2,
+          "jointly_scorable_pairs": 16
+        },
+        "selective_1": {
+          "n_assigned": 16,
+          "reference": "positive_2",
+          "accepted_paired_delta": 0.1875,
+          "accepted_paired_bootstrap_95_ci": [
+            -0.125,
+            0.5
+          ],
+          "review_coverage_sufficient": true,
+          "strict_wins": 5,
+          "strict_losses": 2,
+          "new_contradictions": 1,
+          "fixed_contradictions": 2,
+          "jointly_scorable_pairs": 15
+        }
+      },
+      "production_quality_verified": false
+    }
+  },
+  "benign_controls": {
+    "protocol": "blinded-generated-answer-review-v1",
+    "packet_sha256": "72ed3487e20d42ad5c2a6d7883379d8f2ef351a0905f0e99c0dc432bd3d048e2",
+    "judgments_sha256": "ebb91a549aa76d7beea243513255b75b4651a565748b79d64732ec4e3d346537",
+    "reviewer": "codex-AI-reference-grounded-selective-development-review",
+    "scope": "Reference-grounded semantic review; source annotations may be incomplete or outdated. Not an official benchmark score.",
+    "denominator": "All assigned cases. Unscorable, guarded and unfinished cases are not successes; coverage is reported separately.",
+    "arms": {
+      "raw_signed_1": {
+        "n_assigned": 4,
+        "core_correct_rate": 1.0,
+        "accepted_rate": 1.0,
+        "contradiction_rate": 0.0,
+        "abstains_rate": 0.0,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "positive_2": {
+        "n_assigned": 4,
+        "core_correct_rate": 0.75,
+        "accepted_rate": 0.75,
+        "contradiction_rate": 0.0,
+        "abstains_rate": 0.25,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "selective_1": {
+        "n_assigned": 4,
+        "core_correct_rate": 1.0,
+        "accepted_rate": 1.0,
+        "contradiction_rate": 0.0,
+        "abstains_rate": 0.0,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "selective_2": {
+        "n_assigned": 4,
+        "core_correct_rate": 1.0,
+        "accepted_rate": 1.0,
+        "contradiction_rate": 0.0,
+        "abstains_rate": 0.0,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "baseline": {
+        "n_assigned": 4,
+        "core_correct_rate": 1.0,
+        "accepted_rate": 1.0,
+        "contradiction_rate": 0.0,
+        "abstains_rate": 0.0,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      },
+      "positive_1": {
+        "n_assigned": 4,
+        "core_correct_rate": 1.0,
+        "accepted_rate": 1.0,
+        "contradiction_rate": 0.0,
+        "abstains_rate": 0.0,
+        "unscorable_rate": 0.0,
+        "unverified_detail_rate": 0.0,
+        "guarded_outputs": 0,
+        "unfinished_outputs": 0
+      }
+    },
+    "comparisons": {
+      "raw_signed_1": {
+        "n_assigned": 4,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.0,
+        "accepted_paired_bootstrap_95_ci": [
+          0.0,
+          0.0
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 0,
+        "strict_losses": 0,
+        "new_contradictions": 0,
+        "fixed_contradictions": 0,
+        "jointly_scorable_pairs": 4
+      },
+      "positive_2": {
+        "n_assigned": 4,
+        "reference": "baseline",
+        "accepted_paired_delta": -0.25,
+        "accepted_paired_bootstrap_95_ci": [
+          -0.75,
+          0.0
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 0,
+        "strict_losses": 1,
+        "new_contradictions": 0,
+        "fixed_contradictions": 0,
+        "jointly_scorable_pairs": 4
+      },
+      "selective_1": {
+        "n_assigned": 4,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.0,
+        "accepted_paired_bootstrap_95_ci": [
+          0.0,
+          0.0
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 0,
+        "strict_losses": 0,
+        "new_contradictions": 0,
+        "fixed_contradictions": 0,
+        "jointly_scorable_pairs": 4
+      },
+      "selective_2": {
+        "n_assigned": 4,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.0,
+        "accepted_paired_bootstrap_95_ci": [
+          0.0,
+          0.0
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 0,
+        "strict_losses": 0,
+        "new_contradictions": 0,
+        "fixed_contradictions": 0,
+        "jointly_scorable_pairs": 4
+      },
+      "positive_1": {
+        "n_assigned": 4,
+        "reference": "baseline",
+        "accepted_paired_delta": 0.0,
+        "accepted_paired_bootstrap_95_ci": [
+          0.0,
+          0.0
+        ],
+        "review_coverage_sufficient": true,
+        "strict_wins": 0,
+        "strict_losses": 0,
+        "new_contradictions": 0,
+        "fixed_contradictions": 0,
+        "jointly_scorable_pairs": 4
+      }
+    },
+    "production_quality_verified": false,
+    "subset_n": 4,
+    "subset_case_ids_sha256": "8e3202c1e6acf06b5c74cc582f7411c211c2fa5c609f101656eae050b2867a0c"
+  },
+  "selection": {
+    "selected": "selective_2",
+    "automatic_promotion": false,
+    "status": "requires_new_confirmation"
+  },
+  "interpretation": "Strength 2 passes the predeclared development gate against base and its same-strength control, but ties the better strength-1 positive control and trails the earlier signed candidate on this consumed cohort. Fresh confirmation adds both positive strengths as controls; no promotion.",
+  "production_quality_verified": false
+}

@@ -122,3 +122,41 @@ For the arithmetic question, a simple precomputed witness is `[0, 2, 2]`: two
 of three values exceed the mean 4/3. Equivalent valid explanations are accepted.
 These interpretation notes do not change generation inputs or source allocation.
 They are fixed before any new confirmation answers are generated or reviewed.
+
+## Completed development and frozen stronger confirmation controls
+
+The sealed AI review accepts 14/16 for selective strength 2 versus base 12/16
+and same-strength positive-only 9/16, with zero base losses or new contradictions,
+all four benign controls accepted and no unfinished candidate answers. Strength 1
+accepts 12/16 and has an unfinished answer; it does not qualify. No labels were
+amended after revealing the arm mapping.
+
+The better strength-1 positive-only control also accepts 14/16, and the prior
+signed contrast accepts 15/16 on this consumed cohort. Selective strength 2 is
+not presented as the best development score. To avoid a weak-control comparison,
+confirmation prospectively includes **four arms**: base, positive-only strength 1,
+positive-only strength 2, and selective strength 2. The two positive controls
+use the same support/beta/KL/prompt/token settings, differing only in strength.
+The selective candidate must pass positive paired 95% lower bounds against
+**all three** controls, with no new contradictions and 90% joint scorable
+coverage. All candidate outputs must be complete and unguarded. These stronger
+requirements are frozen before any new confirmation generation. No tuning on
+that new cohort is permitted.
+
+Reuse no generated answers for confirmation: 20 questions × four arms = 80
+outputs. Candidate settings: penalty-only normalized log ratio, strength 2,
+reference-union beta 0.01, KL budget 8, jailbreak correction zero, native brief
+prompt, first-sentence stopping and 48 tokens. Development generation SHA256
+`81cf9924cf0ea0d3cfc2d158cc35b177cd8347c005ed4485ef171273e6736efa`;
+selection SHA256
+`be7cec1fcb17dc036444527538cacd73744eb396c271d47791b7f46b82e7c801`;
+sealed judgment SHA256
+`ebb91a549aa76d7beea243513255b75b4651a565748b79d64732ec4e3d346537`.
+The development aggregate is
+[retained here](results/selective_subtraction_development.json).
+
+One sequential A100-40GB confirmation function: 600 seconds/US$0.60 maximum,
+zero retries. Before completed-job reconciliation, total project reservations
+remain at or below US$24.99 of the US$25 cap. No additional GPU job follows
+merely from successful development. Both repeated and new cohort results stay
+separate on the public site; neither may be advertised as a full TruthfulQA score.

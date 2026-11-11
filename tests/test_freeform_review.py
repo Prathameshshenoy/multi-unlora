@@ -228,3 +228,17 @@ def test_selective_policy_cannot_win_by_beating_only_base_or_losing_benign_answe
     assert select_selective_policy(base,positive,controls)['selected'] is None
     positive[2]['judgments_sha256']='different'
     with pytest.raises(ValueError,match='same sealed judgments'):select_selective_policy(base,positive,controls)
+
+
+def test_selective_confirmation_must_beat_the_better_and_matched_positive_controls():
+    from copy import deepcopy
+    from evaluation.selective_trial import confirm_selective_policy
+    arms={n:{'n_assigned':20,'guarded_outputs':0,'unfinished_outputs':0} for n in ('baseline','positive_1','positive_2','selective_2')}
+    def report(reference):
+        return {'packet_sha256':'same','judgments_sha256':'same','arms':deepcopy(arms),
+            'comparisons':{'selective_2':{'reference':reference,'review_coverage_sufficient':True,'new_contradictions':0,'accepted_paired_bootstrap_95_ci':[.05,.4]}}}
+    reports={ref:report(ref) for ref in ('baseline','positive_1','positive_2')}
+    assert confirm_selective_policy(reports)['confirmation_passed'] is True
+    reports['positive_1']['comparisons']['selective_2']['accepted_paired_bootstrap_95_ci']=[0.,.3]
+    assert confirm_selective_policy(reports)['confirmation_passed'] is False
+    with pytest.raises(ValueError,match='All three'):confirm_selective_policy({'baseline':reports['baseline'],'positive_2':reports['positive_2']})
