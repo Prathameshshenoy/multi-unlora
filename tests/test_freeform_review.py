@@ -140,13 +140,13 @@ def test_strength_calibration_requires_subtraction_gain_over_matched_control():
     from copy import deepcopy
     arms={name:{'n_assigned':8,'accepted_rate':.75,'contradiction_rate':0.,'unscorable_rate':0.,'guarded_outputs':0,'unfinished_outputs':0}
           for name in ('baseline','positive_1','positive_2','positive_4','contrast_1','contrast_2','contrast_4')}
-    def report(wins):
+    def report(wins,reference='baseline'):
         return {'packet_sha256':'same','judgments_sha256':'same','arms':deepcopy(arms),
-            'comparisons':{name:{'review_coverage_sufficient':True,'strict_wins':wins,'strict_losses':0,'new_contradictions':0}
+            'comparisons':{name:{'reference':reference,'review_coverage_sufficient':True,'strict_wins':wins,'strict_losses':0,'new_contradictions':0}
                            for name in ('contrast_1','contrast_2','contrast_4')}}
-    base=report(2);controls={n:report(0) for n in (1,2,4)}
+    base=report(2);controls={n:report(0,f'positive_{n}') for n in (1,2,4)}
     assert select_strength(base,controls)['selected'] is None
-    controls[2]=report(1)
+    controls[2]=report(1,'positive_2')
     assert select_strength(base,controls)['selected']=='contrast_2'
     base['comparisons']['contrast_2']['strict_losses']=1
     assert select_strength(base,controls)['selected'] is None

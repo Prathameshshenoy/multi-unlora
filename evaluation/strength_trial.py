@@ -27,6 +27,10 @@ def select_strength(base_summary,positive_summaries):
                 or positive['arms']!=base_summary['arms']):
             raise ValueError('Strength comparisons must use identical sealed judgments')
         a=base_summary['arms'][name];versus_base=base_summary['comparisons'][name];versus_positive=positive['comparisons'][name]
+        if versus_base['reference']!='baseline' or versus_positive['reference']!=f'positive_{int(strength)}':
+            raise ValueError('Strength calibration needs the matched comparator')
+        if any(value['n_assigned']!=8 for value in base_summary['arms'].values()):
+            raise ValueError('Strength calibration sample count changed')
         if (a['n_assigned']==8 and a['guarded_outputs']==a['unfinished_outputs']==0
                 and all(c['review_coverage_sufficient'] and c['new_contradictions']==0 for c in (versus_base,versus_positive))
                 and versus_base['strict_wins']-versus_base['strict_losses']>=2
