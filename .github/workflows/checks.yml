@@ -15,6 +15,7 @@ jobs:
         with:
           node-version: '20'
       - run: node --check web/app.js
+      - run: node --test tests/test_web_state.mjs
       - run: python -m compileall -q config.py inference repe evaluation training demo modal_demo.py modal_engine.py scripts
   numerical:
     runs-on: ubuntu-latest

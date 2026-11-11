@@ -94,3 +94,22 @@ No answer, model setting, prompt, operating-point grid or selection criterion is
 changed. Any amended selection is exploratory development evidence and still
 must pass the original untouched confirmation against both controls. An amended
 score is never presented as an independent accuracy measurement.
+
+The source-amended review selects `contrast_8`: 15/16 accepted versus base 12/16
+and matched positive-only 14/16, three base wins, one positive-only win, zero
+strict losses or new contradictions, all four smoke controls accepted. These
+figures include consumed questions and are not fresh benchmark accuracy. The
+original unamended analysis selected none (14/16 contrast, one strict loss).
+Both are in [the aggregate report](results/reference_support_development.json).
+
+The confirmation operating point is now frozen: union beta 0.01, strength 1,
+jailbreak weight zero, KL budget 8, 48 tokens and first-sentence stopping, with
+base plus identical positive-only control. Selection SHA256
+`e6176221eda4a1c25005e5a744ad7710cd39e0be1c61b01a12d4f5b2a95ced65`;
+source-amended judgments SHA256
+`329c0055440a6879040002aee92d9acf9637e99b1cdf606b41415efe982f1503`.
+Cloud execution verifies development generation SHA256
+`e7b39e639739b628715dd8e599b0e20d0649a66330a00244f0e319dc116f0c2d`.
+The prior frozen allocation supplies exactly 20 untouched questions. No retuning
+or relabelling to favour the selected setting after confirmation is allowed.
+Model, source, prompt and display-output provenance remain explicit.

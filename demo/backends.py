@@ -231,9 +231,14 @@ class GPUBackend:
         model.disable_adapter_layers()
         try:
             with torch.inference_mode():
-                alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False)
-                alpha_hall=alpha_hall*_correction_scale if _hall_strength is None else float(_hall_strength)
-                alpha_jail*=_correction_scale*_jail_scale
+                if _hall_strength is None:
+                    alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False)
+                    alpha_hall*=_correction_scale
+                    alpha_jail*=_correction_scale*_jail_scale
+                else:
+                    # Fixed calibration does not depend on an unused detector
+                    # projection; validation above requires jailbreak weight 0.
+                    alpha_hall,alpha_jail=float(_hall_strength),0.
                 yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail}
                 result = {}
                 eos = getattr(model.generation_config, "eos_token_id", None)

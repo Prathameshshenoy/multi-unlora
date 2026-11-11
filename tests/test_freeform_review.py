@@ -192,3 +192,20 @@ def test_support_policy_requires_smoke_retention_and_matched_positive_gain():
     assert select_support_policy(base,positive,smoke)['selected'] is None
     positive[.5]['comparisons']['contrast_0.5']['reference']='positive_8'
     with pytest.raises(ValueError,match='Unmatched'):select_support_policy(base,positive,smoke)
+
+
+def test_confirmation_requires_positive_lower_bounds_for_both_controls():
+    from copy import deepcopy
+    from evaluation.support_trial import confirm_support_policy
+    arms={name:{'n_assigned':20,'guarded_outputs':0,'unfinished_outputs':0} for name in ('baseline','positive_8','contrast_8')}
+    pair={'reference':'baseline','review_coverage_sufficient':True,'new_contradictions':0,'accepted_paired_bootstrap_95_ci':[.05,.4]}
+    base={'packet_sha256':'same','judgments_sha256':'same','arms':arms,'comparisons':{'contrast_8':pair}}
+    positive=deepcopy(base);positive['comparisons']['contrast_8']['reference']='positive_8'
+    assert confirm_support_policy(base,positive)['confirmation_passed'] is True
+    positive['comparisons']['contrast_8']['accepted_paired_bootstrap_95_ci']=[0.,.3]
+    assert confirm_support_policy(base,positive)['confirmation_passed'] is False
+    positive['comparisons']['contrast_8']['accepted_paired_bootstrap_95_ci']=[.05,.4]
+    base['comparisons']['contrast_8']['new_contradictions']=1
+    assert confirm_support_policy(base,positive)['confirmation_passed'] is False
+    positive['judgments_sha256']='different'
+    with pytest.raises(ValueError,match='same sealed review'):confirm_support_policy(base,positive)

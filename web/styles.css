@@ -15,3 +15,5 @@
 
 .run-progress{margin:0;padding:12px 24px 0;color:var(--lime);font-size:11px;line-height:1.6}.run-progress+.expert-role-note{border-top:0}
 @media(max-width:680px){.prompt-footer{flex-wrap:wrap;gap:10px}.run-controls{flex-wrap:wrap}.result-status{flex-wrap:wrap;justify-content:flex-end}.run-progress{padding-left:18px;padding-right:18px}}
+
+.evaluation-details{margin-top:12px}.evaluation-details summary{cursor:pointer;color:var(--text)}.evaluation-details p{line-height:1.9}

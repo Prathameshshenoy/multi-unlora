@@ -16,7 +16,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6, 'anchored-train': 1.8, 'anchored-evaluate': 1.8, 'anchored-long-train': 1.8, 'anchored-long-evaluate': 1.8, 'short-answers': 1.2, 'data-audit': .25, 'matched-train': 1.8, 'matched-evaluate': 1.8, 'negative-train': 1.8, 'negative-evaluate': 1.8, 'role-repair': 2.4, 'content-delta': 1.8, 'freeform-dev': .9, 'reference-dev': 1.2, 'strength-dev': .6, 'divergence-audit': .3, 'support-dev': .9}
+RESERVATIONS = {'preflight': .25, 'train': 3.6, 'evaluate': 1.2, 'tune-confirm': 1.2, 'serve-local': 1.0, 'paired-train': 1.8, 'paired-evaluate': 1.8, 'behavior': .6, 'anchored-train': 1.8, 'anchored-evaluate': 1.8, 'anchored-long-train': 1.8, 'anchored-long-evaluate': 1.8, 'short-answers': 1.2, 'data-audit': .25, 'matched-train': 1.8, 'matched-evaluate': 1.8, 'negative-train': 1.8, 'negative-evaluate': 1.8, 'role-repair': 2.4, 'content-delta': 1.8, 'freeform-dev': .9, 'reference-dev': 1.2, 'strength-dev': .6, 'divergence-audit': .3, 'support-dev': .9, 'support-confirm': .6}
 SERVE_RESERVATIONS = {3: .3, 5: .5, 10: .8, 15: 1.0}
 
 
@@ -44,6 +44,7 @@ def reserve(stage, *, minutes=15):
 def dispatch_stage(engine, stage, steps):
     """Invoke exactly one budgeted cloud function; serving is handled separately."""
     jobs={
+        'support-confirm':(engine.confirm_reference_support,()),
         'support-dev':(engine.develop_reference_support,()),
         'divergence-audit':(engine.audit_factual_divergence,()),
         'strength-dev':(engine.calibrate_factual_strength,()),
@@ -155,7 +156,7 @@ def main():
         output = ROOT/'.runtime'/f'{args.stage}-result.json'
         output.write_text(json.dumps(result,indent=2))
         printable = result
-        if args.stage in ('freeform-dev','reference-dev','strength-dev','divergence-audit','support-dev'):
+        if args.stage in ('freeform-dev','reference-dev','strength-dev','divergence-audit','support-dev','support-confirm'):
             printable={key:result[key] for key in ('protocol','phase','status','manifest_fingerprint','allocation_sha256','scope')}
             printable['n_records']=len(result['records'])
         if args.stage in ('role-repair','content-delta'):

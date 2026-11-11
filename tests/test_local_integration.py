@@ -554,3 +554,14 @@ def test_fixed_strength_is_internal_reference_only_and_changes_actual_operator(t
     assert route=={'alpha_hall':2.,'alpha_jail':0.}
     assert metadata['quality']['production_quality_verified'] is False
     events.close()
+
+
+def test_fixed_strength_does_not_depend_on_unused_prompt_detector(tensor_backend,monkeypatch):
+    import repe.router
+    def unused(*args,**kwargs):raise AssertionError('Fixed-strength mode must not query the prompt detector')
+    monkeypatch.setattr(repe.router,'compute_dynamic_alphas',unused)
+    events=tensor_backend.stream('Neutral.',1,threading.Event(),_hall_strength=1.,
+        _hall_reference_adapter='factual_reference',_jail_scale=0.)
+    route=next(data for event,data in events if event=='routing')
+    assert route=={'alpha_hall':1.,'alpha_jail':0.}
+    events.close()

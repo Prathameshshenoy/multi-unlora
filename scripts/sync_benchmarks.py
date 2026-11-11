@@ -115,7 +115,7 @@ def render_table(data):
     claim = ("See the source report for the validated scope." if current["production_quality_verified"] is True
              else "No accuracy or safety improvement is verified.")
     trial_links = [f'<a href="./results/{escape(report["source"])}">{escape(report["label"])}</a>' for report in data.get("trial_reports",[])]
-    trial_link = '<p>Trial reports: ' + ' · '.join(trial_links) + '.</p>' if trial_links else ''
+    trial_link = '<details class="evaluation-details"><summary>Evaluation reports</summary><p>' + ' · '.join(trial_links) + '.</p></details>' if trial_links else ''
     return ('<section class="benchmark-panel panel" aria-labelledby="benchmark-title">'
         '<div class="panel-heading"><h2 id="benchmark-title">Benchmark results</h2>'
         '<span class="micro-label">MEASURED PILOT</span></div>'
