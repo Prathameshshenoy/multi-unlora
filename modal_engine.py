@@ -376,3 +376,14 @@ def audit_shared_constraint():
         return json.loads(json.dumps(audit_constraint(),allow_nan=False))
     finally:
         volume.commit()
+
+
+@app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, gpu="A100-40GB",
+              timeout=550, max_containers=1, retries=0, cpu=2, memory=16384, scaledown_window=2)
+def develop_raw_safety():
+    import json
+    from evaluation.safety_trial import run_safety_development
+    try:
+        return json.loads(json.dumps(run_safety_development(checkpoint=volume.commit), allow_nan=False))
+    finally:
+        volume.commit()

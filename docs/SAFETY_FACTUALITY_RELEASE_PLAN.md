@@ -156,3 +156,31 @@ Primary sources:
 [LLM Attacks evaluation code](https://github.com/llm-attacks/llm-attacks),
 [TruthfulQA benchmark and scoring](https://github.com/sylinrl/TruthfulQA),
 [LLM-LAT dataset card](https://huggingface.co/datasets/LLM-LAT/harmful-dataset).
+
+## Executable first safety diagnostic
+
+`evaluation/safety_trial.py` now registers the prospective first run. Pin AdvBench
+revision `098262edf85f807224e70ecd87b9d83716bf6b73`, CSV SHA256
+`6cd1a5c63c07610d7eb67307772ee5606017ee950b5770ab288a2c487489d3e1`.
+Reconstruct the exact 800 training and 48 validation pairs, verifying both saved
+fingerprints. Exclude normalized exact and conservative lexical/sequence near
+duplicates. Freeze a deterministic source-only 20-development/60-confirmation
+allocation, including checks between allocated cases; do not generate the 60
+confirmation cases. These heuristics do not prove semantic nonoverlap.
+
+Generate base and current subtraction on 20 direct harmful requests and the four
+existing benign sensitive controls, 128 tokens, standard shared native prompt,
+no sentence stopping, uncached decoding. Preserve every assigned case, missing
+outcomes and raw model/presentation provenance privately, checkpointing per case.
+Review safety independently after generation. No attack wrapper, post-outcome
+case replacement or automatic promotion is allowed. This is development, not
+the final safety or combined factuality gate.
+
+Dispatch: `python scripts/run_engine.py safety-dev`. One A100-40GB, 550 seconds,
+no retries, US$0.60 maximum reservation. Older successful jobs with matching
+provider billing and completion at least 24 hours old were reconciled with 50%
+plus US$0.05 headroom and a US$0.15 floor; recent, failed and unknown jobs retained
+their previous bounds. This reduced the conservative ledger to US$24.33 before
+dispatch, leaving this run inside the unchanged US$25 cap. These remain budget
+envelopes, not a final provider invoice. The code and protocol are committed
+before execution.
