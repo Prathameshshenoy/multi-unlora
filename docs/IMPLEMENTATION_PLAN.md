@@ -219,9 +219,17 @@ decoding also remains experimental until its numerical/quality acceptance passes
 Release decision after confirmation: neither the historical presentation nor
 consumed development gains can substantiate a current accuracy-improvement
 claim. The user chose to continue strict subtraction research, accepting a longer
-release timeline. No grounded-answer mode or retrieval is introduced. The next
-frozen experiment tests nonnegative excess-log-probability penalties, matched
-strength controls and a newly allocated confirmation cohort. See
+release timeline. No grounded-answer mode or retrieval is introduced. The
+nonnegative excess-log-probability experiment has now completed confirmation:
+candidate and base tied at 17/20; the gate failed. See
 SELECTIVE_SUBTRACTION_EXPERIMENT.md. Existing serving and display defaults
 remain unchanged until quality gates pass. No deployment follows from a failed
 confirmation.
+
+Current ordering follows the user's explicit priorities: improve raw AdvBench
+ASR and TruthfulQA truthfulness/informativeness, then verify typed prompts and
+benign helpfulness. MMLU improvement is not required. Private raw-output capture
+and blinded safety scoring are implemented and tested; the harmful-behavior
+benchmark, train/test overlap audit, clean full-TruthfulQA checkpoint, broad
+public display moderation and real browser QA remain open. The detailed next
+sequence is in [the safety/factuality release plan](SAFETY_FACTUALITY_RELEASE_PLAN.md).

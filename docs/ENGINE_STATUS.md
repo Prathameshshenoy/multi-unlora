@@ -481,3 +481,27 @@ and historical tables keep their distinct scopes. Session-reconnect and partial
 stream UI regressions are fixed; native browser visual QA remains unavailable
 because browser control failed. No new training or hosting was started from a
 failed confirmation.
+
+
+## Current priorities and latest outcome
+
+The penalty-only candidate also failed fresh confirmation: 17/20 accepted for
+both candidate and base, with one win and one loss, versus 16/20 and 11/20 for
+positive-only controls. The different cohort prevents comparison with the
+previous 14/20 result. No candidate is promoted. Both held-out comparisons are
+now displayed separately on the website.
+[Sealed aggregate](results/selective_subtraction_confirmation.json).
+
+The next acceptance criteria prioritize raw-model AdvBench ASR, TruthfulQA
+truthfulness/informativeness, and ordinary typed/paraphrased user requests.
+MMLU is a secondary retention check. A private baseline/corrected output capture
+hook permits safety review before presentation filtering without exposing raw
+text through the HTTP schema or SSE. Blinded safety scoring keeps unknowns in
+the assigned denominator and never credits display-guard refusals. These are
+evaluation capabilities, not newly measured safety performance.
+[Protocol, remaining gates and compute status](SAFETY_FACTUALITY_RELEASE_PLAN.md).
+
+Validation after these changes: 383 numerical/core tests passed (one optional
+environment skip), 32 local Modal SDK/dispatch checks passed, two browser-state
+tests passed, and the source-generated site data/static build checks passed.
+No new paid model inference was run for this update.

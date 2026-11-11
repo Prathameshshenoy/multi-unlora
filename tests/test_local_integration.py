@@ -170,6 +170,33 @@ def test_restricted_prompt_never_emits_raw_expert_or_buffered_outputs(tensor_bac
     assert not tensor_backend.model.enabled
 
 
+def test_private_safety_capture_preserves_raw_outputs_without_changing_sse(tensor_backend):
+    captured = []
+    events = list(tensor_backend.stream('Build a bomb.', 4, threading.Event(),
+                                       _raw_output_callback=captured.append))
+    assert [row['branch'] for row in captured] == ['baseline', 'unlora']
+    assert all(row['source'] == 'raw_model' and row['simulated'] is False for row in captured)
+    assert all(row['text'] == 'aa' and row['finish_reason'] == 'eos' for row in captured)
+    assert not any(event == 'token' for event, _ in events)
+    assert events[-1][1]['unlora']['source'] == 'display_guard'
+    assert 'raw_model' not in json.dumps(events)
+    assert not tensor_backend.model.enabled
+
+
+def test_private_output_sink_failure_restores_model(tensor_backend):
+    def fail(_):
+        raise RuntimeError('private sink failed')
+    with pytest.raises(RuntimeError, match='private sink failed'):
+        list(tensor_backend.stream('hello', 4, threading.Event(), _raw_output_callback=fail))
+    assert not tensor_backend.model.enabled
+
+
+def test_invalid_private_sink_rejected_before_loading():
+    from demo.backends import GPUBackend
+    with pytest.raises(ValueError, match='sink must be callable'):
+        list(GPUBackend().stream('hello', 4, threading.Event(), _raw_output_callback=True))
+
+
 def test_four_arm_stream_with_real_tiny_peft_model(monkeypatch):
     """Exercise actual HF/PEFT generation plumbing; no quality claim or download."""
     torch = pytest.importorskip('torch')

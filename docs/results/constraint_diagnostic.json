@@ -1,0 +1,28 @@
+{
+  "protocol": "consumed-country-constraint-diagnostic-v1",
+  "phase": "diagnostic",
+  "status": "complete",
+  "scope": "Eight closed-book diagnostic probes plus one reused consumed base answer. Some probes name the target entity or change the question. Not comparative answer accuracy, independent confirmation, retrieval or a serving correction.",
+  "manifest_fingerprint": "81dbee8e9c097a6b4ddcf8d70d017c6fdefdb442b6bb6b00207eaac2d91ad1c3",
+  "source_generation_sha256": "b6513a2cb245a40fe89a07c13bbb2fba18c2670de8b6eeea4b16cabd0c5ea86c",
+  "probe_spec_sha256": "d33bebd70c876929b23ba908e618a6d625fb2e055a09964ecc980bfe7955310b",
+  "prompt_variant": "shared-brief-user-v2-first-sentence-v1",
+  "generation_sha256": "afa6db9c8325986789bcfb84a3fb5c2c19cc53d4e1d172ca0535a12a44a99b11",
+  "new_base_probes": 8,
+  "reused_consumed_answers": 1,
+  "all_new_probes_completed": true,
+  "findings": {
+    "threshold_checks": {
+      "n": 2,
+      "affirmative_answers_whose_own_quoted_area_is_below_threshold": 2
+    },
+    "threshold_rephrasings": {
+      "n": 2,
+      "answers_still_select_below_threshold_country": 2
+    },
+    "other_probes": "Named-area, rank and pairwise answers were inconsistent. Knowing one named fact did not ensure correct ranking or application of the qualifier."
+  },
+  "interpretation": "On this consumed case the base inconsistently retrieves and applies area facts. Rephrasing alone did not repair the threshold error. This is not a general causal diagnosis, a new confirmation score, or evidence that subtraction works.",
+  "production_quality_verified": false,
+  "raw_records_public": false
+}

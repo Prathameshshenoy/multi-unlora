@@ -76,7 +76,8 @@
     "role_repair_trial.json": "efb8ebea6e681127481ae2ee47629a7b7199f721dba5372e8b236c99b19af6da",
     "content_delta_trial.json": "007107f271bf67c7ea16bf1d7dacea4b75e28445bbe0d612d1d64574b992eebf",
     "reference_support_development.json": "449cc0df9f91d65b5c544754779c5b98e8ef7c33828e3c2d06da9deedbd7b435",
-    "reference_support_confirmation.json": "ef0fdcf27b641454412fcd73f3d98db96ab572280fb43ab514433e3f412ec25c"
+    "reference_support_confirmation.json": "ef0fdcf27b641454412fcd73f3d98db96ab572280fb43ab514433e3f412ec25c",
+    "selective_subtraction_confirmation.json": "151ad7f3be8967b390882826965ead33aabb3ea01000fe052bc4c072d105e68b"
   },
   "latest_trial": {
     "source": "paired_trial.json",
@@ -132,8 +133,10 @@
   ],
   "generated_confirmation": {
     "source": "reference_support_confirmation.json",
+    "candidate_label": "Candidate v2",
     "n": 20,
     "gate_passed": false,
+    "cohort_note": "Initial restricted-category cohort.",
     "rows": [
       {
         "benchmark": "Held-out answer review",
@@ -149,9 +152,56 @@
       "contrast_8": 14,
       "positive_8": 16
     },
+    "positive_controls": [
+      {
+        "label": "Positive-only strength 1",
+        "pct": "80.0",
+        "accepted": 16
+      }
+    ],
     "paired_bootstrap_95_ci_pp": [
       "-20.0",
       "20.0"
+    ],
+    "production_quality_verified": false
+  },
+  "selective_confirmation": {
+    "source": "selective_subtraction_confirmation.json",
+    "candidate_label": "Candidate v3",
+    "n": 20,
+    "gate_passed": false,
+    "cohort_note": "Different, broader health/society cohort; not comparable with the 70% review above.",
+    "rows": [
+      {
+        "benchmark": "Held-out answer review",
+        "metric": "Accepted complete answers",
+        "baseline_pct": "85.0",
+        "multi_unlora_pct": "85.0",
+        "change_pp": "0.0"
+      }
+    ],
+    "positive_only_pct": "80.0",
+    "accepted_counts": {
+      "baseline": 17,
+      "selective_2": 17,
+      "positive_1": 16,
+      "positive_2": 11
+    },
+    "positive_controls": [
+      {
+        "label": "Positive-only strength 1",
+        "pct": "80.0",
+        "accepted": 16
+      },
+      {
+        "label": "Matched positive-only strength 2",
+        "pct": "55.0",
+        "accepted": 11
+      }
+    ],
+    "paired_bootstrap_95_ci_pp": [
+      "-15.00",
+      "15.00"
     ],
     "production_quality_verified": false
   }

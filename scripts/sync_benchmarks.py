@@ -21,7 +21,7 @@ SOURCES = ("initial_pilot.json", "historical_slide.json")
 
 
 def source_names(root):
-    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json","reference_support_confirmation.json")
+    return SOURCES + tuple(name for name in ("paired_trial.json","anchored_trial.json","anchored_long_trial.json","short_answers.json","matched_trial.json","negative_trial.json","role_repair_trial.json","content_delta_trial.json","reference_support_development.json","reference_support_confirmation.json","selective_subtraction_confirmation.json")
                            if (Path(root)/"docs/results"/name).is_file())
 
 
@@ -80,27 +80,36 @@ def build_data(root=ROOT):
     labels={"paired_trial.json":"Paired preference", "anchored_trial.json":"Anchored 80 steps", "anchored_long_trial.json":"Anchored 160 steps", "short_answers.json":"Generated short answers", "matched_trial.json":"Matched-form expert", "negative_trial.json":"Bounded negative expert", "role_repair_trial.json":"Misconception role repair", "content_delta_trial.json":"False-content difference", "reference_support_development.json":"Reference-support development"}
     data["trial_reports"]=[{"source":name,"label":labels[name],"status":_read(root/"docs/results"/name).get("status","unvalidated")}
                            for name in source_names(root) if name in labels]
-    confirmation=root/"docs/results/reference_support_confirmation.json"
-    if confirmation.is_file():
-        report=_read(confirmation);review=report['baseline_comparison'];arms=review['arms']
-        n=arms['baseline']['n_assigned']
-        if type(n) is not int or n<=0 or any(a['n_assigned']!=n for a in arms.values()):
-            raise ValueError('Confirmation denominators must match')
-        percentages={name:_percentage(arms[name]['accepted_rate']) for name in ('baseline','contrast_8','positive_8')}
-        counts={name:Decimal(arms[name]['accepted_rate'])*n for name in percentages}
-        if any(value!=value.to_integral_value() for value in counts.values()):raise ValueError('Confirmation accepted counts must be integral')
-        pair=review['comparisons']['contrast_8']
-        delta=(Decimal(arms['contrast_8']['accepted_rate'])-Decimal(arms['baseline']['accepted_rate']))*100
-        if delta!=Decimal(pair['accepted_paired_delta'])*100:raise ValueError('Confirmation paired delta disagrees')
-        passed=report['decision']['confirmation_passed']
-        if type(passed) is not bool:raise ValueError('Explicit confirmation gate result required')
-        data['generated_confirmation']={'source':confirmation.name,'n':n,'gate_passed':passed,
-            'rows':[{'benchmark':'Held-out answer review','metric':'Accepted complete answers','baseline_pct':percentages['baseline'],
-                     'multi_unlora_pct':percentages['contrast_8'],'change_pp':f'{delta:.1f}'}],
-            'positive_only_pct':percentages['positive_8'],'accepted_counts':{name:int(value) for name,value in counts.items()},
-            'paired_bootstrap_95_ci_pp':None if pair['accepted_paired_bootstrap_95_ci'] is None else [str(Decimal(v)*100) for v in pair['accepted_paired_bootstrap_95_ci']],
-            'production_quality_verified':False}
+    for key,name,candidate,label,controls,note in (
+        ('generated_confirmation','reference_support_confirmation.json','contrast_8','Candidate v2',
+         [('positive_8','Positive-only strength 1')],'Initial restricted-category cohort.'),
+        ('selective_confirmation','selective_subtraction_confirmation.json','selective_2','Candidate v3',
+         [('positive_1','Positive-only strength 1'),('positive_2','Matched positive-only strength 2')],
+         'Different, broader health/society cohort; not comparable with the 70% review above.')):
+        path=root/'docs/results'/name
+        if path.is_file():data[key]=_answer_review_data(_read(path),name,candidate,label,controls,note)
     return data
+
+
+def _answer_review_data(report,source,candidate,label,controls,note):
+    review=report['baseline_comparison'];arms=review['arms'];n=arms['baseline']['n_assigned']
+    if type(n) is not int or n<=0 or any(a['n_assigned']!=n for a in arms.values()):
+        raise ValueError('Confirmation denominators must match')
+    percentages={name:_percentage(arms[name]['accepted_rate']) for name in ('baseline',candidate,*[name for name,_ in controls])}
+    counts={name:Decimal(arms[name]['accepted_rate'])*n for name in percentages}
+    if any(v!=v.to_integral_value() for v in counts.values()):raise ValueError('Confirmation accepted counts must be integral')
+    pair=review['comparisons'][candidate]
+    delta=(Decimal(arms[candidate]['accepted_rate'])-Decimal(arms['baseline']['accepted_rate']))*100
+    if delta!=Decimal(pair['accepted_paired_delta'])*100:raise ValueError('Confirmation paired delta disagrees')
+    passed=report['decision']['confirmation_passed']
+    if type(passed) is not bool:raise ValueError('Explicit confirmation gate result required')
+    return {'source':source,'candidate_label':label,'n':n,'gate_passed':passed,'cohort_note':note,
+        'rows':[{'benchmark':'Held-out answer review','metric':'Accepted complete answers','baseline_pct':percentages['baseline'],
+                 'multi_unlora_pct':percentages[candidate],'change_pp':f'{delta:.1f}'}],
+        'positive_only_pct':percentages[controls[0][0]],'accepted_counts':{name:int(v) for name,v in counts.items()},
+        'positive_controls':[{'label':name,'pct':percentages[arm],'accepted':int(counts[arm])} for arm,name in controls],
+        'paired_bootstrap_95_ci_pp':None if pair['accepted_paired_bootstrap_95_ci'] is None else [str(Decimal(v)*100) for v in pair['accepted_paired_bootstrap_95_ci']],
+        'production_quality_verified':False}
 
 
 def _delta(value):
@@ -126,19 +135,22 @@ def _table(rows, *, caption, label, corrected_label="Multi-UnLoRA"):
         '<tbody>' + ''.join(body) + '</tbody></table></div>')
 
 
-def _confirmation_table(data):
-    result=data.get('generated_confirmation')
-    if result is None:return ''
+def _answer_review_table(result):
     interval=result['paired_bootstrap_95_ci_pp']
     interval_text='not estimable' if interval is None else f"{Decimal(interval[0]):+.1f} to {Decimal(interval[1]):+.1f} pp"
     gate='Passed the internal factuality gate; broader release checks remain open.' if result['gate_passed'] else 'Did not pass the accuracy gate; this candidate is not the serving default.'
-    return ('<section class="answer-review" aria-labelledby="answer-review-title"><h3 id="answer-review-title">Held-out answer review</h3>'
-        +_table(result['rows'],caption=f"{result['n']} held-out adapter-evaluation questions · AI reference-grounded review.",label='Experimental candidate held-out answer review',corrected_label='Candidate v2')
-        +'<div class="benchmark-notes"><p>'+gate+'</p><p>'
-        +f"Matched positive-only control: {result['positive_only_pct']}% ({result['accepted_counts']['positive_8']}/{result['n']}). "
+    label=escape(result['candidate_label']);heading='answer-review-'+label.lower().replace(' ','-')
+    controls=' · '.join(f"{escape(c['label'])}: {c['pct']}% ({c['accepted']}/{result['n']})" for c in result['positive_controls'])
+    return (f'<section class="answer-review" aria-labelledby="{heading}"><h3 id="{heading}">Held-out answer review · {label}</h3>'
+        +_table(result['rows'],caption=f"{result['n']} held-out adapter-evaluation questions · AI reference-grounded review.",label='Experimental '+result['candidate_label']+' held-out answer review',corrected_label=result['candidate_label'])
+        +'<div class="benchmark-notes"><p>'+escape(result['cohort_note'])+'</p><p>'+gate+'</p><p>'+controls+'. '
         +f"Candidate − base paired 95% interval: {interval_text}. All assigned questions stay in the denominator, including unfinished outputs.</p>"
-        +'<p>This small, category-restricted internal review is not an official TruthfulQA score. Candidate v2 uses a third factual-reference adapter. '
-        +'<a href="./results/reference_support_confirmation.json">Review results and limitations</a></p></div></section>')
+        +'<p>This small, category-restricted internal review is not an official TruthfulQA score. This candidate uses a third factual-reference adapter. '
+        +f'<a href="./results/{escape(result["source"])}">Review results and limitations</a></p></div></section>')
+
+
+def _confirmation_table(data):
+    return ''.join(_answer_review_table(data[key]) for key in ('generated_confirmation','selective_confirmation') if key in data)
 
 
 def render_table(data):

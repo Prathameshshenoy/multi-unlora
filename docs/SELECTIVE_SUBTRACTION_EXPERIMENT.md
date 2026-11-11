@@ -209,3 +209,12 @@ One A100-40GB job: 250 seconds/US$0.25 maximum, eight new base-only outputs,
 48 tokens with the same shared brief instruction, zero retries. Current
 conservative reservations are US$24.69; after dispatch at most US$24.94 of US$25.
 No subsequent paid job is authorized merely by this diagnostic.
+
+
+The diagnostic completed all eight new base-only probes. Both binary threshold
+answers affirmed the threshold while quoting an area below it; both rephrasings
+still selected a country below the minimum. Named-area, rank and pairwise
+answers were inconsistent. This supports mixed fact-access and qualifier-
+application failures on this consumed case, rather than a simple wording fix.
+No new serving prompt or accuracy claim follows from it.
+[Aggregate and source hashes](results/constraint_diagnostic.json).

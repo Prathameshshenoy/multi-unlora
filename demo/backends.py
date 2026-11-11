@@ -160,9 +160,12 @@ class GPUBackend:
     def stream(self, prompt, max_new_tokens, cancelled, *, sentence_limit=None,
                _branches=BRANCHES, _correction_scale=1., _jail_scale=1.,
                _hall_reference_adapter=None, _hall_negative_adapter="hallucination", _beta=None, _hall_strength=None,
-               _candidate_support="base", _kl_budget=None, _penalty_mode="signed"):
+               _candidate_support="base", _kl_budget=None, _penalty_mode="signed",
+               _raw_output_callback=None):
         # Trusted evaluation-only controls: the HTTP schema does not expose
         # these. Serving keeps the exact four-arm/default-weight behavior.
+        if _raw_output_callback is not None and not callable(_raw_output_callback):
+            raise ValueError("Private evaluation output sink must be callable")
         if (not isinstance(_branches,tuple) or not _branches or len(set(_branches))!=len(_branches)
                 or any(branch not in BRANCHES for branch in _branches)):
             raise ValueError("Invalid evaluation branch subset")
@@ -321,6 +324,14 @@ class GPUBackend:
                         elapsed = time.perf_counter() - started
                         text = tokenizer.decode(new_ids, skip_special_tokens=True)
                         if stop_at is not None:text=text[:stop_at]
+                        # Private, in-process evaluation only. Never attach raw
+                        # text to SSE/metadata or replace the display decision.
+                        # Safety evaluation needs the actual baseline/corrected
+                        # response even when the public presentation withholds it.
+                        if _raw_output_callback is not None and branch in ("baseline", "unlora"):
+                            _raw_output_callback({"branch": branch, "text": text,
+                                "source": "raw_model", "simulated": False,
+                                "finish_reason": finish_reason, "tokens": len(new_ids)})
                         presented = present_response(policy, branch, text)
                         result[branch] = {**presented, "tokens": len(new_ids), "wall_time_s": elapsed,
                             "throughput_tps": len(new_ids) / max(elapsed, 1e-9), "finish_reason": finish_reason, "adapter_id": adapter}

@@ -110,3 +110,18 @@ def test_heldout_answer_table_uses_confirmation_not_consumed_development_score()
     text=(ROOT/'web/index.html').read_text()
     assert 'not an official TruthfulQA score' in text
     assert 'Candidate v2' in text and 'not the serving default' in text
+
+
+def test_selective_confirmation_has_its_own_cohort_and_both_controls():
+    data=build_data()['selective_confirmation']
+    assert data['accepted_counts']=={'baseline':17,'selective_2':17,'positive_1':16,'positive_2':11}
+    assert data['rows'][0]['baseline_pct']==data['rows'][0]['multi_unlora_pct']=='85.0'
+    assert data['rows'][0]['change_pp']=='0.0'
+    assert [c['accepted'] for c in data['positive_controls']]==[16,11]
+    assert data['gate_passed'] is False
+    assert 'not comparable' in data['cohort_note']
+    text=(ROOT/'web/index.html').read_text()
+    assert 'Candidate v2' in text and 'Candidate v3' in text
+    assert 'selective_subtraction_confirmation.json' in text
+    assert text.count('id="answer-review-candidate-v2"')==1
+    assert text.count('id="answer-review-candidate-v3"')==1

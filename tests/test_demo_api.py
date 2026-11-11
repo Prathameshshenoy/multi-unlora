@@ -42,7 +42,7 @@ def test_preview_stream_is_explicit_and_bounded():
 
 def test_input_validation():
     client = TestClient(create_app(PreviewBackend()))
-    for payload in ({"prompt": " "}, {"prompt": "x" * 4001}, {"prompt": "ok", "max_new_tokens": 257}, {"prompt": "ok", "max_new_tokens": 0}, {"prompt": "ok", "max_new_tokens": True}, {"prompt": "ok", "unknown": 1}):
+    for payload in ({"prompt": " "}, {"prompt": "x" * 4001}, {"prompt": "ok", "max_new_tokens": 257}, {"prompt": "ok", "max_new_tokens": 0}, {"prompt": "ok", "max_new_tokens": True}, {"prompt": "ok", "unknown": 1}, {"prompt": "ok", "_raw_output_callback": "browser"}):
         assert client.post("/api/generate", json=payload).status_code == 422
 
 

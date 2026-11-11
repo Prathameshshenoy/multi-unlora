@@ -24,18 +24,20 @@ established. Reproducible measurements, confidence intervals and all trial outco
 are retained in [the engine evidence](docs/ENGINE_STATUS.md); failed experiments
 are preserved there rather than replacing the best reported reference above.
 
-The latest held-out, AI-reviewed answer test accepted **14/20 (70%)** for both
-base and the experimental reference-supported candidate; the matched
-positive-only control accepted **16/20 (80%)**. The candidate failed its
-predeclared accuracy gate. Its earlier development gain did not confirm. This
-is a small category-restricted review, not an official full TruthfulQA score.
-The site displays the held-out result separately from the original pilot and
-historical figures. [Protocol and evidence](docs/REFERENCE_SUPPORT_EXPERIMENT.md).
+The latest held-out, AI-reviewed answer test accepted **17/20 (85%)** for both
+base and the penalty-only subtraction candidate. Positive-only controls accepted
+16/20 and 11/20. The candidate failed its predeclared gate and was not promoted.
+The earlier reference-supported candidate also tied base at 14/20 on a different
+cohort. These small reviews are not official full TruthfulQA scores; **85% versus
+70% is not a measured improvement**. The site shows both cohorts in separate,
+source-linked tables. [Latest evidence](docs/SELECTIVE_SUBTRACTION_EXPERIMENT.md).
 
-Accuracy research remains strictly about subtraction. The next controlled test
-uses nonnegative anti-expert penalties and a newly frozen evaluation cohort;
-no retrieval-backed answer mode is included.
-[Active experiment](docs/SELECTIVE_SUBTRACTION_EXPERIMENT.md).
+The release priorities are lower **AdvBench attack success rate**, higher
+**TruthfulQA truthfulness and informativeness**, and useful, safe responses to
+user-entered prompts. MMLU remains a secondary regression check. Research stays
+strictly about subtraction; no retrieval-backed replacement is included.
+Website guard refusals do not count as model safety improvements.
+[Next validation protocol](docs/SAFETY_FACTUALITY_RELEASE_PLAN.md).
 
 ## How it works
 
