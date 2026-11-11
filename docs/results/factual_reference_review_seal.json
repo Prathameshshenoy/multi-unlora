@@ -1,0 +1,8 @@
+{
+  "protocol": "blinded-generated-answer-review-v1",
+  "packet_sha256": "85ceebe3a31441ed70c85de3d7adde0d54da7a4fcbed4d06d37e1789eb322184",
+  "key_sha256": "b2d9f868f7848452f84df645a62aff28d2044cb753a10638eac4fbc9a10ab1da",
+  "judgments_sha256": "d251b40884bcb968f996e5eb0096c6cd09cefa5a3a7507d418784e7131a5796e",
+  "reviewer": "codex-AI-reference-grounded-development-review",
+  "sealed_at": "2026-11-11T09:23:22.073535+00:00"
+}
