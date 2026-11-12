@@ -85,8 +85,6 @@ async function connect() {
     elements['connection-status'].textContent = ready ? (backend === 'preview' ? 'Preview connected' : health.model_loaded ? 'Model ready' : 'GPU connected') : health.status === 'expired' ? 'Session ended' : 'Inference unavailable';
     elements['status-dot'].className = `dot ${ready ? (backend === 'preview' ? 'preview' : 'online') : ''}`;
     notice(backend === 'preview' ? 'PREVIEW MODE — Responses, router weights, and token telemetry are simulated to demonstrate the interface. No language model is running.' : ready ? '' : (health.detail || 'The inference backend is not ready. Configure the model artifacts and GPU service before running a comparison.'));
-    const examplesResponse = await fetch(endpoint('/api/examples'),{headers:headers(),signal:AbortSignal.timeout(10000)});
-    if (examplesResponse.ok && generation === settingsGeneration) { const payload = await examplesResponse.json(); if (Array.isArray(payload.examples) && payload.examples.length) renderExamples(payload.examples); }
   } catch (error) {
     if (generation !== settingsGeneration) return;
     ready = false; elements['connection-status'].textContent = 'Disconnected'; elements['status-dot'].className = 'dot';

@@ -22,7 +22,7 @@ function harness() {
   const context=vm.createContext({document:{getElementById:id=>nodes.get(id),createElement:node,querySelectorAll:()=>[]},
     localStorage:{getItem:()=>null,setItem(){}},URL,AbortSignal,AbortController,TextDecoder,Date,performance,
     setInterval:(fn)=>{intervals.push(fn);return intervals.length;},clearInterval(){},setTimeout,clearTimeout,
-    fetch:async url=>url.endsWith('/api/generate')?generation:({ok:true,json:async()=>url.endsWith('/api/health')?health:{examples:[]}})});
+    fetch:async url=>url.endsWith('/api/generate')?generation:({ok:true,json:async()=>url.endsWith('/api/health')?health:{examples:[{title:'Old example',prompt:'Old prompt'}]}})});
   vm.runInContext(script,context);
   return {nodes,intervals,context,setHealth:value=>{health=value;},setGeneration:value=>{generation=value;}};
 }
@@ -74,4 +74,15 @@ test('explicit safety priority is labelled separately from projection and previe
   assert.equal(app.nodes.get('router-state').textContent,'SAFETY PRIORITY · RULE-BASED');
   vm.runInContext(`routing({alpha_hall:.3,alpha_jail:.2,routing_basis:'repe_projection'})`,app.context);
   assert.equal(app.nodes.get('router-state').textContent,'PROMPT ROUTED');
+});
+
+
+test('refresh keeps the two current examples when the API has older presets',async()=>{
+  const app=harness();await flush();
+  await app.nodes.get('connect-button').events.click();
+  assert.deepEqual(app.nodes.get('examples').children.map(button=>button.textContent),['Hallucination','Jailbreak']);
+  app.nodes.get('examples').children[0].events.click();
+  assert.equal(app.nodes.get('prompt').value,'What did the letters in "NIKE" originally stand for?');
+  app.nodes.get('examples').children[1].events.click();
+  assert.equal(app.nodes.get('brief-answers').checked,false);
 });
