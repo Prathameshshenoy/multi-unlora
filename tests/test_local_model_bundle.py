@@ -94,7 +94,7 @@ def test_download_checks_release_checksum_and_reuses_cache(tmp_path, monkeypatch
     from scripts import local_demo
     payload = b'synthetic archive download'
     (tmp_path/'models').mkdir()
-    (tmp_path/'models/demo.json').write_text(json.dumps({
+    (tmp_path/'models/model.json').write_text(json.dumps({
         'url':'https://github.com/Prathameshshenoy/multi-unlora/releases/download/model-v1.0.0/model.tar.gz',
         'sha256':hashlib.sha256(payload).hexdigest()}))
     monkeypatch.setattr(local_demo, 'ROOT', tmp_path)

@@ -1,4 +1,4 @@
-"""Install the demo checkpoint into your Modal workspace and run localhost."""
+"""Install Multi-UnLoRA 8B into your Modal workspace and run localhost."""
 import argparse
 import hashlib
 import json
@@ -91,7 +91,7 @@ def install_bundle(archive):
 
 
 def download_model():
-    descriptor_path = ROOT/'models/demo.json'
+    descriptor_path = ROOT/'models/model.json'
     if not descriptor_path.exists():
         raise RuntimeError('Supply a trained model archive with --bundle PATH. See README.md for setup options.')
     descriptor = json.loads(descriptor_path.read_text())
@@ -99,7 +99,7 @@ def download_model():
     if not url.startswith('https://github.com/Prathameshshenoy/multi-unlora/releases/download/'):
         raise ValueError('Unexpected model download source')
     cache = ROOT/'.runtime/models'; cache.mkdir(parents=True, exist_ok=True)
-    target = cache/'multi-unlora-demo-v1.tar.gz'
+    target = cache/'multi-unlora-8b-v1.0.0.tar.gz'
     if target.exists() and sha256(target) == descriptor['sha256']:
         return target
     temporary = target.with_suffix('.part')

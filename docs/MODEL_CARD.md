@@ -1,4 +1,4 @@
-# Demo model
+# Multi-UnLoRA 8B v1.0.0
 
 Multi-UnLoRA uses **unsloth/llama-3-8b-instruct**, pinned to revision
 `f3710969eb766fb49d4d1ed3aeabcb03390772bd`, with two rank-16 LoRA adapters.

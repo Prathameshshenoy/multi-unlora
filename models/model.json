@@ -1,7 +1,7 @@
 {
   "protocol": "multi-unlora-model-download-v1",
-  "name": "Demo checkpoint v1",
-  "url": "https://github.com/Prathameshshenoy/multi-unlora/releases/download/model-v1.0.0/multi-unlora-demo-v1.tar.gz",
+  "name": "Multi-UnLoRA 8B v1.0.0",
+  "url": "https://github.com/Prathameshshenoy/multi-unlora/releases/download/model-v1.0.0/multi-unlora-8b-v1.0.0.tar.gz",
   "sha256": "2c139a66b3fd267443927399647486a6635a40341fc204e058d6ff9249c41ebe",
   "size_bytes": 311078118
 }

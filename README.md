@@ -34,7 +34,7 @@ Start the local demo:
 uv run python scripts/local_demo.py
 ```
 
-On the first run, the launcher downloads the [trained checkpoint](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.0.0),
+On the first run, the launcher downloads the [Multi-UnLoRA 8B v1.0.0 adapters](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.0.0),
 checks its SHA256, installs it into your Modal workspace and prepares the runtime.
 
 Open **http://127.0.0.1:8000**. Enter a prompt and select **Compare**.

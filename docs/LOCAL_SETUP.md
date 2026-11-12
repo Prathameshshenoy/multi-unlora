@@ -18,7 +18,7 @@ uv run python scripts/local_demo.py
 To use an archive you have already downloaded:
 
 ```bash
-uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-demo-v1.tar.gz
+uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-8b-v1.0.0.tar.gz
 ```
 
 The first setup prepares the Modal runtime and downloads the pinned base weights
@@ -32,7 +32,7 @@ Existing files are not overwritten. The original archive remains on your machine
 To install without starting a session:
 
 ```bash
-uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-demo-v1.tar.gz --install-only
+uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-8b-v1.0.0.tar.gz --install-only
 ```
 
 If you already have the trained checkpoint on your Modal volume, you can select
