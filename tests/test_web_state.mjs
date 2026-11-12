@@ -54,3 +54,15 @@ test('interrupted streams distinguish partial output from branches that never ra
   assert.equal(app.nodes.get('run-state').textContent,'GENERATION FAILED');
   assert.equal(app.nodes.get('run-button').disabled,false);
 });
+
+test('cold-start progress separates GPU allocation from loading and reports startup time',async()=>{
+  const app=harness();await flush();
+  vm.runInContext(`handleEvent('engine_status',{phase:'waiting_for_gpu',message:'Waiting for capacity.'})`,app.context);
+  assert.equal(app.nodes.get('run-state').textContent,'WAITING FOR GPU');
+  assert.equal(app.nodes.get('run-progress').textContent,'Waiting for capacity.');
+  vm.runInContext(`handleEvent('engine_status',{phase:'loading_model',message:'Loading weights.'})`,app.context);
+  assert.equal(app.nodes.get('run-state').textContent,'LOADING MODEL');
+  vm.runInContext(`handleEvent('metadata',{backend:'modal',model_loaded:true,startup_seconds:510}); handleEvent('complete',{})`,app.context);
+  assert.equal(app.nodes.get('connection-status').textContent,'Model ready');
+  assert.equal(app.nodes.get('run-progress').textContent,'All four responses complete. Worker startup: 510.0s.');
+});

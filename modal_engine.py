@@ -176,8 +176,10 @@ def register_local_rpc(deadline, *, manifest_path=None, diagnose=False):
         environment['MULTI_UNLORA_MANIFEST'] = str(manifest_path)
     image = with_engine_sources(base_image.env(environment))
     return app.function(name='local_model_rpc', image=image,
-        volumes={config.VOLUME_MOUNT:volume}, gpu='A100-40GB', timeout=300,
-        max_containers=1, cpu=2, memory=16384, scaledown_window=60,
+        # Both fit the BF16 model and adapters. Avoid a queue for one GPU SKU.
+        volumes={config.VOLUME_MOUNT:volume}, gpu=['L40S', 'A100-40GB'], timeout=300,
+        # app.run and the absolute deadline still bound all paid idle time.
+        max_containers=1, cpu=2, memory=16384, scaledown_window=900,
         is_generator=True)(local_model_rpc_generate)
 
 

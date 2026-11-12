@@ -395,6 +395,10 @@ class ModalBackend:
         cancel_lock = threading.Lock()
         cancelled_ids = set()
         complete = False
+        started = time.monotonic()
+        worker_started = None
+        startup_recorded = False
+        cold = not self._metadata.get("model_loaded", False)
 
         def stop():
             with cancel_lock:
@@ -414,18 +418,31 @@ class ModalBackend:
         watcher.start()
         iterator = None
         try:
+            if cold:
+                yield 'engine_status', {'phase':'waiting_for_gpu',
+                    'message':'Waiting for a GPU worker. Availability can vary; no response is generating yet.'}
             iterator = self.stream_remote(prompt, max_new_tokens, sentence_limit)
             for event, payload in iterator:
                 if event == 'rpc_started':
+                    worker_started = time.monotonic()
                     call_id.append(payload['call_id'])
                     if cancelled.is_set():
                         stop()
                         return
+                    if cold:
+                        yield 'engine_status', {'phase':'loading_model',
+                            'message':'GPU worker allocated. Loading the model and trained adapters…'}
                     continue
                 if cancelled.is_set():
                     stop()
                     return
                 if event == 'metadata':
+                    if payload.get('model_loaded') and not startup_recorded:
+                        loaded_at = time.monotonic()
+                        payload = {**payload, 'startup_seconds':round(loaded_at-started, 3),
+                            'gpu_wait_seconds':round((worker_started or started)-started, 3),
+                            'model_load_seconds':round(loaded_at-(worker_started or started), 3)}
+                        startup_recorded = True
                     self._metadata.update({k:v for k,v in payload.items()
                         if k in ('model','adapter_set','model_loaded','engine_state','model_revision',
                                  'manifest_fingerprint','quality','decoder_strategy','operator')})

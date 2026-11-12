@@ -50,7 +50,10 @@ uv run python scripts/local_demo.py --minutes 5
 
 Open http://127.0.0.1:8000. The terminal must stay open during your session.
 The first model request loads the cached weights onto the GPU.
-Subsequent requests can reuse the loaded model while it remains warm.
+The service can use an L40S or A100 GPU, depending on availability. The interface
+separates waiting for a GPU from loading the model. The loaded worker stays warm
+within your timed session to avoid reloading after a short pause; idle GPU time
+is billed and remains covered by the session reservation.
 
 A session expires automatically; Ctrl+C ends it early. The Stop button cancels
 the current comparison while keeping the local session available.
@@ -62,7 +65,7 @@ the current comparison while keeping the local session available.
 | Modal login error | Run `uv run modal setup` and select the intended workspace. |
 | Missing checkpoint | Install the bundle in the same workspace used by the launcher. |
 | Existing artifact upload error | The installer avoids overwrites. Reuse that installation, or use a clean workspace for a different checkpoint. |
-| First response is slow | Check terminal progress; a fresh workspace must download the base model. |
+| First response is slow | Check the progress message: waiting for GPU capacity is separate from loading weights. First setup downloads base weights before the session. |
 | Output ends mid-sentence | Increase the token budget, or enable One sentence. |
 | Port 8000 is occupied | Stop the other local server, then restart the launcher. |
 | Session expired | Restart `uv run python scripts/local_demo.py`. |

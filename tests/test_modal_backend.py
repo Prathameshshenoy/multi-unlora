@@ -12,8 +12,8 @@ def test_modal_bridge_streams_real_provenance_without_internal_call_id():
         yield 'complete', {'simulated':False}
     backend = ModalBackend(remote, cancelled.append)
     events = list(backend.stream('hello', 8, threading.Event()))
-    assert [e for e, _ in events] == ['metadata', 'token', 'complete']
-    assert events[0][1]['backend'] == 'modal'
+    assert [e for e, _ in events] == ['engine_status', 'engine_status', 'metadata', 'token', 'complete']
+    assert events[2][1]['backend'] == 'modal'
     assert 'private-call-id' not in str(events) and cancelled == []
     assert backend.metadata()['model_loaded'] is True
 
@@ -30,7 +30,7 @@ def test_closing_modal_stream_terminates_call_before_releasing_generator():
             order.append('remote_closed')
     backend = ModalBackend(remote, lambda call: order.append('cancel_acknowledged'))
     stream = backend.stream('hello', 8, threading.Event())
-    next(stream); stream.close()
+    next(stream); next(stream); next(stream); stream.close()
     assert order == ['cancel_acknowledged', 'remote_closed']
     assert backend.metadata()['model_loaded'] is False
 
@@ -50,7 +50,7 @@ def test_stop_interrupts_rpc_while_waiting_for_next_model_token():
     events = []
     worker = threading.Thread(target=lambda: events.extend(backend.stream('hello', 8, cancel)))
     worker.start(); assert entered.wait(3); cancel.set(); worker.join(3)
-    assert not worker.is_alive() and events == [] and seen == ['call']
+    assert not worker.is_alive() and all(e == 'engine_status' for e, _ in events) and seen == ['call']
 
 
 def test_modal_failure_is_sanitized_and_cancelled():
@@ -61,3 +61,24 @@ def test_modal_failure_is_sanitized_and_cancelled():
     events = list(ModalBackend(remote, stopped.append).stream('hello', 8, threading.Event()))
     assert events[-1][0] == 'error' and 'PRIVATE' not in str(events)
     assert stopped == ['call']
+
+
+def test_cold_start_distinguishes_gpu_allocation_from_model_loading(monkeypatch):
+    from demo import backends
+    clock = [10.0]
+    monkeypatch.setattr(backends.time, 'monotonic', lambda: clock[0])
+    def remote(*args):
+        clock[0] = 510.0  # Capacity queue precedes execution in the GPU worker.
+        yield 'rpc_started', {'call_id':'private'}
+        clock[0] = 520.0
+        yield 'metadata', {'model_loaded':True, 'engine_state':'warm'}
+        yield 'complete', {}
+    backend = ModalBackend(remote, lambda _: None)
+    events = list(backend.stream('hello', 8, threading.Event()))
+    phases = [p['phase'] for e, p in events if e == 'engine_status']
+    assert phases == ['waiting_for_gpu', 'loading_model']
+    ready = next(p for e, p in events if e == 'metadata')
+    assert ready['startup_seconds'] == 510.0
+    assert ready['gpu_wait_seconds'] == 500.0
+    assert ready['model_load_seconds'] == 10.0
+    assert 'private' not in str(events)

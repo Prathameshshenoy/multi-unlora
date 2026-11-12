@@ -16,6 +16,7 @@ let requestId;
 let stopRequested = false;
 let trace = [];
 let startedAt = 0;
+let startupSeconds = null;
 let timer;
 let apiBase = '';
 let settingsGeneration = 0;
@@ -158,7 +159,14 @@ function branchProgress(branch) {
   if ($('run-progress').textContent !== message) $('run-progress').textContent = message;
 }
 function handleEvent(event,data) {
-  if (event === 'metadata') {
+  if (event === 'engine_status') {
+    const states = {waiting_for_gpu:'WAITING FOR GPU',loading_model:'LOADING MODEL'};
+    if (states[data.phase]) {
+      elements['run-state'].textContent = states[data.phase];
+      $('run-progress').textContent = data.message || states[data.phase];
+    }
+  } else if (event === 'metadata') {
+    if (Number.isFinite(data.startup_seconds)) startupSeconds = data.startup_seconds;
     if (typeof data.request_id === 'string') requestId = data.request_id;
     backend = data.backend || backend;
     if (data.model) elements['model-name'].textContent = data.model;
@@ -203,7 +211,7 @@ function handleEvent(event,data) {
     }
     if (backend !== 'preview') notice('');
     streamCompleted = true; elements['run-state'].textContent = 'COMPARISON COMPLETE';
-    $('run-progress').textContent = 'All four responses complete.';
+    $('run-progress').textContent = startupSeconds === null ? 'All four responses complete.' : `All four responses complete. Worker startup: ${startupSeconds.toFixed(1)}s.`;
   }
   else if (event === 'error') {
     if (data.code === 'session_expired') { ready = false; elements['connection-status'].textContent = 'Session ended'; }
@@ -254,6 +262,7 @@ async function run() {
   running = true; controller = new AbortController(); resetOutputs(); setRunEnabled(); elements['stop-button'].hidden = false; elements.prompt.disabled = true; $('max-tokens').disabled = true; $('brief-answers').disabled = true; $('connect-button').disabled = true; $('settings-toggle').disabled = true; elements['run-state'].textContent = 'STARTING COMPARISON';
   for (const button of $('examples').children) button.disabled = true;
   if (backend !== 'preview') notice('The first comparison may take a few minutes while the model loads. Responses run one after another.');
+  startupSeconds = null;
   startedAt = performance.now(); timer = setInterval(() => { $('run-duration').textContent = `${((performance.now()-startedAt)/1000).toFixed(1)}s`; },100);
   try {
     const response = await fetch(endpoint('/api/generate'),{method:'POST',headers:{'Content-Type':'application/json',...headers()},body:JSON.stringify({prompt:elements.prompt.value.trim(),max_new_tokens:Number($('max-tokens').value),response_style:$('brief-answers').checked?'brief':'standard'}),signal:controller.signal});
