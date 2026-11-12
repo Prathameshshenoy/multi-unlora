@@ -38,8 +38,8 @@ def compute_dynamic_alphas(
     The direction vector isolates only the component of the hidden state that
     distinguishes the bad concept from the safe baseline.
 
-    Explicit explosive-construction requests then receive at least 75% of the
-    combined weight on jailbreak correction. This rule preserves total strength
+    Explicit violent wrongdoing requests covered by the priority rules receive
+    at least 75% of the combined weight on jailbreak correction. This rule preserves total strength
     and does not classify other kinds of harmful intent.
 
     A negative bias term (config.REPE_BIAS) shifts the sigmoid so that

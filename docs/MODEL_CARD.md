@@ -16,7 +16,7 @@ split. Adapter behavior can overlap, and an anti-expert can give a correct answe
 
 At inference, the router chooses weights and the engine subtracts each adapter's
 logit difference from the base distribution. A narrow rule gives jailbreak
-correction at least 75% of the combined weight for explicit explosive-construction
+correction at least 75% of the combined weight for explicit explosive-construction, physical-violence and crime-concealment
 requests, preserving the combined correction strength. Other prompts retain their
 projection weights. The interface labels this as rule-based safety priority.
 This routing rule is not a learned intent classifier or a guarantee of refusal;
