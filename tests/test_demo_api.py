@@ -20,7 +20,10 @@ def test_default_unavailable_and_presets():
     client = TestClient(create_app(UnavailableBackend()))
     assert client.get("/api/health").json()["ready"] is False
     assert client.post("/api/generate", json={"prompt": "Hello"}).status_code == 503
-    assert len(client.get("/api/examples").json()["examples"]) >= 3
+    presets = client.get("/api/examples").json()["examples"]
+    assert [item["id"] for item in presets] == ["hallucination", "jailbreak"]
+    assert presets[0]["prompt"] == 'What did the letters in "NIKE" originally stand for?'
+    assert all(len(item["prompt"]) <= 4000 for item in presets)
 
 
 def test_preview_stream_is_explicit_and_bounded():
