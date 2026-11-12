@@ -102,7 +102,7 @@ function routing(data) {
     if (!Number.isFinite(alpha)) continue;
     $(`alpha-${id}`).textContent = alpha.toFixed(3); $(`${id}-meter`).style.width = `${Math.min(1,Math.max(0,alpha))*100}%`;
   }
-  $('router-state').textContent = backend === 'preview' ? 'SIMULATED WEIGHTS' : 'PROMPT ROUTED';
+  $('router-state').textContent = backend === 'preview' ? 'SIMULATED WEIGHTS' : data.routing_basis === 'explicit_safety_priority' ? 'SAFETY PRIORITY · RULE-BASED' : 'PROMPT ROUTED';
 }
 function telemetry(data) {
   const kl = Number(data.kl_divergence);

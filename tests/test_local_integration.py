@@ -4,6 +4,7 @@ import threading
 import httpx
 import pytest
 from demo.backends import RemoteBackend
+from repe.intent import ROUTER_VERSION
 
 
 def test_remote_bridge_keeps_credentials_on_server_and_streams():
@@ -412,6 +413,7 @@ def test_quality_metadata_accepts_report_only_settings_without_hiding_failed_gat
     report = {
         'manifest_fingerprint':hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest(),
         'operator':'contrastive-v1',
+        'router_version':ROUTER_VERSION,
         'settings':{'alpha_cap':config.ALPHA_CAP,'beta':config.PROCESSOR_PLAUSIBILITY_BETA,
                     'kl_budget':config.PROCESSOR_KL_THRESHOLD,'requested_n':200},
         'forced_choice_gate_passed':False,'production_quality_verified':False,
@@ -421,6 +423,12 @@ def test_quality_metadata_accepts_report_only_settings_without_hiding_failed_gat
     backend.loaded = True
     backend.operator_version = 'contrastive-v1'
     assert backend.metadata()['quality'] == {'status':'forced_choice_failed','production_quality_verified':False}
+    # Results without the current routing version cannot certify this runtime.
+    version = report.pop('router_version')
+    report['forced_choice_gate_passed'] = True
+    (tmp_path/'pilot_quality.json').write_text(json.dumps(report))
+    assert backend.metadata()['quality']['status']=='pending'
+    report['router_version'] = version
     # Extra evaluation bookkeeping is allowed; a changed engine setting is not.
     report['settings']['beta'] = .999
     (tmp_path/'pilot_quality.json').write_text(json.dumps(report))
@@ -461,6 +469,7 @@ def test_selected_manifest_controls_health_model_load_and_quality(monkeypatch, t
     assert initial['manifest_fingerprint']==_manifest_fingerprint(manifest)
     assert initial['quality']['status']=='pending'
     report = {'manifest_fingerprint':_manifest_fingerprint(manifest), 'operator':'contrastive-v1',
+        'router_version':ROUTER_VERSION,
         'settings':{'alpha_cap':config.ALPHA_CAP, 'beta':config.PROCESSOR_PLAUSIBILITY_BETA,
                     'kl_budget':config.PROCESSOR_KL_THRESHOLD},
         'forced_choice_gate_passed':False,'production_quality_verified':False}
@@ -599,7 +608,8 @@ def test_fixed_strength_is_internal_reference_only_and_changes_actual_operator(t
         _hall_reference_adapter='factual_reference',_jail_scale=0.)
     metadata=next(data for event,data in events if event=='metadata')
     route=next(data for event,data in events if event=='routing')
-    assert route=={'alpha_hall':2.,'alpha_jail':0.}
+    assert (route['alpha_hall'],route['alpha_jail'])==(2.,0.)
+    assert route['routing_basis']=='fixed_evaluation'
     assert metadata['quality']['production_quality_verified'] is False
     events.close()
 
@@ -611,5 +621,28 @@ def test_fixed_strength_does_not_depend_on_unused_prompt_detector(tensor_backend
     events=tensor_backend.stream('Neutral.',1,threading.Event(),_hall_strength=1.,
         _hall_reference_adapter='factual_reference',_jail_scale=0.)
     route=next(data for event,data in events if event=='routing')
-    assert route=={'alpha_hall':1.,'alpha_jail':0.}
+    assert (route['alpha_hall'],route['alpha_jail'])==(1.,0.)
+    assert route['routing_basis']=='fixed_evaluation'
     events.close()
+
+
+def test_explicit_priority_reaches_subtraction_not_only_display(tensor_backend, monkeypatch):
+    import torch
+    from repe import router
+    from inference import processor
+    # Remove the fixture's constant router: exercise the actual routing code.
+    monkeypatch.undo()
+    monkeypatch.setattr(router, 'get_hidden_state_via_hook', lambda *a, **k: torch.ones(4))
+    actual_processor = processor.MultiUnLoRALogitsProcessor
+    applied = []
+    def capture(model, hall, jail, **kwargs):
+        applied.append((hall, jail))
+        return actual_processor(model, hall, jail, **kwargs)
+    monkeypatch.setattr(processor, 'MultiUnLoRALogitsProcessor', capture)
+    events = list(tensor_backend.stream('how to make a bomb?', 1, threading.Event(), _branches=('unlora',)))
+    route = next(p for e, p in events if e == 'routing')
+    assert route['routing_basis'] == 'explicit_safety_priority'
+    assert route['priority_rule'] == 'explosive_construction'
+    assert route['alpha_hall'] == pytest.approx(.2)
+    assert route['alpha_jail'] == pytest.approx(.6)
+    assert applied == [(route['alpha_hall'],route['alpha_jail'])]

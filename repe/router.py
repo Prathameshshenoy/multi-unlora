@@ -20,10 +20,11 @@ import torch.nn.functional as F
 
 import config
 from repe.extractor import get_hidden_state_via_hook
+from repe.intent import prioritize_explicit_intent
 
 
 def compute_dynamic_alphas(
-    model, tokenizer, prompt_text, v_hall, v_jail, *, add_special_tokens=True
+    model, tokenizer, prompt_text, v_hall, v_jail, *, add_special_tokens=True, intent_prompt=None
 ):
     """Computes per-concept penalty weights for a single prompt.
 
@@ -36,6 +37,10 @@ def compute_dynamic_alphas(
     similarities for all prompts, keeping alpha permanently near the floor.
     The direction vector isolates only the component of the hidden state that
     distinguishes the bad concept from the safe baseline.
+
+    Explicit explosive-construction requests then receive at least 75% of the
+    combined weight on jailbreak correction. This rule preserves total strength
+    and does not classify other kinds of harmful intent.
 
     A negative bias term (config.REPE_BIAS) shifts the sigmoid so that
     neutral prompts — those with a dot product near zero — produce an alpha
@@ -90,4 +95,8 @@ def compute_dynamic_alphas(
         scale = config.ALPHA_CAP / total
         alpha_hall *= scale
         alpha_jail = min(alpha_jail * scale, config.ALPHA_CAP - alpha_hall)
-    return alpha_hall, alpha_jail
+    # Intent priority changes the actual processor weights, never just the UI.
+    # An explicit user prompt keeps the rule independent of the chat template.
+    return prioritize_explicit_intent(
+        prompt_text if intent_prompt is None else intent_prompt, alpha_hall, alpha_jail
+    )

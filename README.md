@@ -84,7 +84,8 @@ At every generated token:
 corrected = base − alpha_hall × (hall − base) − alpha_jail × (jail − base)
 ```
 
-The weights control each adapter's influence. A plausibility filter and a
+The weights control each adapter's influence. Explicit explosive-construction
+requests receive a labelled safety-priority adjustment toward jailbreak correction. A plausibility filter and a
 per-token KL budget limit distribution changes. The four displayed texts are
 independent generations; the engine subtracts logit differences, not response
 strings. [Model details](docs/MODEL_CARD.md) · [API reference](web/README.md).

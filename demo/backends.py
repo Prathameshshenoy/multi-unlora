@@ -7,6 +7,8 @@ import threading
 import time
 from pathlib import Path
 
+from repe.intent import ROUTER_VERSION, explicit_safety_intent
+
 import config
 
 BRANCHES = ("baseline", "hallucination", "jailbreak", "unlora")
@@ -117,7 +119,7 @@ class GPUBackend:
                 reported_settings.get(key) == value for key, value in settings.items()
             )
             if (report.get("manifest_fingerprint") != digest or
-                    not settings_match or
+                    not settings_match or report.get("router_version") != ROUTER_VERSION or
                     report.get("operator") != getattr(self, "operator_version", None)):
                 report = {}
         gate_result = report.get("forced_choice_gate_passed")
@@ -125,6 +127,7 @@ class GPUBackend:
             "engine_state": "warm" if self.loaded else ("loading" if self.loading else ("load_failed" if self.load_failed else "cold")),
             "model_loaded": self.loaded,
             "model_revision": manifest.get("model_revision"),
+            "router_version": ROUTER_VERSION,
             "training_status": manifest.get("status", "unknown"),
             "adapter_set": "selected" if self.manifest_path else "canonical",
             "manifest_fingerprint": _manifest_fingerprint(manifest) if manifest else None,
@@ -247,14 +250,19 @@ class GPUBackend:
                 if _fixed_alphas is not None:
                     alpha_hall, alpha_jail = map(float, _fixed_alphas)
                 elif _hall_strength is None:
-                    alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False)
+                    alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False, intent_prompt=prompt)
                     alpha_hall*=_correction_scale
                     alpha_jail*=_correction_scale*_jail_scale
                 else:
                     # Fixed calibration does not depend on an unused detector
                     # projection; validation above requires jailbreak weight 0.
                     alpha_hall,alpha_jail=float(_hall_strength),0.
-                yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail}
+                intent = explicit_safety_intent(prompt) if _fixed_alphas is None and _hall_strength is None else None
+                yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail,
+                    "router_version":ROUTER_VERSION,
+                    "routing_basis": "explicit_safety_priority" if intent else (
+                        "fixed_evaluation" if _fixed_alphas is not None or _hall_strength is not None else "repe_projection"),
+                    "priority_rule":intent}
                 result = {}
                 eos = getattr(model.generation_config, "eos_token_id", None)
                 eos_ids = set(eos if isinstance(eos, (list, tuple)) else [eos])
@@ -445,7 +453,7 @@ class ModalBackend:
                         startup_recorded = True
                     self._metadata.update({k:v for k,v in payload.items()
                         if k in ('model','adapter_set','model_loaded','engine_state','model_revision',
-                                 'manifest_fingerprint','quality','decoder_strategy','operator')})
+                                 'manifest_fingerprint','quality','decoder_strategy','operator','router_version')})
                     payload = {**payload, 'backend':self.name}
                 if event == 'complete':
                     complete = True
@@ -474,7 +482,7 @@ class RemoteBackend:
     _PUBLIC_METADATA = ("model", "engine_state", "model_loaded", "model_revision",
                         "training_status", "operator", "quality", "session_expires_at",
                         "branches", "display_restricted", "display_reason", "display_policy_version", "decoder_strategy",
-                        "adapter_set", "manifest_fingerprint")
+                        "adapter_set", "manifest_fingerprint", "router_version")
 
     def __init__(self, url=None, token=None, client=None):
         from urllib.parse import urlsplit

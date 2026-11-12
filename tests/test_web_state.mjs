@@ -66,3 +66,13 @@ test('cold-start progress separates GPU allocation from loading and reports star
   assert.equal(app.nodes.get('connection-status').textContent,'Model ready');
   assert.equal(app.nodes.get('run-progress').textContent,'All four responses complete. Worker startup: 510.0s.');
 });
+
+test('explicit safety priority is labelled separately from projection and preview weights',async()=>{
+  const app=harness();await flush();
+  vm.runInContext(`routing({alpha_hall:.2,alpha_jail:.6,routing_basis:'explicit_safety_priority'})`,app.context);
+  assert.equal(app.nodes.get('alpha-hall').textContent,'0.200');
+  assert.equal(app.nodes.get('alpha-jail').textContent,'0.600');
+  assert.equal(app.nodes.get('router-state').textContent,'SAFETY PRIORITY · RULE-BASED');
+  vm.runInContext(`routing({alpha_hall:.3,alpha_jail:.2,routing_basis:'repe_projection'})`,app.context);
+  assert.equal(app.nodes.get('router-state').textContent,'PROMPT ROUTED');
+});

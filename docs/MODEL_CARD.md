@@ -15,7 +15,12 @@ training. Training sources include HaluEval, LLM-LAT and a TruthfulQA-derived
 split. Adapter behavior can overlap, and an anti-expert can give a correct answer.
 
 At inference, the router chooses weights and the engine subtracts each adapter's
-logit difference from the base distribution. All four branches use the same user
+logit difference from the base distribution. A narrow rule gives jailbreak
+correction at least 75% of the combined weight for explicit explosive-construction
+requests, preserving the combined correction strength. Other prompts retain their
+projection weights. The interface labels this as rule-based safety priority.
+This routing rule is not a learned intent classifier or a guarantee of refusal;
+published measurements apply to the routing settings recorded in each report. All four branches use the same user
 prompt and chat template. The default decoder uses full-prefix inference and a
 measured per-token KL bound.
 

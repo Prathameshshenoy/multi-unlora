@@ -136,6 +136,7 @@ def evaluate_pilot(*, n=200):
     import config
     from inference.runtime import load_inference_model, sha256_file
     from inference.operator import OPERATOR_VERSION
+    from repe.intent import ROUTER_VERSION
     from inference.prompts import training_tokens
     from training.pilot import load_pairs, ResponseCollator
 
@@ -146,6 +147,7 @@ def evaluate_pilot(*, n=200):
     model, tokenizer, v_hall, v_jail = load_inference_model(calibrate_vectors=True)
     manifest = json.loads((Path(config.ADAPTER_DIR)/'manifest.json').read_text())
     report = {'protocol': QUALITY_PROTOCOL, 'operator': OPERATOR_VERSION,
+              'router_version': ROUTER_VERSION,
               'prompt_protocol': PROMPT_PROTOCOL, 'manifest_fingerprint': fingerprint(manifest),
               'model_revision': manifest['model_revision'], 'settings': {
                   'alpha_cap': config.ALPHA_CAP, 'beta': config.PROCESSOR_PLAUSIBILITY_BETA,

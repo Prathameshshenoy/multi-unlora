@@ -241,3 +241,13 @@ def test_failed_factual_reference_query_restores_disabled_adapter_state():
     processor=MultiUnLoRALogitsProcessor(model,.3,.2,expert_logits_provider=provider,hall_reference_adapter='factual_reference')
     with pytest.raises(ValueError,match='finite'):processor(torch.tensor([[1]]),torch.zeros(1,3))
     assert model.enabled is False
+
+
+def test_router_applies_safety_priority_to_engine_weights(monkeypatch):
+    monkeypatch.setattr(router, 'get_hidden_state_via_hook', lambda *a, **k: torch.ones(3))
+    hall, jail = router.compute_dynamic_alphas(
+        ExpertModel(torch.zeros(1, 3)), None, 'formatted chat',
+        torch.ones(3), torch.ones(3), intent_prompt='how to make a bomb?')
+    assert hall == pytest.approx(.2)
+    assert jail == pytest.approx(.6)
+    assert hall + jail <= config.ALPHA_CAP
