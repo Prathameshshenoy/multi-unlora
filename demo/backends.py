@@ -110,9 +110,8 @@ class GPUBackend:
         if report:
             import hashlib
             digest = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
-            settings = {"alpha_cap": config.ALPHA_CAP,
-                        "beta": config.PROCESSOR_PLAUSIBILITY_BETA,
-                        "kl_budget": config.PROCESSOR_KL_THRESHOLD}
+            from inference.runtime import decoding_settings
+            settings = {"alpha_cap": config.ALPHA_CAP, **decoding_settings(manifest)}
             reported_settings = report.get("settings")
             settings_match = isinstance(reported_settings, dict) and all(
                 not isinstance(reported_settings.get(key), bool) and
@@ -181,7 +180,13 @@ class GPUBackend:
         for value in (_correction_scale,_jail_scale):
             if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not 0<=value<=1:
                 raise ValueError("Evaluation may only attenuate routed correction weights")
-        beta=config.PROCESSOR_PLAUSIBILITY_BETA if _beta is None else _beta
+        from inference.runtime import decoding_settings
+        try:
+            artifact_manifest = _read_json(self._paths()['manifest'])
+        except (OSError, ValueError, RuntimeError):
+            artifact_manifest = {}
+        model_settings = decoding_settings(artifact_manifest)
+        beta=model_settings['beta'] if _beta is None else _beta
         if isinstance(beta,bool) or not isinstance(beta,(float,int)) or not math.isfinite(beta) or not 0<beta<=1:
             raise ValueError("Invalid experimental plausibility beta")
         if _hall_strength is not None:
@@ -190,7 +195,7 @@ class GPUBackend:
                 raise ValueError("Fixed strength requires a factual reference and disabled jailbreak term")
         if _candidate_support not in ("base","base_reference_union") or (_candidate_support!="base" and _hall_reference_adapter is None):
             raise ValueError("Experimental candidate support requires a factual reference")
-        kl_budget=config.PROCESSOR_KL_THRESHOLD if _kl_budget is None else _kl_budget
+        kl_budget=model_settings['kl_budget'] if _kl_budget is None else _kl_budget
         if (isinstance(kl_budget,bool) or kl_budget not in (.5,2.,8.)
                 or (_kl_budget is not None and _hall_reference_adapter is None)):
             raise ValueError("Experimental KL budget requires a factual reference and a declared budget")

@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path, PurePosixPath
 import subprocess
 import sys
@@ -24,6 +25,12 @@ def sha256(path):
     return digest.hexdigest()
 
 
+def model_prefix(manifest):
+    if not isinstance(manifest,str) or not re.fullmatch(r'/vol/runs/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}/manifest\.json',manifest):
+        raise ValueError('Invalid installed model manifest path')
+    return manifest.removeprefix('/vol/').removesuffix('manifest.json')
+
+
 def unpack_bundle(archive, destination):
     """Extract a data-only checkpoint, rejecting links, traversal and extra files."""
     destination = Path(destination)
@@ -37,13 +44,14 @@ def unpack_bundle(archive, destination):
         if bundle.getmember('bundle.json').size > 1024*1024:
             raise ValueError('Oversized model inventory')
         metadata = json.load(bundle.extractfile('bundle.json'))
-        if metadata.get('protocol') != 'multi-unlora-model-bundle-v1' or metadata.get('manifest') != MANIFEST:
+        if metadata.get('protocol') != 'multi-unlora-model-bundle-v1':
             raise ValueError('Unsupported model bundle')
+        prefix = model_prefix(metadata.get('manifest'))
         files = metadata.get('files', {})
         if not isinstance(files, dict) or set(names) != {'bundle.json', *files}:
             raise ValueError('Bundle inventory does not match its files')
-        required = {MODEL_PREFIX+'manifest.json', MODEL_PREFIX+'repe_vectors.pt'}
-        required.update(MODEL_PREFIX+role+'/'+name for role in ('hallucination', 'jailbreak')
+        required = {prefix+'manifest.json', prefix+'repe_vectors.pt'}
+        required.update(prefix+role+'/'+name for role in ('hallucination', 'jailbreak')
                         for name in ('adapter_config.json', 'adapter_model.safetensors'))
         if not required <= set(files):
             raise ValueError('Incomplete model checkpoint')
@@ -51,7 +59,7 @@ def unpack_bundle(archive, destination):
             if member.name == 'bundle.json':
                 continue
             path = PurePosixPath(member.name)
-            if (not member.name.startswith(MODEL_PREFIX) or path.is_absolute() or '\\' in member.name
+            if (not member.name.startswith(prefix) or path.is_absolute() or '\\' in member.name
                     or any(part in ('', '.', '..') for part in member.name.split('/'))):
                 raise ValueError('Unsafe model bundle path')
             expected = files[member.name]
@@ -64,14 +72,14 @@ def unpack_bundle(archive, destination):
                     output.write(chunk)
             if sha256(target) != expected['sha256']:
                 raise ValueError('Model artifact checksum mismatch')
-    manifest = json.loads((destination/MODEL_PREFIX/'manifest.json').read_text())
+    manifest = json.loads((destination/prefix/'manifest.json').read_text())
     for role in ('hallucination', 'jailbreak'):
-        if manifest.get('adapter_paths', {}).get(role) != '/vol/'+MODEL_PREFIX+role:
+        if manifest.get('adapter_paths', {}).get(role) != '/vol/'+prefix+role:
             raise ValueError('Model adapter path mismatch')
         for name, key in (('adapter_model.safetensors', 'adapter_sha256'), ('adapter_config.json', 'adapter_config_sha256')):
-            if sha256(destination/MODEL_PREFIX/role/name) != manifest['concepts'][role][key]:
+            if sha256(destination/prefix/role/name) != manifest['concepts'][role][key]:
                 raise ValueError('Adapter manifest checksum mismatch')
-    if manifest.get('repe_checkpoint') != '/vol/'+MODEL_PREFIX+'repe_vectors.pt':
+    if manifest.get('repe_checkpoint') != '/vol/'+prefix+'repe_vectors.pt':
         raise ValueError('Model calibration path mismatch')
     return metadata
 
@@ -86,7 +94,7 @@ def install_bundle(archive):
                 upload.put_file(Path(directory)/relative, '/'+relative)
     state = ROOT/'.runtime'
     state.mkdir(exist_ok=True)
-    (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST, 'bundle_sha256':sha256(archive)}, indent=2))
+    (state/'local-model.json').write_text(json.dumps({'manifest':metadata['manifest'], 'bundle_sha256':sha256(archive)}, indent=2))
     print('Trained model installed in your Modal workspace. No GPU was started.', flush=True)
 
 
@@ -99,7 +107,11 @@ def download_model():
     if not url.startswith('https://github.com/Prathameshshenoy/multi-unlora/releases/download/'):
         raise ValueError('Unexpected model download source')
     cache = ROOT/'.runtime/models'; cache.mkdir(parents=True, exist_ok=True)
-    target = cache/'multi-unlora-8b-v1.0.0.tar.gz'
+    from urllib.parse import urlsplit
+    filename = Path(urlsplit(url).path).name
+    if not filename.endswith('.tar.gz'):
+        raise ValueError('Invalid model archive filename')
+    target = cache/filename
     if target.exists() and sha256(target) == descriptor['sha256']:
         return target
     temporary = target.with_suffix('.part')
@@ -124,7 +136,9 @@ def prepare_runtime():
     # Image building can take longer than a short inference session on a fresh
     # account. Finish it on CPU before the GPU session's clock starts.
     print('Preparing the Modal runtime (first setup only; no GPU)…', flush=True)
-    subprocess.run([sys.executable, str(ROOT/'scripts/run_engine.py'), 'prepare-local'], cwd=ROOT, check=True)
+    manifest = json.loads((ROOT/'.runtime/local-model.json').read_text())['manifest']
+    model_prefix(manifest)
+    subprocess.run([sys.executable, str(ROOT/'scripts/run_engine.py'), 'prepare-local', '--manifest', manifest], cwd=ROOT, check=True)
     path = ROOT/'.runtime/local-model.json'
     settings = json.loads(path.read_text()); settings['runtime_prepared'] = True
     path.write_text(json.dumps(settings, indent=2))
@@ -155,7 +169,10 @@ def main():
         if args.budget_usd is not None or not budget.exists():
             temporary = budget.with_suffix('.tmp')
             temporary.write_text(json.dumps(ledger, indent=2)); temporary.replace(budget)
-    if args.bundle is not None or not (state/'local-model.json').exists():
+    descriptor = ROOT/'models/model.json'
+    installed = json.loads((state/'local-model.json').read_text()) if (state/'local-model.json').exists() else {}
+    updated = descriptor.exists() and installed.get('bundle_sha256') != json.loads(descriptor.read_text())['sha256']
+    if args.bundle is not None or not installed or updated:
         install_bundle(args.bundle if args.bundle is not None else download_model())
     settings = json.loads((state/'local-model.json').read_text())
     if settings.get('runtime_prepared') is not True:
@@ -163,8 +180,7 @@ def main():
     if args.install_only:
         return
     manifest = json.loads((state/'local-model.json').read_text())['manifest']
-    if manifest != MANIFEST:
-        raise ValueError('Installed model selection is invalid; reinstall the checkpoint')
+    model_prefix(manifest)
     raise SystemExit(subprocess.call([sys.executable, str(ROOT/'scripts/run_engine.py'), 'serve-local',
                                      '--minutes', str(args.minutes), '--manifest', manifest], cwd=ROOT))
 

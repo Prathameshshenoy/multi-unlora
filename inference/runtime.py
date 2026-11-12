@@ -1,6 +1,7 @@
 """Validated, revision-pinned plain HF inference; no Unsloth monkey patches."""
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 
@@ -120,7 +121,20 @@ def validate_artifacts(manifest_path=None):
                 or any(not isinstance(key,str) or not re.fullmatch(r"[0-9a-f]{64}",key) for key in ids)
                 or len(set(ids))!=len(ids)):
             raise RuntimeError("Invalid training-corpus question provenance")
+    decoding_settings(manifest)
     return manifest
+
+
+def decoding_settings(manifest):
+    settings = manifest.get('decoder_settings', {})
+    if not isinstance(settings, dict) or set(settings)-{'beta','kl_budget'}:
+        raise RuntimeError('Invalid decoder settings in model manifest')
+    beta = settings.get('beta', config.PROCESSOR_PLAUSIBILITY_BETA)
+    budget = settings.get('kl_budget', config.PROCESSOR_KL_THRESHOLD)
+    if (type(beta) not in (int,float) or not math.isfinite(beta) or not 0<beta<=1
+            or type(budget) not in (int,float) or not math.isfinite(budget) or budget not in (.5,2.,8.)):
+        raise RuntimeError('Invalid decoder settings in model manifest')
+    return {'beta':float(beta), 'kl_budget':float(budget)}
 
 
 def load_inference_model(*, calibrate_vectors=False, manifest_path=None):

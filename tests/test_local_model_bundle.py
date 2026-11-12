@@ -146,3 +146,31 @@ def test_budget_changes_require_explicit_flag_and_retain_reservations(tmp_path, 
     local_demo.main()
     updated=json.loads((state/'budget.json').read_text())
     assert updated['approved_usd']==4 and updated['reservations']==budget['reservations']
+
+
+def test_versioned_bundle_retains_decoder_settings(tmp_path):
+    make_bundle(tmp_path)
+    root=tmp_path/'backup';source=root/'runs/misconception_roles_v1/manifest.json'
+    manifest=json.loads(source.read_text())
+    manifest['decoder_settings']={'beta':.01,'kl_budget':2.}
+    source.write_text(json.dumps(manifest))
+    archive=tmp_path/'versioned.tar.gz';prefix='runs/multi_unlora_8b_v1_1/'
+    package_model(root,archive,source_manifest=source,model_directory=prefix)
+    metadata=unpack_bundle(archive,tmp_path/'installed')
+    assert metadata['manifest']=='/vol/'+prefix+'manifest.json'
+    installed=json.loads((tmp_path/'installed'/prefix/'manifest.json').read_text())
+    assert installed['decoder_settings']=={'beta':.01,'kl_budget':2.}
+    assert len(metadata['files'])==6
+
+
+def test_prepare_targets_the_installed_model_namespace(tmp_path,monkeypatch):
+    from scripts import local_demo
+    state=tmp_path/'.runtime';state.mkdir()
+    manifest='/vol/runs/multi_unlora_8b_v1_1/manifest.json'
+    path=state/'local-model.json';path.write_text(json.dumps({'manifest':manifest}))
+    monkeypatch.setattr(local_demo,'ROOT',tmp_path)
+    calls=[]
+    monkeypatch.setattr(local_demo.subprocess,'run',lambda command,**kwargs:calls.append(command))
+    local_demo.prepare_runtime()
+    assert calls[0][-2:]==['--manifest',manifest]
+    assert json.loads(path.read_text())['runtime_prepared'] is True

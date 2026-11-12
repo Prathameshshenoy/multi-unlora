@@ -24,3 +24,10 @@ def test_each_reservation_dispatches_exactly_its_one_cloud_job(stage,function,ar
 
 def test_every_nonserving_budget_stage_has_a_dispatch_contract():
     assert {case[0] for case in CASES}==set(RESERVATIONS)-{'serve-local'}
+
+
+def test_model_preparation_uses_the_selected_version():
+    calls=[]
+    engine=SimpleNamespace(**{name:SimpleNamespace(remote=lambda *args:calls.append(args)) for _,name,_ in CASES})
+    dispatch_stage(engine,'prepare-local',80,manifest_path='/vol/runs/version_2/manifest.json')
+    assert calls==[('/vol/runs/version_2/manifest.json',)]

@@ -30,10 +30,10 @@ engine_image = with_engine_sources(base_image)
 
 @app.function(image=engine_image, volumes={config.VOLUME_MOUNT: volume}, timeout=900,
               max_containers=1, retries=0, cpu=1, memory=4096, scaledown_window=2)
-def prepare_demo_runtime():
+def prepare_demo_runtime(manifest_path=None):
     """Build the model image and validate an installed bundle without a GPU."""
     from inference.runtime import validate_artifacts, artifact_paths
-    path = '/vol/runs/demo_v1/manifest.json'
+    path = manifest_path or '/vol/runs/demo_v1/manifest.json'
     manifest = validate_artifacts(path)
     if not artifact_paths(path)['repe'].is_file():
         raise RuntimeError('Installed model is missing its calibration vectors')

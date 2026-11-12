@@ -44,7 +44,7 @@ def reserve(stage, *, minutes=15):
         print(f'Budget reservation: ${spent+cost:.2f} / ${ledger["approved_usd"]:.2f}',flush=True)
 
 
-def dispatch_stage(engine, stage, steps):
+def dispatch_stage(engine, stage, steps, *, manifest_path=None):
     """Invoke exactly one budgeted cloud function; serving is handled separately."""
     jobs={
         'prepare-local':(engine.prepare_demo_runtime,()),
@@ -82,6 +82,8 @@ def dispatch_stage(engine, stage, steps):
     if stage not in jobs:
         raise ValueError('Stage has no bounded cloud job')
     job,args=jobs[stage]
+    if stage=='prepare-local' and manifest_path is not None:
+        return job.remote(manifest_path)
     return job.remote(*args)
 
 
@@ -103,8 +105,8 @@ def main():
         parser.error('anchored-long-train uses the fixed 160-step experiment')
     if args.stage in ('train','paired-train') and args.steps not in (80,120):
         parser.error('pilot and paired training support only 80 or 120 steps')
-    if args.manifest and args.stage != 'serve-local':
-        parser.error('--manifest is supported only for serve-local')
+    if args.manifest and args.stage not in ('serve-local','prepare-local'):
+        parser.error('--manifest is supported only for serve-local and prepare-local')
     if args.manifest and args.diagnose:
         parser.error('--manifest cannot be combined with the canonical-only --diagnose flag')
     # Freeze only runtime source. Edits in the IDE must not race a cloud build.
@@ -158,7 +160,7 @@ def main():
             finally:
                 timer.cancel()
             return
-        result = dispatch_stage(modal_engine,args.stage,args.steps)
+        result = dispatch_stage(modal_engine,args.stage,args.steps,manifest_path=args.manifest)
         output = ROOT/'.runtime'/f'{args.stage}-result.json'
         output.write_text(json.dumps(result,indent=2))
         printable = result

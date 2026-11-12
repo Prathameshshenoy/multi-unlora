@@ -8,12 +8,14 @@ import sys
 import tarfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.local_demo import MODEL_PREFIX, MANIFEST, sha256
+from scripts.local_demo import MODEL_PREFIX, model_prefix, sha256
 
 
-def package_model(backup, output, *, license_files=()):
+def package_model(backup, output, *, license_files=(), source_manifest=None, model_directory=MODEL_PREFIX):
     backup, output = Path(backup), Path(output)
-    original = backup/'runs/misconception_roles_v1/manifest.json'
+    original = Path(source_manifest) if source_manifest is not None else backup/'runs/misconception_roles_v1/manifest.json'
+    manifest_location = '/vol/'+model_directory+'manifest.json'
+    model_prefix(manifest_location)
     source = json.loads(original.read_text())
     files = {}
     concepts = {}
@@ -26,21 +28,23 @@ def package_model(backup, output, *, license_files=()):
             if digest != source['concepts'][role][key]:
                 raise ValueError('Source model artifact checksum mismatch')
             concepts[role][key] = digest
-            files[MODEL_PREFIX+role+'/'+name] = path
-    files[MODEL_PREFIX+'repe_vectors.pt'] = backup/Path(source['repe_checkpoint']).relative_to('/vol')
+            files[model_directory+role+'/'+name] = path
+    files[model_directory+'repe_vectors.pt'] = backup/Path(source['repe_checkpoint']).relative_to('/vol')
     for path in map(Path, license_files):
-        files[MODEL_PREFIX+path.name] = path
+        files[model_directory+path.name] = path
     manifest = {key:source[key] for key in ('base_model', 'model_revision', 'prompt_protocol')}
     manifest.update(status='research_demo', concepts=concepts,
-                    adapter_paths={role:'/vol/'+MODEL_PREFIX+role for role in concepts},
-                    repe_checkpoint='/vol/'+MODEL_PREFIX+'repe_vectors.pt',
+                    adapter_paths={role:'/vol/'+model_directory+role for role in concepts},
+                    repe_checkpoint='/vol/'+model_directory+'repe_vectors.pt',
                     source_manifest_sha256=sha256(original))
+    if 'decoder_settings' in source:
+        manifest['decoder_settings'] = source['decoder_settings']
     if 'training_corpus' in source:
         manifest['training_corpus'] = source['training_corpus']
     manifest_bytes = (json.dumps(manifest, indent=2)+'\n').encode()
     inventory = {name:{'sha256':sha256(path), 'size_bytes':path.stat().st_size} for name, path in files.items()}
-    inventory[MODEL_PREFIX+'manifest.json'] = {'sha256':hashlib.sha256(manifest_bytes).hexdigest(), 'size_bytes':len(manifest_bytes)}
-    metadata = {'protocol':'multi-unlora-model-bundle-v1', 'manifest':MANIFEST,
+    inventory[model_directory+'manifest.json'] = {'sha256':hashlib.sha256(manifest_bytes).hexdigest(), 'size_bytes':len(manifest_bytes)}
+    metadata = {'protocol':'multi-unlora-model-bundle-v1', 'manifest':manifest_location,
                 'base_model_included':False, 'files':inventory}
     output.parent.mkdir(parents=True, exist_ok=True)
     # No credentials, datasets, reports, training state or base weights enter here.
@@ -49,7 +53,7 @@ def package_model(backup, output, *, license_files=()):
             info = tarfile.TarInfo(name); info.size = len(value); info.mode = 0o644
             archive.addfile(info, io.BytesIO(value))
         add_bytes('bundle.json', json.dumps(metadata, indent=2).encode())
-        add_bytes(MODEL_PREFIX+'manifest.json', manifest_bytes)
+        add_bytes(model_directory+'manifest.json', manifest_bytes)
         for name, path in sorted(files.items()):
             archive.add(path, arcname=name, recursive=False)
     return {'path':str(output), 'sha256':sha256(output), 'size_bytes':output.stat().st_size, 'files':len(inventory)}

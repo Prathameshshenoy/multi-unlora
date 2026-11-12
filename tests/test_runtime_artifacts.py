@@ -214,3 +214,14 @@ def test_malformed_training_question_provenance_fails_closed(artifact_set,ids):
     (root/'manifest.json').write_text(json.dumps(manifest))
     with pytest.raises(RuntimeError,match='training-corpus'):
         runtime.validate_artifacts()
+
+
+@pytest.mark.parametrize('settings', [{'beta':True}, {'beta':0}, {'beta':float('nan')}, {'kl_budget':-1}, {'unexpected':1}])
+def test_invalid_artifact_decoder_settings_are_rejected(settings):
+    with pytest.raises(RuntimeError,match='decoder settings'):
+        runtime.decoding_settings({'decoder_settings':settings})
+
+
+def test_artifact_decoder_settings_are_explicit_and_default_compatible():
+    assert runtime.decoding_settings({})=={'beta':config.PROCESSOR_PLAUSIBILITY_BETA,'kl_budget':config.PROCESSOR_KL_THRESHOLD}
+    assert runtime.decoding_settings({'decoder_settings':{'beta':.01,'kl_budget':2}})=={'beta':.01,'kl_budget':2.}
