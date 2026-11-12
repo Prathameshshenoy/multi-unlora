@@ -28,7 +28,7 @@ function harness() {
 }
 const flush=()=>new Promise(setImmediate);
 
-test('reconnecting clears an old expired session and its visible expiry',async()=>{
+test('reconnecting clears an old expired session',async()=>{
   const app=harness();await flush();
   app.intervals[0]();
   assert.equal(app.nodes.get('run-button').disabled,true);
@@ -36,7 +36,6 @@ test('reconnecting clears an old expired session and its visible expiry',async()
   await app.nodes.get('connect-button').events.click();
   app.intervals[0]();
   assert.equal(app.nodes.get('run-button').disabled,false);
-  assert.equal(app.nodes.get('session-status').hidden,true);
   assert.equal(app.nodes.get('connection-status').textContent,'GPU connected');
 });
 

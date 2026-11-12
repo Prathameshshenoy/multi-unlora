@@ -29,24 +29,14 @@ function endpoint(path) { return `${apiBase.replace(/\/$/,'')}${path}`; }
 function headers() { const value = elements['api-token'].value.trim(); return value ? {Authorization:`Bearer ${value}`} : {}; }
 function notice(message, error = false) { elements.notice.textContent = message; elements.notice.hidden = !message; elements.notice.classList.toggle('error',error); }
 function engineStatus(data) {
-  if (data.simulated === true) {
-    $('checkpoint-status').textContent = 'Simulated preview';
-    $('quality-status').textContent = 'Interface preview · no model running.';
-  } else if (data.adapter_set) {
-    $('checkpoint-status').textContent = 'Trained adapters connected';
+  if (data.adapter_set) {
     const benchmarkNote = $('benchmark-model-note');
     if (benchmarkNote) benchmarkNote.hidden = data.adapter_set !== 'selected';
   }
-  const quality = data.quality;
-  if (quality) {
-    $('quality-status').textContent = 'Research model · review responses carefully.';
-  }
   if (Number.isFinite(data.session_expires_at)) {
     sessionDeadline = data.session_expires_at * 1000;
-    $('session-status').textContent = `Local session ends at ${new Date(sessionDeadline).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}.`;
-    $('session-status').hidden = false;
   } else if (Object.hasOwn(data,'session_expires_at')) {
-    sessionDeadline = null; $('session-status').hidden = true;
+    sessionDeadline = null;
   }
 }
 function setRunEnabled() { elements['run-button'].disabled = !ready || running || !elements.prompt.value.trim(); }
@@ -73,7 +63,7 @@ async function connect() {
   }
   apiBase = candidate;
   try { localStorage.setItem('multi-unlora-api',apiBase); } catch {}
-  sessionDeadline = null; $('session-status').hidden = true;
+  sessionDeadline = null;
   ready = false; setRunEnabled(); elements['connection-status'].textContent = 'Connecting'; elements['status-dot'].className = 'dot';
   try {
     const response = await fetch(endpoint('/api/health'),{headers:headers(),signal:AbortSignal.timeout(75000)});
