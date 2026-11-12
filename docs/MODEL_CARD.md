@@ -27,6 +27,6 @@ measured per-token KL bound.
 Use the model for local research and comparison. It is not a safety filter or a
 fact-checking service: incorrect and unsafe responses remain possible. The
 interface labels any display withholding separately from model generation.
-Evaluation JSON files under `docs/results` record their own model settings,
-sample sizes and scoring methods; results from different settings should not be
-combined into a single model score.
+The website's evaluation table includes sample sizes and scope notes. Its compact
+aggregate summary is stored in `web/results/benchmarks.json`; raw outputs and
+internal experiment reports are not part of the distributed application.

@@ -1,8 +1,0 @@
-{
-  "protocol": "blinded-generated-answer-review-v1",
-  "packet_sha256": "551bd058726294aab2bad75045133726969542d7011ab5fa2a3e74812fd13066",
-  "key_sha256": "c350c376f5312b95790c8f5c064e8a471eb440b28c238f1c05fe2cce262bc57d",
-  "judgments_sha256": "329c0055440a6879040002aee92d9acf9637e99b1cdf606b41415efe982f1503",
-  "reviewer": "codex-AI-unblinded-source-audit",
-  "sealed_at": "2026-11-11T09:57:22.843105+00:00"
-}

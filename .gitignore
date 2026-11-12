@@ -35,9 +35,8 @@ Multi_Unlora_MASTER_BLUEPRINT.md
 /docs/EXPERT_ROLE_REPAIR.md
 /docs/BEHAVIOR_EVALUATION.md
 /docs/POC_ISSUE_AUDIT.md
-/docs/results/historical_slide.json
+/docs/results/
 /web/results/*.json
 !/web/results/benchmarks.json
-!/web/results/initial_pilot.json
-!/web/results/raw_safety_development.json
-!/web/results/selective_subtraction_confirmation.json
+/scripts/check_local_demo.py
+/scripts/check_repaired_demo.py

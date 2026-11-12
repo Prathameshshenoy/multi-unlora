@@ -1,9 +1,0 @@
-{
-  "protocol": "blinded-generated-answer-review-v1",
-  "packet_sha256": "128a429d6fafd39b6ad568175f0f56159f1d709c206974b6b2f02e22912dad29",
-  "key_sha256": "5c96bfb23c802b71c660fc1ce6607038e26558419be7a68779a776cc993f5e83",
-  "judgments_sha256": "c3a85474899ff2f99abb773bd914281f60dde150f4e4d3f7e4609d6ad6e27ce6",
-  "reviewer": "codex-AI-reference-grounded-development-review",
-  "sealed_at": "2026-11-11T08:42:11.433666+00:00",
-  "scope": "Sealed before arm identities were revealed. AI development review; prior source-example exposure is disclosed."
-}

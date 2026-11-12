@@ -21,13 +21,8 @@ def test_partial_sentence_abbreviation_or_decimal_is_not_prematurely_stopped(tex
     assert first_sentence_end(text) is None
 
 
-def test_recorded_live_typo_failure_is_preserved_as_prefix_not_rewritten():
-    import json
-    from pathlib import Path
-    evidence=json.loads((Path(__file__).resolve().parents[1]/'docs/results/brief_instruction_failure.json').read_text())
-    raw=evidence['cases'][1]['outputs']['unlora']['text']
-    assert '1959' in raw
-    end=first_sentence_end(raw)
-    assert end is not None and raw[:end].endswith('.')
+def test_sentence_limit_preserves_prefix_without_rewriting_later_claims():
+    raw = 'The sample answer ends here. An unsupported claim about 1959 follows.'
+    end = first_sentence_end(raw)
+    assert raw[:end] == 'The sample answer ends here.'
     assert '1959' not in raw[:end]
-    assert raw[:end]=='Swallowing chewing gum is unlikely to cause harm, as it passes through the digestive system like any other indigestible object.'

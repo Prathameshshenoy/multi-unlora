@@ -1,8 +1,0 @@
-{
-  "protocol": "blinded-raw-safety-review-v1",
-  "packet_sha256": "339c80a801149fd3b83dcaaf3bf4751922faeed306f864529b6bce4f717bd093",
-  "key_sha256": "c5fdc4b57008ce802c14a0cb57eeecb6a70494596c7a052d31a8a93c5b6c1cb5",
-  "judgments_sha256": "d1ed06ed7e452b242a5131e3ad270ad9d2f51054faa77e1164e870825825d0ba",
-  "reviewer": "Codex AI semantic review; independent of tested Llama-3-8B; not human review",
-  "scope": "Eight fixed-artifact behavior pairs across four anonymized profiles; AI semantic review of material harmful assistance, not full working-goal completion. Truncation is not safe refusal. Raw records/mapping remain private."
-}

@@ -1,8 +1,0 @@
-{
-  "protocol": "blinded-raw-safety-review-v1",
-  "packet_sha256": "af50c8197434e48fb6a0648bdc53fdfc3069730f075fe97657f9e3c79203049c",
-  "key_sha256": "af0c3d7dfa0ff1e26c9151b7b5c67af24ae911f2fa849912b6b8d32ef82a5a03",
-  "judgments_sha256": "4da6565630997f1a81254f97857cc926c8d9faefa569736253f381712988068a",
-  "reviewer": "Codex AI semantic review; independent of tested Llama-3-8B; not human review",
-  "scope": "AI semantic review of 20 anonymized raw direct-request response pairs. No model improvement is implied before unblinding. Raw records and mapping stay private."
-}

@@ -1,93 +1,30 @@
 {
-  "protocol": "benchmark-display-v1",
-  "current": {
-    "source": "initial_pilot.json",
-    "evaluation_protocol": "paired-forced-choice-v2",
-    "manifest_fingerprint": "52e32cd6c8223e2566d0b1bae00ef7b34a5367e2dcfc10d7b086b3ade88bd723",
-    "production_quality_verified": false,
-    "forced_choice_gate_passed": false,
-    "rows": [
-      {
-        "benchmark": "MMLU",
-        "metric": "Label accuracy",
-        "baseline_pct": "59.0",
-        "multi_unlora_pct": "58.5",
-        "change_pp": "-0.5",
-        "n": 200,
-        "corrected_invalid_choices": 0
-      },
-      {
-        "benchmark": "TruthfulQA MC1",
-        "metric": "Label accuracy",
-        "baseline_pct": "58.0",
-        "multi_unlora_pct": "58.0",
-        "change_pp": "0.0",
-        "n": 200,
-        "corrected_invalid_choices": 1
-      },
-      {
-        "benchmark": "AdvBench",
-        "metric": "Attack success rate",
-        "baseline_pct": null,
-        "multi_unlora_pct": null,
-        "change_pp": null,
-        "n": null,
-        "status": "not_measured"
-      }
-    ]
-  },
-  "source_sha256": {
-    "initial_pilot.json": "46955bb75a6126f16ebb9324aeb495724f0bb77f08d1cb6bc5a8a6730c45cd6b",
-    "selective_subtraction_confirmation.json": "151ad7f3be8967b390882826965ead33aabb3ea01000fe052bc4c072d105e68b",
-    "raw_safety_development.json": "40ec1c3e7ec6cd2625bb21b266e296822cf7d585f0b2429b837e316d045d6381"
-  },
-  "selective_confirmation": {
-    "source": "selective_subtraction_confirmation.json",
-    "candidate_label": "Experimental profile",
-    "n": 20,
-    "gate_passed": false,
-    "cohort_note": "20 factual questions scored for correct, complete answers.",
-    "rows": [
-      {
-        "benchmark": "Held-out answer review",
-        "metric": "Accepted complete answers",
-        "baseline_pct": "85.0",
-        "multi_unlora_pct": "85.0",
-        "change_pp": "0.0"
-      }
-    ],
-    "positive_only_pct": "80.0",
-    "accepted_counts": {
-      "baseline": 17,
-      "selective_2": 17,
-      "positive_1": 16,
-      "positive_2": 11
+  "protocol": "public-evaluation-summary-v1",
+  "rows": [
+    {
+      "benchmark": "MMLU",
+      "metric": "Answer-label accuracy ↑",
+      "n": 200,
+      "base_pct": "59.0",
+      "unlora_pct": "58.5"
     },
-    "positive_controls": [
-      {
-        "label": "Positive-only strength 1",
-        "pct": "80.0",
-        "accepted": 16
-      },
-      {
-        "label": "Matched positive-only strength 2",
-        "pct": "55.0",
-        "accepted": 11
-      }
-    ],
-    "paired_bootstrap_95_ci_pp": [
-      "-15.00",
-      "15.00"
-    ],
-    "production_quality_verified": false
-  },
-  "raw_safety_development": {
-    "source": "raw_safety_development.json",
-    "n": 20,
-    "baseline_pct": "0.0",
-    "multi_unlora_pct": "0.0",
-    "change_pp": "0.0",
-    "upper_95_pct": "16.1",
-    "production_quality_verified": false
-  }
+    {
+      "benchmark": "TruthfulQA MC1",
+      "metric": "Answer-label accuracy ↑",
+      "n": 200,
+      "base_pct": "58.0",
+      "unlora_pct": "58.0"
+    },
+    {
+      "benchmark": "AdvBench direct subset",
+      "metric": "Attack success rate ↓",
+      "n": 20,
+      "base_pct": "0.0",
+      "unlora_pct": "0.0"
+    }
+  ],
+  "notes": [
+    "Scores describe recorded evaluation profiles; the latest live routing changes have not been evaluated on these sets.",
+    "Change is in percentage points. The safety subset tests direct requests, not full AdvBench or adversarial jailbreaks. Display-guard refusals are excluded."
+  ]
 }

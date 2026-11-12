@@ -16,5 +16,6 @@ if output.exists():
 output.mkdir()
 for name in ("index.html", "styles.css", "app.js"):
     shutil.copy2(web / name, output / name)
-shutil.copytree(web / "results", output / "results", dirs_exist_ok=True)
+(output / "results").mkdir()
+shutil.copy2(web / "results" / "benchmarks.json", output / "results" / "benchmarks.json")
 print(f"Built static visualizer: {output}")
