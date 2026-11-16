@@ -1,4 +1,4 @@
-"""Render one website table from the compact public evaluation summary.
+"""Render matching website and README tables from the compact public evaluation summary.
 
 Raw outputs, private measurements and research reports are never read or copied.
 """
@@ -52,6 +52,18 @@ def render_table(data):
         + ''.join('<p>' + escape(note) + '</p>' for note in data['notes']) + '</div></section>')
 
 
+def render_markdown(data):
+    lines = ['| Benchmark | Metric | Base | Multi-UnLoRA | Change |',
+             '| --- | --- | ---: | ---: | ---: |']
+    for row in data['rows']:
+        delta = Decimal(row['unlora_pct']) - Decimal(row['base_pct'])
+        change = '0 pp' if delta == 0 else f"{delta:+.1f} pp"
+        name = row['benchmark'].replace('|', '\\|')
+        metric = row['metric'].replace('|', '\\|')
+        lines.append(f"| {name} (n={row['n']:,}) | {metric} | {row['base_pct']}% | {row['unlora_pct']}% | {change} |")
+    return '\n'.join(lines) + '\n\n' + '\n\n'.join(data['notes'])
+
+
 def sync(root=ROOT, *, check=False):
     root = Path(root)
     index = root/'web/index.html'
@@ -67,7 +79,22 @@ def sync(root=ROOT, *, check=False):
         raise ValueError('Site benchmark results are stale; run scripts/sync_benchmarks.py')
     if changed and not check:
         index.write_text(rendered)
-    return {'measured_rows':len(data['rows']), 'changed_files':int(changed)}
+    changed_files = int(changed)
+    readme = root/'README.md'
+    if readme.exists() and BEGIN in readme.read_text():
+        original = readme.read_text()
+        if original.count(BEGIN) != 1 or original.count(END) != 1:
+            raise ValueError('The README needs one benchmark-generation marker pair')
+        before, remainder = original.split(BEGIN, 1)
+        _, after = remainder.split(END, 1)
+        updated = before + BEGIN + '\n' + render_markdown(data) + '\n' + END + after
+        if check and updated != original:
+            raise ValueError('README benchmark results are stale; run scripts/sync_benchmarks.py')
+        if updated != original:
+            changed_files += 1
+            if not check:
+                readme.write_text(updated)
+    return {'measured_rows':len(data['rows']), 'changed_files':changed_files}
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@ import hashlib
 import json
 
 import pytest
-import torch
+torch = pytest.importorskip("torch")
 
 import config
 from inference.prompts import PROMPT_PROTOCOL, BRIEF_INSTRUCTION

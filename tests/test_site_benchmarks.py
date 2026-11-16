@@ -48,3 +48,19 @@ def test_invalid_percentage_cannot_be_published(tmp_path, value):
     (tmp_path/'web/results/benchmarks.json').write_text(json.dumps(data))
     with pytest.raises(ValueError, match='Percentages'):
         build_data(tmp_path)
+
+
+def test_readme_and_site_share_the_same_public_summary(tmp_path):
+    (tmp_path/'web/results').mkdir(parents=True)
+    shutil.copyfile(ROOT/'web/results/benchmarks.json', tmp_path/'web/results/benchmarks.json')
+    shutil.copyfile(ROOT/'web/index.html', tmp_path/'web/index.html')
+    readme = tmp_path/'README.md'
+    readme.write_text('# Project\n\n<!-- BEGIN BENCHMARK RESULTS -->\nstale\n<!-- END BENCHMARK RESULTS -->\n')
+    with pytest.raises(ValueError, match='README.*stale'):
+        sync(tmp_path, check=True)
+    sync(tmp_path)
+    for row in build_data(tmp_path)['rows']:
+        assert row['base_pct']+'%' in readme.read_text()
+        assert row['unlora_pct']+'%' in readme.read_text()
+        assert f"n={row['n']:,}" in readme.read_text()
+    assert sync(tmp_path, check=True)['changed_files'] == 0
