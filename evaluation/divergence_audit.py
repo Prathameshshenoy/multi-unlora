@@ -14,6 +14,11 @@ CASE_INDICES=(2,5,9,11)
 
 
 def divergence_probe(tokenizer,formatted,references,answer):
+    # A matching reference is not a wrong answer merely because another
+    # valid reference starts differently. This is exact matching, not a semantic
+    # correctness judge; unmatched alternatives still need answer-level review.
+    if any(reference.strip()==answer.strip() for reference in references):
+        raise ValueError('No diverging reference: generated answer matches a reference')
     prompt=tokenizer.encode(formatted,add_special_tokens=False)
     wrong=tokenizer.encode(formatted+answer,add_special_tokens=False)
     if wrong[:len(prompt)]!=prompt:raise ValueError('Answer changed prompt token boundary')

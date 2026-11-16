@@ -16,3 +16,10 @@ def test_probe_preserves_shared_prompt_and_prefers_maximum_shared_answer_prefix(
 def test_probe_cannot_treat_identical_reference_as_a_wrong_token():
     with pytest.raises(ValueError,match='No diverging reference'):
         divergence_probe(CharacterTokenizer(),'PROMPT:',['New York.'],'New York.')
+
+
+def test_matching_one_reference_prevents_a_false_error_from_an_alternative():
+    with pytest.raises(ValueError,match='No diverging reference'):
+        divergence_probe(CharacterTokenizer(),'PROMPT:',
+                         ['Rome.','The capital of Italy is Rome.'],
+                         'The capital of Italy is Rome.')
