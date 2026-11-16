@@ -54,6 +54,11 @@ its manifest directly instead:
 uv run python scripts/run_engine.py serve-local --minutes 5 --manifest /vol/runs/misconception_roles_v1/manifest.json
 ```
 
+The launcher also preserves any correction weights saved in the model bundle.
+The interface labels these as **Checkpoint weights**. **Prompt routed** means
+the selected model uses prompt-based weights instead. These are correction
+strengths, not probabilities that a prompt is harmful or incorrect.
+
 ## Start and stop
 
 ```bash

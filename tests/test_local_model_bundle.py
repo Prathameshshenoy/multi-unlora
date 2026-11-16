@@ -161,6 +161,7 @@ def test_versioned_bundle_retains_decoder_settings(tmp_path):
     root=tmp_path/'backup';source=root/'runs/misconception_roles_v1/manifest.json'
     manifest=json.loads(source.read_text())
     manifest['decoder_settings']={'beta':.01,'kl_budget':2.}
+    manifest['fixed_alphas']=[.2,.6]
     source.write_text(json.dumps(manifest))
     archive=tmp_path/'versioned.tar.gz';prefix='runs/multi_unlora_8b_v1_1/'
     package_model(root,archive,source_manifest=source,model_directory=prefix)
@@ -168,6 +169,7 @@ def test_versioned_bundle_retains_decoder_settings(tmp_path):
     assert metadata['manifest']=='/vol/'+prefix+'manifest.json'
     installed=json.loads((tmp_path/'installed'/prefix/'manifest.json').read_text())
     assert installed['decoder_settings']=={'beta':.01,'kl_budget':2.}
+    assert installed['fixed_alphas']==[.2,.6]
     assert len(metadata['files'])==6
 
 

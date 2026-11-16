@@ -286,3 +286,27 @@ def test_sentence_limit_rejects_bool_and_unsupported_counts():
     client=TestClient(create_app(PreviewBackend()))
     for limit in (True,False,0,2,1.0,"1"):
         assert client.post('/api/generate',json={'prompt':'ok','sentence_limit':limit}).status_code==422
+
+
+def test_checkpoint_weights_are_served_without_using_projection_router(tmp_path,monkeypatch):
+    torch=__import__('pytest').importorskip('torch')
+    from types import SimpleNamespace
+    from transformers import BatchEncoding
+    from demo.backends import GPUBackend
+    import repe.router
+    manifest=tmp_path/'manifest.json';manifest.write_text(json.dumps({'fixed_alphas':[.2,.6]}))
+    backend=GPUBackend();backend.loaded=True
+    backend._paths=lambda:{'manifest':manifest,'quality_report':tmp_path/'missing.json'}
+    class Tokenizer:
+        def apply_chat_template(self,*args,**kwargs):return 'formatted'
+        def __call__(self,*args,**kwargs):return BatchEncoding({'input_ids':torch.tensor([[1,2]])})
+    backend.tokenizer=Tokenizer()
+    backend.model=SimpleNamespace(parameters=lambda:iter([torch.nn.Parameter(torch.zeros(1))]),disable_adapter_layers=lambda:None)
+    monkeypatch.setattr(repe.router,'compute_dynamic_alphas',lambda *a,**k:(_ for _ in ()).throw(AssertionError('Checkpoint weights must bypass projection')))
+    iterator=backend.stream('What is 2 plus 2?',1,threading.Event())
+    try:
+        route=next(value for event,value in iterator if event=='routing')
+        assert (route['alpha_hall'],route['alpha_jail'])==(.2,.6)
+        assert route['routing_basis']=='checkpoint_weights'
+        assert backend.metadata()['router_version']=='fixed-checkpoint-v1'
+    finally:iterator.close()

@@ -39,6 +39,9 @@ def package_model(backup, output, *, license_files=(), source_manifest=None, mod
                     source_manifest_sha256=sha256(original))
     if 'decoder_settings' in source:
         manifest['decoder_settings'] = source['decoder_settings']
+    if source.get('fixed_alphas') is not None:
+        from inference.runtime import fixed_weights
+        manifest['fixed_alphas'] = list(fixed_weights(source))
     if 'training_corpus' in source:
         manifest['training_corpus'] = source['training_corpus']
     manifest_bytes = (json.dumps(manifest, indent=2)+'\n').encode()

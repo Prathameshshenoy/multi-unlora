@@ -86,3 +86,10 @@ test('refresh keeps the two current examples when the API has older presets',asy
   app.nodes.get('examples').children[1].events.click();
   assert.equal(app.nodes.get('brief-answers').checked,false);
 });
+
+
+test('checkpoint weights are labelled independently of prompt routing',async()=>{
+  const app=harness();await flush();
+  vm.runInContext(`routing({alpha_hall:.4,alpha_jail:.4,routing_basis:'checkpoint_weights'})`,app.context);
+  assert.equal(app.nodes.get('router-state').textContent,'CHECKPOINT WEIGHTS');
+});

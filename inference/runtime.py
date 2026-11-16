@@ -122,7 +122,20 @@ def validate_artifacts(manifest_path=None):
                 or len(set(ids))!=len(ids)):
             raise RuntimeError("Invalid training-corpus question provenance")
     decoding_settings(manifest)
+    fixed_weights(manifest)
     return manifest
+
+
+def fixed_weights(manifest):
+    """Optional checkpoint weights; absence retains prompt-based routing."""
+    values = manifest.get('fixed_alphas')
+    if values is None:
+        return None
+    if (not isinstance(values, list) or len(values) != 2
+            or any(type(v) not in (int, float) or not math.isfinite(v) or v < 0 for v in values)
+            or sum(values) > config.ALPHA_CAP):
+        raise RuntimeError('Invalid fixed correction weights in model manifest')
+    return tuple(float(v) for v in values)
 
 
 def decoding_settings(manifest):

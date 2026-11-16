@@ -225,3 +225,14 @@ def test_invalid_artifact_decoder_settings_are_rejected(settings):
 def test_artifact_decoder_settings_are_explicit_and_default_compatible():
     assert runtime.decoding_settings({})=={'beta':config.PROCESSOR_PLAUSIBILITY_BETA,'kl_budget':config.PROCESSOR_KL_THRESHOLD}
     assert runtime.decoding_settings({'decoder_settings':{'beta':.01,'kl_budget':2}})=={'beta':.01,'kl_budget':2.}
+
+
+@pytest.mark.parametrize('values',[[],[.2],[True,.2],[.6,.6],[float('nan'),.2],[-.1,.3],'.4,.4'])
+def test_checkpoint_weights_reject_invalid_or_over_cap_settings(values):
+    with pytest.raises(RuntimeError,match='fixed correction weights'):
+        runtime.fixed_weights({'fixed_alphas':values})
+
+
+def test_checkpoint_weights_are_optional_and_exact():
+    assert runtime.fixed_weights({}) is None
+    assert runtime.fixed_weights({'fixed_alphas':[.2,.6]})==(.2,.6)

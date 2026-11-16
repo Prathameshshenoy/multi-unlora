@@ -114,19 +114,24 @@ class GPUBackend:
             paths = {}
         manifest = _read_json(paths["manifest"]) if paths else {}
         report = _read_json(paths["quality_report"]) if paths else {}
+        from inference.runtime import fixed_weights
+        checkpoint_weights = fixed_weights(manifest)
+        router_version = 'fixed-checkpoint-v1' if checkpoint_weights is not None else ROUTER_VERSION
         # A report for different adapters is never evidence for this model.
         if report:
             import hashlib
             digest = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
             from inference.runtime import decoding_settings
             settings = {"alpha_cap": config.ALPHA_CAP, **decoding_settings(manifest)}
+            if checkpoint_weights is not None:
+                settings.update(alpha_hall=checkpoint_weights[0], alpha_jail=checkpoint_weights[1])
             reported_settings = report.get("settings")
             settings_match = isinstance(reported_settings, dict) and all(
                 not isinstance(reported_settings.get(key), bool) and
                 reported_settings.get(key) == value for key, value in settings.items()
             )
             if (report.get("manifest_fingerprint") != digest or
-                    not settings_match or report.get("router_version") != ROUTER_VERSION or
+                    not settings_match or report.get("router_version") != router_version or
                     report.get("operator") != getattr(self, "operator_version", None)):
                 report = {}
         gate_result = report.get("forced_choice_gate_passed")
@@ -134,7 +139,7 @@ class GPUBackend:
             "engine_state": "warm" if self.loaded else ("loading" if self.loading else ("load_failed" if self.load_failed else "cold")),
             "model_loaded": self.loaded,
             "model_revision": manifest.get("model_revision"),
-            "router_version": ROUTER_VERSION,
+            "router_version": router_version,
             "training_status": manifest.get("status", "unknown"),
             "adapter_set": "selected" if self.manifest_path else "canonical",
             "manifest_fingerprint": _manifest_fingerprint(manifest) if manifest else None,
@@ -188,12 +193,13 @@ class GPUBackend:
         for value in (_correction_scale,_jail_scale):
             if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not 0<=value<=1:
                 raise ValueError("Evaluation may only attenuate routed correction weights")
-        from inference.runtime import decoding_settings
+        from inference.runtime import decoding_settings, fixed_weights
         try:
             artifact_manifest = _read_json(self._paths()['manifest'])
         except (OSError, ValueError, RuntimeError):
             artifact_manifest = {}
         model_settings = decoding_settings(artifact_manifest)
+        checkpoint_weights = fixed_weights(artifact_manifest)
         beta=model_settings['beta'] if _beta is None else _beta
         if isinstance(beta,bool) or not isinstance(beta,(float,int)) or not math.isfinite(beta) or not 0<beta<=1:
             raise ValueError("Invalid experimental plausibility beta")
@@ -262,6 +268,9 @@ class GPUBackend:
             with torch.inference_mode():
                 if _fixed_alphas is not None:
                     alpha_hall, alpha_jail = map(float, _fixed_alphas)
+                elif _hall_strength is None and checkpoint_weights is not None:
+                    alpha_hall = checkpoint_weights[0]*_correction_scale
+                    alpha_jail = checkpoint_weights[1]*_correction_scale*_jail_scale
                 elif _hall_strength is None:
                     alpha_hall, alpha_jail = compute_dynamic_alphas(model, tokenizer, formatted, self.v_hall, self.v_jail, add_special_tokens=False, intent_prompt=prompt)
                     alpha_hall*=_correction_scale
@@ -270,10 +279,10 @@ class GPUBackend:
                     # Fixed calibration does not depend on an unused detector
                     # projection; validation above requires jailbreak weight 0.
                     alpha_hall,alpha_jail=float(_hall_strength),0.
-                intent = explicit_safety_intent(prompt) if _fixed_alphas is None and _hall_strength is None else None
+                intent = explicit_safety_intent(prompt) if _fixed_alphas is None and _hall_strength is None and checkpoint_weights is None else None
                 yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail,
-                    "router_version":ROUTER_VERSION,
-                    "routing_basis": "explicit_safety_priority" if intent else (
+                    "router_version":"fixed-checkpoint-v1" if checkpoint_weights is not None else ROUTER_VERSION,
+                    "routing_basis": "checkpoint_weights" if checkpoint_weights is not None and _fixed_alphas is None and _hall_strength is None else "explicit_safety_priority" if intent else (
                         "fixed_evaluation" if _fixed_alphas is not None or _hall_strength is not None else "repe_projection"),
                     "priority_rule":intent}
                 result = {}
