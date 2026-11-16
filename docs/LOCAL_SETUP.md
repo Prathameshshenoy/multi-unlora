@@ -25,6 +25,18 @@ The first setup prepares the Modal runtime and downloads the pinned base weights
 on CPU before the timed GPU session starts. This can take several minutes and
 requires roughly 16 GB of Modal volume storage for the base weights.
 
+If you use multiple Modal profiles, select the intended profile before launching:
+
+```bash
+uv run modal profile activate YOUR_PROFILE
+uv run python scripts/local_demo.py
+```
+
+The launcher checks the active profile and prepares each workspace separately.
+When it finds an existing copy of the bundle, it verifies the file checksums and
+reuses matching files without overwriting them. The cumulative local compute
+reservation limit is retained when you switch profiles.
+
 The installer creates the `multi-unlora-vol` volume in your own Modal workspace
 and uploads only model files. It does not copy another account's credentials.
 Existing files are not overwritten. The original archive remains on your machine.

@@ -11,6 +11,12 @@ from scripts.local_demo import MANIFEST, MODEL_PREFIX, unpack_bundle
 from scripts.package_model import package_model
 
 
+@pytest.fixture(autouse=True)
+def selected_modal_profile(monkeypatch):
+    from scripts import local_demo
+    monkeypatch.setattr(local_demo, 'current_profile', lambda: 'test-profile')
+
+
 def make_bundle(tmp_path):
     root = tmp_path/'backup'
     concepts, paths = {}, {}
@@ -59,6 +65,8 @@ def test_model_install_uploads_to_own_volume_without_gpu(tmp_path, monkeypatch):
         def from_name(name, create_if_missing):
             assert name == 'multi-unlora-vol' and create_if_missing is True
             return Volume()
+        def read_file(self, path):
+            raise FileNotFoundError(path)
         def batch_upload(self, *, force):
             assert force is False
             return Upload()
@@ -116,7 +124,7 @@ def test_launch_prepares_before_session_and_preserves_existing_budget(tmp_path, 
     import sys
     from scripts import local_demo
     state = tmp_path/'.runtime'; state.mkdir()
-    (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST}))
+    (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST,'modal_profile':'test-profile'}))
     budget = {'approved_usd':3, 'prior_cpu_preflight_reserve_usd':0, 'reservations':[]}
     (state/'budget.json').write_text(json.dumps(budget))
     monkeypatch.setattr(local_demo, 'ROOT', tmp_path)
@@ -138,7 +146,7 @@ def test_budget_changes_require_explicit_flag_and_retain_reservations(tmp_path, 
     import sys
     from scripts import local_demo
     state=tmp_path/'.runtime';state.mkdir()
-    (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST,'runtime_prepared':True}))
+    (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST,'runtime_prepared':True,'modal_profile':'test-profile'}))
     budget={'approved_usd':3,'prior_cpu_preflight_reserve_usd':0,'reservations':[{'reserved_usd':.5}]}
     (state/'budget.json').write_text(json.dumps(budget))
     monkeypatch.setattr(local_demo,'ROOT',tmp_path)
@@ -174,3 +182,46 @@ def test_prepare_targets_the_installed_model_namespace(tmp_path,monkeypatch):
     local_demo.prepare_runtime()
     assert calls[0][-2:]==['--manifest',manifest]
     assert json.loads(path.read_text())['runtime_prepared'] is True
+
+
+def test_switching_profiles_installs_and_prepares_before_serving(tmp_path,monkeypatch):
+    import sys
+    from scripts import local_demo
+    state=tmp_path/'.runtime';state.mkdir()
+    (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST,'modal_profile':'old-profile','runtime_prepared':True}))
+    monkeypatch.setattr(local_demo,'ROOT',tmp_path)
+    monkeypatch.setattr(sys,'argv',['local_demo','--minutes','3'])
+    monkeypatch.setattr(local_demo,'download_model',lambda:tmp_path/'bundle.tar.gz')
+    calls=[]
+    def install(archive,*,profile):
+        calls.append(('install',profile))
+        (state/'local-model.json').write_text(json.dumps({'manifest':MANIFEST,'modal_profile':profile}))
+    monkeypatch.setattr(local_demo,'install_bundle',install)
+    monkeypatch.setattr(local_demo,'prepare_runtime',lambda:calls.append(('prepare',)))
+    monkeypatch.setattr(local_demo.subprocess,'call',lambda *a,**k:calls.append(('serve',)) or 0)
+    with pytest.raises(SystemExit):local_demo.main()
+    assert calls==[('install','test-profile'),('prepare',),('serve',)]
+
+
+@pytest.mark.parametrize('corrupt',[False,True])
+def test_existing_bundle_files_are_verified_without_overwriting(tmp_path,monkeypatch,corrupt):
+    import sys
+    from scripts import local_demo
+    archive=make_bundle(tmp_path);folder=tmp_path/'existing';metadata=unpack_bundle(archive,folder)
+    calls=[]
+    class Volume:
+        @staticmethod
+        def from_name(*args,**kwargs):return Volume()
+        def read_file(self,path):
+            content=(folder/path.lstrip('/')).read_bytes()
+            yield b'corrupt' if corrupt else content
+        def batch_upload(self,**kwargs):
+            calls.append('overwrite');raise AssertionError('Must not upload existing files')
+    monkeypatch.setitem(sys.modules,'modal',SimpleNamespace(Volume=Volume))
+    monkeypatch.setattr(local_demo,'ROOT',tmp_path)
+    if corrupt:
+        with pytest.raises(ValueError,match='differs'):local_demo.install_bundle(archive)
+    else:
+        local_demo.install_bundle(archive)
+        assert json.loads((tmp_path/'.runtime/local-model.json').read_text())['modal_profile']=='test-profile'
+    assert calls==[]

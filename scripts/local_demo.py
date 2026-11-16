@@ -84,17 +84,40 @@ def unpack_bundle(archive, destination):
     return metadata
 
 
-def install_bundle(archive):
+def current_profile():
+    result = subprocess.run([sys.executable, '-m', 'modal', 'profile', 'current'],
+                            capture_output=True, text=True, check=True)
+    profile = result.stdout.strip()
+    if not profile or len(profile) > 128 or any(c.isspace() for c in profile):
+        raise RuntimeError('Could not identify the active Modal profile')
+    return profile
+
+
+def install_bundle(archive, *, profile=None):
     import modal
+    profile = profile or current_profile()
     with tempfile.TemporaryDirectory(prefix='multi-unlora-model-') as directory:
         metadata = unpack_bundle(archive, directory)
         volume = modal.Volume.from_name('multi-unlora-vol', create_if_missing=True)
-        with volume.batch_upload(force=False) as upload:
-            for relative in metadata['files']:
-                upload.put_file(Path(directory)/relative, '/'+relative)
+        missing = []
+        for relative, expected in metadata['files'].items():
+            digest, size = hashlib.sha256(), 0
+            try:
+                for chunk in volume.read_file('/'+relative):
+                    digest.update(chunk); size += len(chunk)
+            except FileNotFoundError:
+                missing.append(relative)
+                continue
+            if size != expected['size_bytes'] or digest.hexdigest() != expected['sha256']:
+                raise ValueError('Existing model artifact differs from this bundle; choose a separate model version')
+        if missing:
+            with volume.batch_upload(force=False) as upload:
+                for relative in missing:
+                    upload.put_file(Path(directory)/relative, '/'+relative)
     state = ROOT/'.runtime'
     state.mkdir(exist_ok=True)
-    (state/'local-model.json').write_text(json.dumps({'manifest':metadata['manifest'], 'bundle_sha256':sha256(archive)}, indent=2))
+    (state/'local-model.json').write_text(json.dumps({'manifest':metadata['manifest'],
+        'bundle_sha256':sha256(archive), 'modal_profile':profile}, indent=2))
     print('Trained model installed in your Modal workspace. No GPU was started.', flush=True)
 
 
@@ -169,11 +192,12 @@ def main():
         if args.budget_usd is not None or not budget.exists():
             temporary = budget.with_suffix('.tmp')
             temporary.write_text(json.dumps(ledger, indent=2)); temporary.replace(budget)
+    profile = current_profile()
     descriptor = ROOT/'models/model.json'
     installed = json.loads((state/'local-model.json').read_text()) if (state/'local-model.json').exists() else {}
     updated = descriptor.exists() and installed.get('bundle_sha256') != json.loads(descriptor.read_text())['sha256']
-    if args.bundle is not None or not installed or updated:
-        install_bundle(args.bundle if args.bundle is not None else download_model())
+    if args.bundle is not None or not installed or updated or installed.get('modal_profile') != profile:
+        install_bundle(args.bundle if args.bundle is not None else download_model(), profile=profile)
     settings = json.loads((state/'local-model.json').read_text())
     if settings.get('runtime_prepared') is not True:
         prepare_runtime()
