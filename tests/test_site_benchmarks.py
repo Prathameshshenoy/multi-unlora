@@ -12,7 +12,8 @@ def test_user_site_has_one_bottom_table_with_scope_notes():
     section = page.split('<!-- BEGIN BENCHMARK RESULTS -->')[1].split('<!-- END BENCHMARK RESULTS -->')[0]
     assert section.count('<table ') == 1 and '<details' not in section
     assert page.index('class="method"') < page.index('id="benchmark-title"')
-    assert 'latest live routing changes have not been evaluated' in section
+    for note in build_data()['notes']:
+        assert note in section
     assert 'Display-guard refusals are excluded' in section
     assert 'Additional measurements' not in page and 'IMPLEMENTATION_PLAN' not in page
 
@@ -21,8 +22,8 @@ def test_table_values_match_compact_summary():
     page = (ROOT/'web/index.html').read_text()
     for row in build_data()['rows']:
         assert row['base_pct']+'%' in page and row['unlora_pct']+'%' in page
-        assert f'n={row["n"]}' in page
-    assert '−0.5 pp' in page
+        assert f'n={row["n"]:,}' in page
+    assert '<th scope="col">Change</th>' in page
 
 
 def test_summary_changes_require_resync_without_private_results(tmp_path):
@@ -36,7 +37,7 @@ def test_summary_changes_require_resync_without_private_results(tmp_path):
     with pytest.raises(ValueError, match='stale'):
         sync(tmp_path, check=True)
     sync(tmp_path)
-    assert '−1.5 pp' in (tmp_path/'web/index.html').read_text()
+    assert '60.0%' in (tmp_path/'web/index.html').read_text()
     assert sync(tmp_path, check=True)['changed_files'] == 0
 
 
@@ -64,3 +65,16 @@ def test_readme_and_site_share_the_same_public_summary(tmp_path):
         assert row['unlora_pct']+'%' in readme.read_text()
         assert f"n={row['n']:,}" in readme.read_text()
     assert sync(tmp_path, check=True)['changed_files'] == 0
+
+
+@pytest.mark.parametrize('baseline,corrected,html_change,markdown_change', [
+    ('30.0','7.5','−22.5 pp','-22.5 pp'),
+    ('41.2','55.6','+14.4 pp','+14.4 pp'),
+    ('60.0','60.0','0 pp','0 pp'),
+])
+def test_tables_report_percentage_point_changes(baseline, corrected, html_change, markdown_change):
+    from scripts.sync_benchmarks import render_table, render_markdown
+    data = {'rows':[{'benchmark':'Example', 'metric':'Accuracy', 'n':100,
+                     'base_pct':baseline, 'unlora_pct':corrected}], 'notes':['Test fixture.']}
+    assert html_change in render_table(data)
+    assert markdown_change in render_markdown(data)

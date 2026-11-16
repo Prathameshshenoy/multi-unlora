@@ -38,14 +38,14 @@ def render_table(data):
     for row in data['rows']:
         delta = Decimal(row['unlora_pct']) - Decimal(row['base_pct'])
         change = '0 pp' if delta == 0 else f"{'+' if delta > 0 else '−'}{abs(delta):.1f} pp"
-        body.append('<tr><th scope="row">' + escape(row['benchmark']) + f' (n={row["n"]})</th>'
+        body.append('<tr><th scope="row">' + escape(row['benchmark']) + f' (n={row["n"]:,})</th>'
             '<td class="benchmark-metric">' + escape(row['metric']) + '</td>'
             '<td>' + escape(row['base_pct']) + '%</td>'
             '<td>' + escape(row['unlora_pct']) + '%</td><td>' + change + '</td></tr>')
     return ('<section class="benchmark-panel panel" aria-labelledby="benchmark-title">'
         '<div class="panel-heading"><h2 id="benchmark-title">Evaluation results</h2></div>'
         '<div class="benchmark-scroll" role="region" tabindex="0" aria-label="Model evaluation results">'
-        '<table class="benchmark-table"><caption>Recorded evaluation profiles</caption>'
+        '<table class="benchmark-table"><caption>Base model and Multi-UnLoRA</caption>'
         '<thead><tr><th scope="col">Benchmark</th><th scope="col" class="benchmark-metric">Metric</th>'
         '<th scope="col">Base</th><th scope="col">Multi-UnLoRA</th><th scope="col">Change</th></tr></thead>'
         '<tbody>' + ''.join(body) + '</tbody></table></div><div class="benchmark-notes">'
@@ -87,7 +87,7 @@ def sync(root=ROOT, *, check=False):
             raise ValueError('The README needs one benchmark-generation marker pair')
         before, remainder = original.split(BEGIN, 1)
         _, after = remainder.split(END, 1)
-        updated = before + BEGIN + '\n' + render_markdown(data) + '\n' + END + after
+        updated = before + BEGIN + '\n\n' + render_markdown(data) + '\n\n' + END + after
         if check and updated != original:
             raise ValueError('README benchmark results are stale; run scripts/sync_benchmarks.py')
         if updated != original:

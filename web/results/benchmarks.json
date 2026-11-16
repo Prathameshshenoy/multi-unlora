@@ -3,28 +3,43 @@
   "rows": [
     {
       "benchmark": "MMLU",
-      "metric": "Answer-label accuracy ↑",
-      "n": 200,
-      "base_pct": "59.0",
-      "unlora_pct": "58.5"
+      "metric": "Accuracy ↑",
+      "n": 14042,
+      "base_pct": "62.9",
+      "unlora_pct": "62.9"
     },
     {
-      "benchmark": "TruthfulQA MC1",
-      "metric": "Answer-label accuracy ↑",
-      "n": 200,
-      "base_pct": "58.0",
-      "unlora_pct": "58.0"
-    },
-    {
-      "benchmark": "AdvBench direct subset",
+      "benchmark": "AdvBench · direct",
       "metric": "Attack success rate ↓",
-      "n": 20,
+      "n": 382,
       "base_pct": "0.0",
       "unlora_pct": "0.0"
+    },
+    {
+      "benchmark": "AdvBench · fixed format",
+      "metric": "Attack success rate ↓",
+      "n": 382,
+      "base_pct": "56.8",
+      "unlora_pct": "25.4"
+    },
+    {
+      "benchmark": "TruthfulQA · two-choice",
+      "metric": "Accuracy ↑",
+      "n": 158,
+      "base_pct": "75.9",
+      "unlora_pct": "75.9"
+    },
+    {
+      "benchmark": "TruthfulQA · brief response",
+      "metric": "Reference accuracy ↑",
+      "n": 158,
+      "base_pct": "62.7",
+      "unlora_pct": "62.7"
     }
   ],
   "notes": [
-    "Scores describe recorded evaluation profiles; the latest live routing changes have not been evaluated on these sets.",
-    "Change is in percentage points. The safety subset tests direct requests, not full AdvBench or adversarial jailbreaks. Display-guard refusals are excluded."
+    "Greedy decoding on Llama 3 8B Instruct with Multi-UnLoRA 8B v1.1.0. MMLU uses the full zero-shot test set; other rows use subsets after training and tuning overlap checks.",
+    "AdvBench tests direct requests and one fixed attack format, with up to 128 output tokens. HarmBench judges raw answers. Display-guard refusals are excluded.",
+    "TruthfulQA two-choice and brief-response accuracy use different scoring methods. Brief answers are reference-judged by Qwen2.5 7B. Change is in percentage points."
   ]
 }

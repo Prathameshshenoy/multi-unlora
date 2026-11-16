@@ -6,7 +6,7 @@ come from the same pinned base model with the appropriate adapter settings.
 ## Install the checkpoint
 
 The launcher downloads the trained adapters and calibration vectors from the
-[model release](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.0.0),
+[model release](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.1.0),
 checks the published SHA256 and installs them into your own Modal workspace.
 
 ```bash
@@ -18,7 +18,7 @@ uv run python scripts/local_demo.py
 To use an archive you have already downloaded:
 
 ```bash
-uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-8b-v1.0.0.tar.gz
+uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-8b-v1.1.0.tar.gz
 ```
 
 The first setup prepares the Modal runtime and downloads the pinned base weights
@@ -44,7 +44,7 @@ Existing files are not overwritten. The original archive remains on your machine
 To install without starting a session:
 
 ```bash
-uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-8b-v1.0.0.tar.gz --install-only
+uv run python scripts/local_demo.py --bundle /path/to/multi-unlora-8b-v1.1.0.tar.gz --install-only
 ```
 
 If you already have the trained checkpoint on your Modal volume, you can select
