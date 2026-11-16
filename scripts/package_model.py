@@ -42,6 +42,17 @@ def package_model(backup, output, *, license_files=(), source_manifest=None, mod
     if source.get('fixed_alphas') is not None:
         from inference.runtime import fixed_weights
         manifest['fixed_alphas'] = list(fixed_weights(source))
+    if source.get('intent_gate') is not None:
+        from repe.intent_gate import load as load_gate
+        spec = source['intent_gate']
+        path = backup/Path(spec['path']).relative_to('/vol')
+        load_gate({**source, 'intent_gate': {**spec, 'path': str(path.resolve())}})
+        if sha256(path) != spec['sha256']:
+            raise ValueError('Source intent-gate checksum mismatch')
+        files[model_directory+'intent_gate.json'] = path
+        manifest['intent_gate'] = {**spec, 'path':'/vol/'+model_directory+'intent_gate.json'}
+    if 'use_kv_cache' in source:
+        manifest['use_kv_cache'] = source['use_kv_cache']
     if 'training_corpus' in source:
         manifest['training_corpus'] = source['training_corpus']
     manifest_bytes = (json.dumps(manifest, indent=2)+'\n').encode()

@@ -227,3 +227,31 @@ def test_existing_bundle_files_are_verified_without_overwriting(tmp_path,monkeyp
         local_demo.install_bundle(archive)
         assert json.loads((tmp_path/'.runtime/local-model.json').read_text())['modal_profile']=='test-profile'
     assert calls==[]
+
+
+def test_bundle_retains_and_validates_intent_gate(tmp_path):
+    import config
+    from inference.prompts import PROMPT_PROTOCOL
+    make_bundle(tmp_path)
+    root = tmp_path/'backup'
+    source = root/'runs/misconception_roles_v1/manifest.json'
+    manifest = json.loads(source.read_text())
+    payload = {'protocol':'base-hidden-safety-router-v1', 'model_revision':manifest['model_revision'],
+               'prompt_protocol':PROMPT_PROTOCOL, 'layer':config.REPE_LAYER_IDX,
+               'weight':[1., 0.], 'center':[0., 0.], 'bias':0.}
+    gate = root/'gate.json'
+    gate.write_text(json.dumps(payload))
+    manifest['intent_gate'] = {'path':'/vol/gate.json', 'sha256':hashlib.sha256(gate.read_bytes()).hexdigest(),
+                               'threshold':.5, 'active_alphas':[.4,.4], 'inactive_alphas':[0.,0.]}
+    manifest['use_kv_cache'] = True
+    source.write_text(json.dumps(manifest))
+    archive = tmp_path/'gated-model.tar.gz'
+    package_model(root, archive)
+    metadata = unpack_bundle(archive, tmp_path/'gated')
+    assert MODEL_PREFIX+'intent_gate.json' in metadata['files']
+    installed = json.loads((tmp_path/'gated'/MODEL_PREFIX/'manifest.json').read_text())
+    assert installed['intent_gate']['path'] == '/vol/'+MODEL_PREFIX+'intent_gate.json'
+    assert installed['use_kv_cache'] is True
+    gate.write_text('{}')
+    with pytest.raises(RuntimeError, match='checksum'):
+        package_model(root, tmp_path/'bad.tar.gz')

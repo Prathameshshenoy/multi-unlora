@@ -81,6 +81,14 @@ def unpack_bundle(archive, destination):
                 raise ValueError('Adapter manifest checksum mismatch')
     if manifest.get('repe_checkpoint') != '/vol/'+prefix+'repe_vectors.pt':
         raise ValueError('Model calibration path mismatch')
+    if manifest.get('intent_gate') is not None:
+        from repe.intent_gate import load as load_gate
+        spec = manifest['intent_gate']
+        if spec.get('path') != '/vol/'+prefix+'intent_gate.json':
+            raise ValueError('Model intent-gate path mismatch')
+        load_gate({**manifest, 'intent_gate': {**spec, 'path': str((destination/prefix/'intent_gate.json').resolve())}})
+    if 'use_kv_cache' in manifest and type(manifest['use_kv_cache']) is not bool:
+        raise ValueError('Invalid model cache setting')
     return metadata
 
 

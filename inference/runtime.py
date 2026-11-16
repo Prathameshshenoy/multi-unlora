@@ -123,6 +123,10 @@ def validate_artifacts(manifest_path=None):
             raise RuntimeError("Invalid training-corpus question provenance")
     decoding_settings(manifest)
     fixed_weights(manifest)
+    from repe.intent_gate import load as load_intent_gate
+    load_intent_gate(manifest)
+    if 'use_kv_cache' in manifest and type(manifest['use_kv_cache']) is not bool:
+        raise RuntimeError('Invalid checkpoint cache setting')
     return manifest
 
 
@@ -178,6 +182,8 @@ def load_inference_model(*, calibrate_vectors=False, manifest_path=None):
     model = PeftModel.from_pretrained(base, str(paths["hallucination"]), adapter_name="hallucination")
     model.load_adapter(str(paths["jailbreak"]), adapter_name="jailbreak")
     model.unlora_training_question_ids = frozenset(manifest.get("training_corpus",{}).get("question_ids",[]))
+    from repe.intent_gate import load as load_intent_gate
+    model.unlora_intent_gate = load_intent_gate(manifest)
     model.eval()
     model.disable_adapter_layers()
     metadata = vector_provenance(model_revision=revision)

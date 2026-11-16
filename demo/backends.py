@@ -88,6 +88,7 @@ class GPUBackend:
     simulated = False
 
     def __init__(self, manifest_path=None, *, use_cache=None):
+        self._cache_explicit = use_cache is not None or "MULTI_UNLORA_USE_KV_CACHE" in os.environ
         if use_cache is None:
             configured = os.getenv("MULTI_UNLORA_USE_KV_CACHE", "0")
             if configured not in ("0", "1"):
@@ -116,7 +117,9 @@ class GPUBackend:
         report = _read_json(paths["quality_report"]) if paths else {}
         from inference.runtime import fixed_weights
         checkpoint_weights = fixed_weights(manifest)
-        router_version = 'fixed-checkpoint-v1' if checkpoint_weights is not None else ROUTER_VERSION
+        from repe.intent_gate import settings as gate_settings, VERSION as GATE_VERSION
+        intent_spec = gate_settings(manifest)
+        router_version = GATE_VERSION if intent_spec is not None else ('fixed-checkpoint-v1' if checkpoint_weights is not None else ROUTER_VERSION)
         # A report for different adapters is never evidence for this model.
         if report:
             import hashlib
@@ -200,6 +203,10 @@ class GPUBackend:
             artifact_manifest = {}
         model_settings = decoding_settings(artifact_manifest)
         checkpoint_weights = fixed_weights(artifact_manifest)
+        if not self._cache_explicit and 'use_kv_cache' in artifact_manifest:
+            if type(artifact_manifest['use_kv_cache']) is not bool:
+                raise RuntimeError('Invalid checkpoint cache setting')
+            self.use_cache = artifact_manifest['use_kv_cache']
         beta=model_settings['beta'] if _beta is None else _beta
         if isinstance(beta,bool) or not isinstance(beta,(float,int)) or not math.isfinite(beta) or not 0<beta<=1:
             raise ValueError("Invalid experimental plausibility beta")
@@ -268,6 +275,11 @@ class GPUBackend:
             with torch.inference_mode():
                 if _fixed_alphas is not None:
                     alpha_hall, alpha_jail = map(float, _fixed_alphas)
+                elif _hall_strength is None and getattr(model, 'unlora_intent_gate', None) is not None:
+                    from repe.intent_gate import route as route_intent
+                    (alpha_hall, alpha_jail), gate_probability = route_intent(model, tokenizer, prompt, model.unlora_intent_gate)
+                    alpha_hall *= _correction_scale
+                    alpha_jail *= _correction_scale*_jail_scale
                 elif _hall_strength is None and checkpoint_weights is not None:
                     alpha_hall = checkpoint_weights[0]*_correction_scale
                     alpha_jail = checkpoint_weights[1]*_correction_scale*_jail_scale
@@ -279,10 +291,10 @@ class GPUBackend:
                     # Fixed calibration does not depend on an unused detector
                     # projection; validation above requires jailbreak weight 0.
                     alpha_hall,alpha_jail=float(_hall_strength),0.
-                intent = explicit_safety_intent(prompt) if _fixed_alphas is None and _hall_strength is None and checkpoint_weights is None else None
+                intent = explicit_safety_intent(prompt) if _fixed_alphas is None and _hall_strength is None and checkpoint_weights is None and getattr(model, 'unlora_intent_gate', None) is None else None
                 yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail,
-                    "router_version":"fixed-checkpoint-v1" if checkpoint_weights is not None else ROUTER_VERSION,
-                    "routing_basis": "checkpoint_weights" if checkpoint_weights is not None and _fixed_alphas is None and _hall_strength is None else "explicit_safety_priority" if intent else (
+                    "router_version":self.metadata()["router_version"],
+                    "routing_basis": "intent_gate" if getattr(model, 'unlora_intent_gate', None) is not None and _fixed_alphas is None and _hall_strength is None else "checkpoint_weights" if checkpoint_weights is not None and _fixed_alphas is None and _hall_strength is None else "explicit_safety_priority" if intent else (
                         "fixed_evaluation" if _fixed_alphas is not None or _hall_strength is not None else "repe_projection"),
                     "priority_rule":intent}
                 result = {}
