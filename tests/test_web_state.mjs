@@ -93,3 +93,18 @@ test('checkpoint weights are labelled independently of prompt routing',async()=>
   vm.runInContext(`routing({alpha_hall:.4,alpha_jail:.4,routing_basis:'checkpoint_weights'})`,app.context);
   assert.equal(app.nodes.get('router-state').textContent,'CHECKPOINT WEIGHTS');
 });
+
+test('learned gate routes distinguish factual, safety and no correction',async()=>{
+  const app=harness();await flush();
+  for (const [hall,jail,label] of [[.2,0,'FACTUAL ROUTE'],[.4,.4,'SAFETY ROUTE'],[0,0,'NO CORRECTION']]) {
+    vm.runInContext(`routing({alpha_hall:${hall},alpha_jail:${jail},routing_basis:'safety_factual_gates'})`,app.context);
+    assert.equal(app.nodes.get('router-state').textContent,label);
+  }
+});
+
+test('a naturally ended short expert output is not shown as truncation',async()=>{
+  const app=harness();await flush();
+  vm.runInContext(`metrics('jailbreak',{tokens:4,wall_time_s:.4,finish_reason:'eos'})`,app.context);
+  assert.match(app.nodes.get('jailbreak-metrics').textContent,/Model ended response/);
+  assert.doesNotMatch(app.nodes.get('jailbreak-metrics').textContent,/limit reached/);
+});

@@ -99,7 +99,8 @@ function routing(data) {
     if (!Number.isFinite(alpha)) continue;
     $(`alpha-${id}`).textContent = alpha.toFixed(3); $(`${id}-meter`).style.width = `${Math.min(1,Math.max(0,alpha))*100}%`;
   }
-  $('router-state').textContent = backend === 'preview' ? 'SIMULATED WEIGHTS' : data.routing_basis === 'intent_gate' ? 'PROMPT ROUTED' : data.routing_basis === 'checkpoint_weights' ? 'CHECKPOINT WEIGHTS' : data.routing_basis === 'explicit_safety_priority' ? 'SAFETY PRIORITY · RULE-BASED' : 'PROMPT ROUTED';
+  const gateRoute = Number(data.alpha_jail) > 0 ? 'SAFETY ROUTE' : Number(data.alpha_hall) > 0 ? 'FACTUAL ROUTE' : 'NO CORRECTION';
+  $('router-state').textContent = backend === 'preview' ? 'SIMULATED WEIGHTS' : data.routing_basis === 'safety_factual_gates' ? gateRoute : data.routing_basis === 'intent_gate' ? 'PROMPT ROUTED' : data.routing_basis === 'checkpoint_weights' ? 'CHECKPOINT WEIGHTS' : data.routing_basis === 'explicit_safety_priority' ? 'SAFETY PRIORITY · RULE-BASED' : 'PROMPT ROUTED';
 }
 function telemetry(data) {
   const kl = Number(data.kl_divergence);
@@ -135,6 +136,7 @@ function metrics(branch,data) {
   if (Number(time)>0 && count != null) parts.push(`${(Number(count)/Number(time)).toFixed(1)} tok/s`);
   if (data.finish_reason === 'length') parts.push('Token limit reached');
   if (data.finish_reason === 'sentence_limit') parts.push('Sentence limit reached');
+  if (data.finish_reason === 'eos') parts.push('Model ended response');
   $(`${branch}-metrics`).textContent = (backend === 'preview' ? 'SIMULATED · ' : '') + (parts.join('  ·  ') || 'Generation complete');
 }
 function presentBranch(branch,result) {
