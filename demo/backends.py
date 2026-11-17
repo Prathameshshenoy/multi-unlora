@@ -119,7 +119,9 @@ class GPUBackend:
         checkpoint_weights = fixed_weights(manifest)
         from repe.intent_gate import settings as gate_settings, VERSION as GATE_VERSION
         intent_spec = gate_settings(manifest)
-        router_version = GATE_VERSION if intent_spec is not None else ('fixed-checkpoint-v1' if checkpoint_weights is not None else ROUTER_VERSION)
+        from repe.factual_gate import settings as factual_settings, VERSION as FACTUAL_VERSION
+        factual_spec = factual_settings(manifest)
+        router_version = FACTUAL_VERSION if factual_spec is not None else GATE_VERSION if intent_spec is not None else ('fixed-checkpoint-v1' if checkpoint_weights is not None else ROUTER_VERSION)
         # A report for different adapters is never evidence for this model.
         if report:
             import hashlib
@@ -278,6 +280,9 @@ class GPUBackend:
                 elif _hall_strength is None and getattr(model, 'unlora_intent_gate', None) is not None:
                     from repe.intent_gate import route as route_intent
                     (alpha_hall, alpha_jail), gate_probability = route_intent(model, tokenizer, prompt, model.unlora_intent_gate)
+                    from repe.factual_gate import route_after_safety
+                    alpha_hall, alpha_jail = route_after_safety(model, tokenizer, prompt,
+                        (alpha_hall, alpha_jail), gate_probability)
                     alpha_hall *= _correction_scale
                     alpha_jail *= _correction_scale*_jail_scale
                 elif _hall_strength is None and checkpoint_weights is not None:
@@ -294,7 +299,7 @@ class GPUBackend:
                 intent = explicit_safety_intent(prompt) if _fixed_alphas is None and _hall_strength is None and checkpoint_weights is None and getattr(model, 'unlora_intent_gate', None) is None else None
                 yield "routing", {"alpha_hall": alpha_hall, "alpha_jail": alpha_jail,
                     "router_version":self.metadata()["router_version"],
-                    "routing_basis": "intent_gate" if getattr(model, 'unlora_intent_gate', None) is not None and _fixed_alphas is None and _hall_strength is None else "checkpoint_weights" if checkpoint_weights is not None and _fixed_alphas is None and _hall_strength is None else "explicit_safety_priority" if intent else (
+                    "routing_basis": "safety_factual_gates" if getattr(model, 'unlora_factual_gate', None) is not None and _fixed_alphas is None and _hall_strength is None else "intent_gate" if getattr(model, 'unlora_intent_gate', None) is not None and _fixed_alphas is None and _hall_strength is None else "checkpoint_weights" if checkpoint_weights is not None and _fixed_alphas is None and _hall_strength is None else "explicit_safety_priority" if intent else (
                         "fixed_evaluation" if _fixed_alphas is not None or _hall_strength is not None else "repe_projection"),
                     "priority_rule":intent}
                 result = {}

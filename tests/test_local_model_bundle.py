@@ -255,3 +255,29 @@ def test_bundle_retains_and_validates_intent_gate(tmp_path):
     gate.write_text('{}')
     with pytest.raises(RuntimeError, match='checksum'):
         package_model(root, tmp_path/'bad.tar.gz')
+
+
+def test_bundle_round_trip_with_secondary_factual_gate(tmp_path):
+    import config
+    from inference.prompts import PROMPT_PROTOCOL
+    from repe.factual_gate import PROTOCOL, QUESTION_PROTOCOL
+    make_bundle(tmp_path)
+    root=tmp_path/'backup';source=root/'runs/misconception_roles_v1/manifest.json'
+    manifest=json.loads(source.read_text())
+    common={'model_revision':manifest['model_revision'],'prompt_protocol':PROMPT_PROTOCOL,
+            'layer':config.REPE_LAYER_IDX,'center':[0.,0.],'weight':[1.,0.],'bias':0.}
+    for field,name,payload,spec in [
+        ('intent_gate','intent.json',{**common,'protocol':'base-hidden-safety-router-v1'},
+         {'threshold':.5,'active_alphas':[.4,.4],'inactive_alphas':[0.,0.]}),
+        ('factual_gate','factual.json',{**common,'protocol':PROTOCOL,'question_protocol':QUESTION_PROTOCOL},
+         {'threshold':.9,'alpha':.2}),
+    ]:
+        path=root/name;path.write_text(json.dumps(payload))
+        manifest[field]={**spec,'path':'/vol/'+name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+    source.write_text(json.dumps(manifest));archive=tmp_path/'selective.tar.gz'
+    package_model(root,archive)
+    metadata=unpack_bundle(archive,tmp_path/'installed')
+    assert MODEL_PREFIX+'factual_gate.json' in metadata['files']
+    installed=json.loads((tmp_path/'installed'/MODEL_PREFIX/'manifest.json').read_text())
+    assert installed['factual_gate']['alpha']==.2
+    assert installed['factual_gate']['path']=='/vol/'+MODEL_PREFIX+'factual_gate.json'

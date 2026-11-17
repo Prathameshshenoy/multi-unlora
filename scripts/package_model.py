@@ -51,6 +51,13 @@ def package_model(backup, output, *, license_files=(), source_manifest=None, mod
             raise ValueError('Source intent-gate checksum mismatch')
         files[model_directory+'intent_gate.json'] = path
         manifest['intent_gate'] = {**spec, 'path':'/vol/'+model_directory+'intent_gate.json'}
+    if source.get('factual_gate') is not None:
+        from repe.factual_gate import load as load_factual_gate
+        spec = source['factual_gate']
+        path = backup/Path(spec['path']).relative_to('/vol')
+        load_factual_gate({**source, 'factual_gate': {**spec, 'path': str(path.resolve())}})
+        files[model_directory+'factual_gate.json'] = path
+        manifest['factual_gate'] = {**spec, 'path':'/vol/'+model_directory+'factual_gate.json'}
     if 'use_kv_cache' in source:
         manifest['use_kv_cache'] = source['use_kv_cache']
     if 'training_corpus' in source:

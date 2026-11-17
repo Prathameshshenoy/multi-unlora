@@ -87,6 +87,12 @@ def unpack_bundle(archive, destination):
         if spec.get('path') != '/vol/'+prefix+'intent_gate.json':
             raise ValueError('Model intent-gate path mismatch')
         load_gate({**manifest, 'intent_gate': {**spec, 'path': str((destination/prefix/'intent_gate.json').resolve())}})
+    if manifest.get('factual_gate') is not None:
+        from repe.factual_gate import load as load_factual_gate
+        spec = manifest['factual_gate']
+        if spec.get('path') != '/vol/'+prefix+'factual_gate.json':
+            raise ValueError('Model factual-gate path mismatch')
+        load_factual_gate({**manifest, 'factual_gate': {**spec, 'path': str((destination/prefix/'factual_gate.json').resolve())}})
     if 'use_kv_cache' in manifest and type(manifest['use_kv_cache']) is not bool:
         raise ValueError('Invalid model cache setting')
     return metadata

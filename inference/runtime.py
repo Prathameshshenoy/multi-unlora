@@ -125,6 +125,8 @@ def validate_artifacts(manifest_path=None):
     fixed_weights(manifest)
     from repe.intent_gate import load as load_intent_gate
     load_intent_gate(manifest)
+    from repe.factual_gate import load as load_factual_gate
+    load_factual_gate(manifest)
     if 'use_kv_cache' in manifest and type(manifest['use_kv_cache']) is not bool:
         raise RuntimeError('Invalid checkpoint cache setting')
     return manifest
@@ -184,6 +186,8 @@ def load_inference_model(*, calibrate_vectors=False, manifest_path=None):
     model.unlora_training_question_ids = frozenset(manifest.get("training_corpus",{}).get("question_ids",[]))
     from repe.intent_gate import load as load_intent_gate
     model.unlora_intent_gate = load_intent_gate(manifest)
+    from repe.factual_gate import load as load_factual_gate
+    model.unlora_factual_gate = load_factual_gate(manifest)
     model.eval()
     model.disable_adapter_layers()
     metadata = vector_provenance(model_revision=revision)
