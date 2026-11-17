@@ -1,19 +1,19 @@
 # Multi-UnLoRA
 
-Compare a language model with two LoRA anti-experts and inference-time logit
-subtraction, using a website that runs on your computer.
+Multi-UnLoRA is a local visualizer for language-model factuality and safety
+corrections. It adjusts next-token scores during generation using **LoRA** (Low-Rank
+Adaptation) adapters: small sets of learned weights attached to the base model.
 
-Type a prompt or choose an example to see four responses side by side:
+Enter a prompt or choose an example to compare four responses:
 
-- **Base model** — Llama 3 8B Instruct.
-- **Hallucination adapter** — the hallucination anti-expert on its own.
-- **Jailbreak adapter** — the jailbreak anti-expert on its own.
-- **Multi-UnLoRA** — generation with the weighted adapter differences subtracted.
+- **Base model** — Llama 3 8B Instruct without adapters.
+- **Hallucination adapter** — the base model with the factual anti-expert active.
+- **Jailbreak adapter** — the base model with the safety anti-expert active.
+- **Multi-UnLoRA** — generation with weighted anti-expert differences subtracted.
 
-The interface includes correction weights, token probabilities, generation speed,
-and a live distribution-change chart. This is a research model: responses can be
-incorrect or unsafe, and adapter names describe training targets rather than
-promising a particular response.
+An **anti-expert** is an adapter whose difference from the base model is
+subtracted. The interface shows its standalone response, correction weights,
+token probabilities and generation speed.
 
 ## Results
 
@@ -21,104 +21,102 @@ promising a particular response.
 
 | Benchmark | Metric | Base | Multi-UnLoRA | Change |
 | --- | --- | ---: | ---: | ---: |
-| MMLU (n=14,042) | Accuracy ↑ | 62.9% | 62.7% | -0.2 pp |
+| MMLU (n=14,042) | Accuracy ↑ | 62.9% | 62.7% | Roughly same |
 | AdvBench · direct (n=382) | Attack success rate ↓ | 0.0% | 0.0% | 0 pp |
 | AdvBench · fixed format (n=382) | Attack success rate ↓ | 56.8% | 25.4% | -31.4 pp |
 | TruthfulQA · two-choice (n=158) | Answer accuracy ↑ | 76.6% | 83.5% | +7.0 pp |
 
-Greedy decoding on Llama 3 8B Instruct with Multi-UnLoRA 8B v1.2.0. MMLU uses the full zero-shot test set.
+MMLU tests general knowledge with multiple-choice questions and no worked examples. TruthfulQA asks the model to choose between one correct and one incorrect answer.
 
-TruthfulQA uses its updated two-choice task on questions excluded from adapter training and routing calibration.
+AdvBench measures how often harmful requests receive harmful answers. Direct requests are asked plainly; fixed-format requests add the same instructions designed to bypass refusals. HarmBench, a safety classifier, scores raw responses up to 128 tokens.
 
-AdvBench uses 382 goals after overlap checks, direct requests and one fixed attack format. Raw responses up to 128 tokens are scored by HarmBench. Display-guard refusals are excluded. Changes are percentage points computed from unrounded counts.
+Results use Multi-UnLoRA 8B v1.2.0 with Llama 3 8B Instruct and greedy decoding. Evaluation questions are separate from adapter training and parameter selection. Display-guard refusals are excluded. Changes are percentage points calculated from unrounded counts.
 
 <!-- END BENCHMARK RESULTS -->
 
-## Run the local website
+## Run locally
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/), Git, and
-[your own Modal account](https://modal.com/). Your laptop runs the website; Modal
-runs the GPU model. You do not need a local NVIDIA GPU or a website hosting service.
+You need Git, [uv](https://docs.astral.sh/uv/getting-started/installation/) and
+[your own Modal account](https://modal.com/). The website runs on your computer;
+Modal runs the model on a GPU. A local NVIDIA GPU is not required.
 
 ```bash
 git clone https://github.com/Prathameshshenoy/multi-unlora.git
 cd multi-unlora
 uv sync --extra demo
 uv run modal setup
-```
-
-Start the local demo:
-
-```bash
 uv run python scripts/local_demo.py
 ```
 
-On the first run, the launcher downloads the [Multi-UnLoRA 8B v1.2.0 adapters](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.2.0),
-checks its SHA256, installs it into your Modal workspace and prepares the runtime.
+Open **http://127.0.0.1:8000**, enter a prompt and select **Compare**.
 
-Open **http://127.0.0.1:8000**. Enter a prompt and select **Compare**.
-Run the same command for later sessions.
+The launcher downloads the [Multi-UnLoRA 8B v1.2.0 checkpoint](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.2.0),
+verifies its checksum and installs it into your Modal workspace. Initial setup
+also downloads the base weights before the timed GPU session starts. Loading
+weights onto the GPU makes the first comparison slower than subsequent ones.
 
-First setup downloads the base model into your Modal volume before the timed
-GPU session starts. The first comparison then loads it on the GPU, so it takes
-longer than later requests. The bundle contains factual and safety adapter
-checkpoints, routing heads and calibration vectors; it does not include the base weights.
-See [local setup](docs/LOCAL_SETUP.md) for the bundle, troubleshooting and options.
+The website is accessible on localhost. Modal credentials stay in the server
+process. See [local setup](docs/LOCAL_SETUP.md) for installation options and
+troubleshooting.
 
-## Cost and session controls
+## Session controls
 
-Modal charges your account for compute and storage. Sessions last **5 minutes**
-by default and shut down automatically. Choose a different duration with:
+Modal bills your account for compute and storage. Sessions last **5 minutes**
+and shut down automatically. For a longer session:
 
 ```bash
 uv run python scripts/local_demo.py --minutes 15
 ```
 
-Supported durations are 3, 5, 10 and 15 minutes. The launcher creates a cumulative
-US$5 compute-reservation limit on a fresh installation and preserves existing
-limits. To explicitly change that cumulative limit, supply `--budget-usd AMOUNT`;
-previous reservations are retained. Model installation starts no GPU. Use **Stop** to cancel a comparison;
-press **Ctrl+C** in the terminal to end the local session early.
+Supported durations are 3, 5, 10 and 15 minutes. The launcher tracks conservative
+compute reservations with a **US$5 cumulative cap** on a fresh installation.
+`--budget-usd AMOUNT` sets that cumulative cap while retaining amounts already
+reserved. Installation starts no GPU.
 
-The website binds to localhost. Modal access credentials stay in the server
-process; the browser does not receive them. No public website deployment or
-domain configuration is needed.
+Select **Stop** to cancel a comparison. Press **Ctrl+C** in the terminal to end
+the session early.
 
-## Using the interface
+## Using the visualizer
 
-Choose an example or type your own question. **One sentence** gives shorter
-responses across all four runs; turn it off for longer answers. Increase the
-output token budget when a response reaches its limit. **Ctrl/Cmd+Enter** starts
-a comparison. The hallucination example tests a rice-and-birds myth described by
-the [Cornell Lab of Ornithology](https://www.allaboutbirds.org/news/im-getting-married-next-month-is-it-true-that-rice-causes-birds-stomachs-to-explode/).
+**One sentence** limits each response to a short answer. Turn it off for longer
+responses, or increase the token budget if an answer reaches its limit.
+**Ctrl/Cmd+Enter** starts a comparison. All four runs receive the same prompt.
 
-Responses run sequentially, with progress shown for each model. Some potentially
-harmful outputs are withheld and clearly labelled. If a separate display guard
-supplies the final response, the interface identifies it as a guard response.
+The hallucination example asks about uncooked rice and birds; the
+[Cornell Lab of Ornithology explains the underlying myth](https://www.allaboutbirds.org/news/im-getting-married-next-month-is-it-true-that-rice-causes-birds-stomachs-to-explode/).
+Responses are generated live.
 
-## How subtraction works
+Some harmful content is withheld by the interface. These display guards are
+labelled separately from model responses and receive no benchmark credit.
 
-At every generated token:
+## How it works
+
+**Logits** are the model's next-token scores. At each generated token,
+Multi-UnLoRA applies:
 
 ```text
 corrected = base − alpha_hall × (hall − base) − alpha_jail × (jail − base)
 ```
 
-The checkpoint routes prompts using the frozen base model's hidden state.
-Safety prompts use a preserved expert pair. A separate factual route uses the
-trained factual checkpoint for misconception-style questions. Other prompts use
-zero correction. A plausibility filter and per-token KL budget limit changes,
-and independent KV caches speed up generation. The four texts are independent
-generations; the engine subtracts logit differences, not response strings.
-[Model details](docs/MODEL_CARD.md) · [API reference](web/README.md).
+The alpha values control correction strength. Small classifiers called routing heads use the base
+model's internal representation of the prompt to select factual or safety correction. The safety route
+uses a dedicated expert pair; the factual route uses its own trained checkpoint.
+Other prompts use zero correction.
 
-## Preview the interface without a GPU
+A plausibility filter keeps token choices close to the base model's likely
+options. A divergence limit bounds changes to their probabilities. Each adapter
+caches its attention state to speed up generation. Responses
+can still be incorrect or unsafe.
+
+[Model details](docs/MODEL_CARD.md) · [API reference](web/README.md)
+
+## Preview without a GPU
 
 ```bash
 MULTI_UNLORA_BACKEND=preview uv run uvicorn demo.app:app --host 127.0.0.1 --port 8000
 ```
 
-Preview mode uses labelled simulated responses and telemetry.
+Preview mode displays labelled simulated responses.
 
 ## Development
 
@@ -128,8 +126,7 @@ node --test tests/test_web_state.mjs
 node --check web/app.js
 ```
 
-Numerical engine tests also require PyTorch, Transformers and PEFT. CI runs those
-checks in Python 3.11. The Modal model environment uses Python 3.11, PyTorch 2.8,
-Transformers 4.57.6 and PEFT 0.18.1.
+Numerical tests require PyTorch, Transformers and PEFT. The Modal model runtime
+uses Python 3.11, PyTorch 2.8, Transformers 4.57.6 and PEFT 0.18.1.
 
 **Copyright © 2026. All rights reserved.**

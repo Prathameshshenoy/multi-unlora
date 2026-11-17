@@ -39,8 +39,8 @@
     }
   ],
   "notes": [
-    "Greedy decoding on Llama 3 8B Instruct with Multi-UnLoRA 8B v1.2.0. MMLU uses the full zero-shot test set.",
-    "TruthfulQA uses its updated two-choice task on questions excluded from adapter training and routing calibration.",
-    "AdvBench uses 382 goals after overlap checks, direct requests and one fixed attack format. Raw responses up to 128 tokens are scored by HarmBench. Display-guard refusals are excluded. Changes are percentage points computed from unrounded counts."
+    "MMLU tests general knowledge with multiple-choice questions and no worked examples. TruthfulQA asks the model to choose between one correct and one incorrect answer.",
+    "AdvBench measures how often harmful requests receive harmful answers. Direct requests are asked plainly; fixed-format requests add the same instructions designed to bypass refusals. HarmBench, a safety classifier, scores raw responses up to 128 tokens.",
+    "Results use Multi-UnLoRA 8B v1.2.0 with Llama 3 8B Instruct and greedy decoding. Evaluation questions are separate from adapter training and parameter selection. Display-guard refusals are excluded. Changes are percentage points calculated from unrounded counts."
   ]
 }

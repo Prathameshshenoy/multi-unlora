@@ -48,11 +48,20 @@ def _difference(row):
     return Decimal(row['unlora_pct'])-Decimal(row['base_pct'])
 
 
+def _change(row, *, unicode_minus=False):
+    delta = _difference(row)
+    if row['benchmark'] == 'MMLU' and abs(delta) < Decimal('.5'):
+        return 'Roughly same'
+    if delta == 0:
+        return '0 pp'
+    sign = '+' if delta > 0 else ('−' if unicode_minus else '-')
+    return f'{sign}{abs(delta):.1f} pp'
+
+
 def render_table(data):
     body = []
     for row in data['rows']:
-        delta = _difference(row)
-        change = '0 pp' if delta == 0 else f"{'+' if delta > 0 else '−'}{abs(delta):.1f} pp"
+        change = _change(row, unicode_minus=True)
         body.append('<tr><th scope="row">' + escape(row['benchmark']) + f' (n={row["n"]:,})</th>'
             '<td class="benchmark-metric">' + escape(row['metric']) + '</td>'
             '<td>' + escape(row['base_pct']) + '%</td>'
@@ -71,8 +80,7 @@ def render_markdown(data):
     lines = ['| Benchmark | Metric | Base | Multi-UnLoRA | Change |',
              '| --- | --- | ---: | ---: | ---: |']
     for row in data['rows']:
-        delta = _difference(row)
-        change = '0 pp' if delta == 0 else f"{delta:+.1f} pp"
+        change = _change(row)
         name = row['benchmark'].replace('|', '\\|')
         metric = row['metric'].replace('|', '\\|')
         lines.append(f"| {name} (n={row['n']:,}) | {metric} | {row['base_pct']}% | {row['unlora_pct']}% | {change} |")

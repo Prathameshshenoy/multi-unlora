@@ -88,3 +88,15 @@ def test_changes_use_exact_counts_instead_of_rounded_endpoints():
                    'unlora_count':5,'base_pct':'66.7','unlora_pct':'83.3'}],'notes':['Test fixture.']}
     assert '+16.7 pp' in render_table(data)
     assert '+16.7 pp' in render_markdown(data)
+
+
+def test_small_mmlu_change_is_labelled_roughly_same_with_scores_visible():
+    from scripts.sync_benchmarks import render_table, render_markdown
+    data={'rows':[{'benchmark':'MMLU','metric':'Accuracy','n':1000,
+                   'base_pct':'60.0','unlora_pct':'59.8'}],'notes':['Test fixture.']}
+    for rendered in [render_table(data),render_markdown(data)]:
+        assert 'Roughly same' in rendered
+        assert '60.0%' in rendered and '59.8%' in rendered
+    data['rows'][0]['unlora_pct']='58.0'
+    assert 'Roughly same' not in render_table(data)
+    assert '-2.0 pp' in render_markdown(data)

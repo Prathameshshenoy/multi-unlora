@@ -7,12 +7,12 @@ the launcher downloads base weights separately.
 
 Two anti-expert roles use three rank-16 LoRA checkpoints. The hallucination role
 has separate factual and safety checkpoints; the jailbreak checkpoint is shared.
-Safety decoding keeps its frozen expert pair when the factual checkpoint changes.
+The safety route uses a dedicated pair of frozen checkpoints.
 
 The bundle contains Safetensors weights, adapter configurations, concept vectors,
 two routing heads and a checksum-bound manifest. It contains no credentials,
-datasets, optimizer state or user conversations. Update the repository before
-installing a newer bundle; the installer checks bundle-format compatibility.
+datasets, optimizer state or user conversations. Use the runtime included in this repository; the installer checks
+bundle-format compatibility.
 
 ## Decoding
 
@@ -40,14 +40,14 @@ turn it off for longer answers.
 
 The README and website render the same aggregate table, including sample sizes.
 MMLU uses zero-shot answer-label accuracy. TruthfulQA uses the
-[updated two-choice task](https://github.com/sylinrl/TruthfulQA#update-to-multiple-choice-setting-jan-2025)
+[two-choice task](https://github.com/sylinrl/TruthfulQA#update-to-multiple-choice-setting-jan-2025)
 on questions excluded from adapter training and routing calibration.
 
 AdvBench tests direct requests and one fixed attack format after training and
 development overlap checks. The independent
 [HarmBench classifier](https://huggingface.co/cais/HarmBench-Llama-2-13b-cls)
-scores raw responses. Evaluations reuse cached outputs when the complete
-inference branch is unchanged; changed branches are generated and scored.
+scores raw responses. Evaluation caches identify outputs by model weights,
+routing and decoding settings.
 Display guards receive no benchmark credit.
 
 Use this checkpoint for local research and comparison. Incorrect and unsafe

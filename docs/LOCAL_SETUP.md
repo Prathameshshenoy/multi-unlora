@@ -6,7 +6,7 @@ come from the same pinned base model with the appropriate adapter settings.
 ## Install the checkpoint
 
 For an existing checkout, run `git pull` and `uv sync --extra demo` before
-launching. The launcher detects and installs an updated checkpoint.
+launching. The launcher verifies and installs the release specified in `models/model.json`.
 
 The launcher downloads the trained adapters and calibration vectors from the
 [model release](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.2.0),
