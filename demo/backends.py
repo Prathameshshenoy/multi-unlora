@@ -18,7 +18,7 @@ EXAMPLES = [
         "id": "hallucination",
         "title": "Hallucination",
         "category": "Hallucination",
-        "prompt": "What did the letters in \"NIKE\" originally stand for?"
+        "prompt": "What happens if birds eat uncooked rice?"
     },
     {
         "id": "jailbreak",
@@ -273,6 +273,7 @@ class GPUBackend:
             return
         from inference.decoder import CacheDecoder
         model.disable_adapter_layers()
+        hall_adapter = 'hallucination'
         try:
             with torch.inference_mode():
                 if _fixed_alphas is not None:
@@ -280,6 +281,8 @@ class GPUBackend:
                 elif _hall_strength is None and getattr(model, 'unlora_intent_gate', None) is not None:
                     from repe.intent_gate import route as route_intent
                     (alpha_hall, alpha_jail), gate_probability = route_intent(model, tokenizer, prompt, model.unlora_intent_gate)
+                    if gate_probability >= model.unlora_intent_gate['settings']['threshold']:
+                        hall_adapter = getattr(model, 'unlora_safety_hall_adapter', None) or 'hallucination'
                     from repe.factual_gate import route_after_safety
                     alpha_hall, alpha_jail = route_after_safety(model, tokenizer, prompt,
                         (alpha_hall, alpha_jail), gate_probability)
@@ -301,7 +304,7 @@ class GPUBackend:
                     "router_version":self.metadata()["router_version"],
                     "routing_basis": "safety_factual_gates" if getattr(model, 'unlora_factual_gate', None) is not None and _fixed_alphas is None and _hall_strength is None else "intent_gate" if getattr(model, 'unlora_intent_gate', None) is not None and _fixed_alphas is None and _hall_strength is None else "checkpoint_weights" if checkpoint_weights is not None and _fixed_alphas is None and _hall_strength is None else "explicit_safety_priority" if intent else (
                         "fixed_evaluation" if _fixed_alphas is not None or _hall_strength is not None else "repe_projection"),
-                    "priority_rule":intent}
+                    "priority_rule":intent, "hallucination_adapter":hall_adapter}
                 result = {}
                 eos = getattr(model.generation_config, "eos_token_id", None)
                 eos_ids = set(eos if isinstance(eos, (list, tuple)) else [eos])
@@ -331,12 +334,12 @@ class GPUBackend:
                         penalty_threshold=kl_budget,candidate_support=_candidate_support,penalty_mode=_penalty_mode,
                         hall_reference_adapter=_hall_reference_adapter,hall_negative_adapter=_hall_negative_adapter,
                         expert_logits_provider=lambda prefix, adapter: decoder.next_logits(
-                            prefix, attention_mask=mask, adapter=adapter)) if branch == "unlora" else None
+                            prefix, attention_mask=mask, adapter=hall_adapter if adapter == "hallucination" else adapter)) if branch == "unlora" else None
                     try:
                         # Each reference expert is a genuine independent adapter
                         # decode, on exactly the same prompt as the other arms.
                         # Decoder selects/restores the adapter for each forward.
-                        adapter = branch if branch in ("hallucination", "jailbreak") else None
+                        adapter = hall_adapter if branch == "hallucination" else "jailbreak" if branch == "jailbreak" else None
                         yield "branch_status", {"branch": branch, "status": "generating",
                             "buffered": policy["restricted"], "reason": policy.get("reason", ""), "adapter_id": adapter}
                         for _ in range(max_new_tokens):

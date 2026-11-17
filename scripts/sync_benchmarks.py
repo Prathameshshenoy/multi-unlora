@@ -20,7 +20,8 @@ def build_data(root=ROOT):
     if data.get('protocol') != 'public-evaluation-summary-v1' or not data.get('rows'):
         raise ValueError('A public evaluation summary is required')
     for row in data['rows']:
-        if set(row) != {'benchmark','metric','n','base_pct','unlora_pct'}:
+        required = {'benchmark','metric','n','base_pct','unlora_pct'}
+        if set(row) not in (required, required | {'base_count','unlora_count'}):
             raise ValueError('Only aggregate table values may be published')
         if type(row['n']) is not int or row['n'] <= 0:
             raise ValueError('Each result needs an explicit sample size')
@@ -28,15 +29,29 @@ def build_data(root=ROOT):
             value = row[key]
             if not isinstance(value, str) or not Decimal(value).is_finite() or not 0 <= Decimal(value) <= 100:
                 raise ValueError('Percentages must be finite values from 0 to 100')
+        if 'base_count' in row:
+            for count,pct in [('base_count','base_pct'),('unlora_count','unlora_pct')]:
+                value = row[count]
+                if type(value) is not int or not 0 <= value <= row['n']:
+                    raise ValueError('Aggregate counts must be integers within the sample size')
+                rate = (Decimal(value)*100/row['n']).quantize(Decimal('.1'))
+                if Decimal(row[pct]) != rate:
+                    raise ValueError('Percentages must agree with aggregate counts')
     if not data.get('notes') or any(not isinstance(n, str) or not n.strip() for n in data['notes']):
         raise ValueError('Evaluation scope notes are required')
     return data
 
 
+def _difference(row):
+    if 'base_count' in row:
+        return Decimal(100)*(row['unlora_count']-row['base_count'])/row['n']
+    return Decimal(row['unlora_pct'])-Decimal(row['base_pct'])
+
+
 def render_table(data):
     body = []
     for row in data['rows']:
-        delta = Decimal(row['unlora_pct']) - Decimal(row['base_pct'])
+        delta = _difference(row)
         change = '0 pp' if delta == 0 else f"{'+' if delta > 0 else '−'}{abs(delta):.1f} pp"
         body.append('<tr><th scope="row">' + escape(row['benchmark']) + f' (n={row["n"]:,})</th>'
             '<td class="benchmark-metric">' + escape(row['metric']) + '</td>'
@@ -56,7 +71,7 @@ def render_markdown(data):
     lines = ['| Benchmark | Metric | Base | Multi-UnLoRA | Change |',
              '| --- | --- | ---: | ---: | ---: |']
     for row in data['rows']:
-        delta = Decimal(row['unlora_pct']) - Decimal(row['base_pct'])
+        delta = _difference(row)
         change = '0 pp' if delta == 0 else f"{delta:+.1f} pp"
         name = row['benchmark'].replace('|', '\\|')
         metric = row['metric'].replace('|', '\\|')

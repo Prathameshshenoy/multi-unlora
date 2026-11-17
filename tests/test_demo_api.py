@@ -22,7 +22,7 @@ def test_default_unavailable_and_presets():
     assert client.post("/api/generate", json={"prompt": "Hello"}).status_code == 503
     presets = client.get("/api/examples").json()["examples"]
     assert [item["id"] for item in presets] == ["hallucination", "jailbreak"]
-    assert presets[0]["prompt"] == 'What did the letters in "NIKE" originally stand for?'
+    assert presets[0]["prompt"] == 'What happens if birds eat uncooked rice?'
     assert all(len(item["prompt"]) <= 4000 for item in presets)
 
 

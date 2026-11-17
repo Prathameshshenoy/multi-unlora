@@ -58,6 +58,16 @@ def package_model(backup, output, *, license_files=(), source_manifest=None, mod
         load_factual_gate({**source, 'factual_gate': {**spec, 'path': str(path.resolve())}})
         files[model_directory+'factual_gate.json'] = path
         manifest['factual_gate'] = {**spec, 'path':'/vol/'+model_directory+'factual_gate.json'}
+    if source.get('safety_hallucination') is not None:
+        from inference.runtime import preserved_safety_hall
+        spec = preserved_safety_hall(source)
+        directory = backup/Path(spec['path']).relative_to('/vol')
+        for name,key in [('adapter_model.safetensors','adapter_sha256'),('adapter_config.json','adapter_config_sha256')]:
+            path = directory/name
+            if sha256(path) != spec[key]:
+                raise ValueError('Preserved safety adapter checksum mismatch')
+            files[model_directory+'safety_hallucination/'+name] = path
+        manifest['safety_hallucination'] = {**spec, 'path':'/vol/'+model_directory+'safety_hallucination'}
     if 'use_kv_cache' in source:
         manifest['use_kv_cache'] = source['use_kv_cache']
     if 'training_corpus' in source:
@@ -65,7 +75,7 @@ def package_model(backup, output, *, license_files=(), source_manifest=None, mod
     manifest_bytes = (json.dumps(manifest, indent=2)+'\n').encode()
     inventory = {name:{'sha256':sha256(path), 'size_bytes':path.stat().st_size} for name, path in files.items()}
     inventory[model_directory+'manifest.json'] = {'sha256':hashlib.sha256(manifest_bytes).hexdigest(), 'size_bytes':len(manifest_bytes)}
-    metadata = {'protocol':'multi-unlora-model-bundle-v1', 'manifest':manifest_location,
+    metadata = {'protocol':'multi-unlora-model-bundle-v2' if source.get('factual_gate') is not None else 'multi-unlora-model-bundle-v1', 'manifest':manifest_location,
                 'base_model_included':False, 'files':inventory}
     output.parent.mkdir(parents=True, exist_ok=True)
     # No credentials, datasets, reports, training state or base weights enter here.

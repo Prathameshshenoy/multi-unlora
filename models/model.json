@@ -1,7 +1,7 @@
 {
   "protocol": "multi-unlora-model-download-v1",
-  "name": "Multi-UnLoRA 8B v1.1.0",
-  "url": "https://github.com/Prathameshshenoy/multi-unlora/releases/download/model-v1.1.0/multi-unlora-8b-v1.1.0.tar.gz",
-  "sha256": "2df8317f66a79e7123282dcb8c1121d2f2382d7f7fd3b8690b7c7e70c6661371",
-  "size_bytes": 311114203
+  "name": "Multi-UnLoRA 8B v1.2.0",
+  "url": "https://github.com/Prathameshshenoy/multi-unlora/releases/download/model-v1.2.0/multi-unlora-8b-v1.2.0.tar.gz",
+  "sha256": "a2f0adaa0b83fa6428a0ba7f472c4650c486b040309a80349d75fc8efabc353f",
+  "size_bytes": 466437857
 }

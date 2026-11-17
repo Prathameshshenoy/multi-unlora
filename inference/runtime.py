@@ -63,6 +63,23 @@ def artifact_paths(manifest_path=None):
     return _paths_from_manifest(path, manifest, custom=manifest_path is not None)
 
 
+SAFETY_HALL_ADAPTER = 'safety_hallucination'
+
+
+def preserved_safety_hall(manifest):
+    value = manifest.get('safety_hallucination')
+    if value is None:
+        return None
+    if (not isinstance(value, dict) or set(value) != {'path','adapter_sha256','adapter_config_sha256'}
+            or manifest.get('intent_gate') is None or manifest.get('factual_gate') is None):
+        raise RuntimeError('Preserved safety adapter requires both routing heads and bound artifacts')
+    _absolute_path(value['path'], 'preserved safety adapter')
+    for key in ('adapter_sha256','adapter_config_sha256'):
+        if not isinstance(value[key], str) or not re.fullmatch(r'[0-9a-f]{64}', value[key]):
+            raise RuntimeError('Invalid preserved safety adapter checksum')
+    return value
+
+
 def validate_artifacts(manifest_path=None):
     """Verify immutable model identity and both adapter bytes before GPU loading.
 
@@ -81,9 +98,11 @@ def validate_artifacts(manifest_path=None):
     concepts = manifest.get("concepts", {})
     if not isinstance(concepts, dict):
         raise RuntimeError("Adapter manifest is missing concept metadata")
-    for concept, directory in (("hallucination", paths["hallucination"]),
-                               ("jailbreak", paths["jailbreak"])):
-        metadata = concepts.get(concept)
+    checks = [(concept, paths[concept], concepts.get(concept)) for concept in ('hallucination','jailbreak')]
+    preserved = preserved_safety_hall(manifest)
+    if preserved is not None:
+        checks.append((SAFETY_HALL_ADAPTER, preserved['path'], preserved))
+    for concept, directory, metadata in checks:
         expected_hash = metadata.get("adapter_sha256") if isinstance(metadata, dict) else None
         if not isinstance(expected_hash, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected_hash):
             raise RuntimeError(f"Missing adapter hash for {concept}")
@@ -183,6 +202,11 @@ def load_inference_model(*, calibrate_vectors=False, manifest_path=None):
     )
     model = PeftModel.from_pretrained(base, str(paths["hallucination"]), adapter_name="hallucination")
     model.load_adapter(str(paths["jailbreak"]), adapter_name="jailbreak")
+    preserved = preserved_safety_hall(manifest)
+    model.unlora_safety_hall_adapter = None
+    if preserved is not None:
+        model.load_adapter(preserved['path'], adapter_name=SAFETY_HALL_ADAPTER)
+        model.unlora_safety_hall_adapter = SAFETY_HALL_ADAPTER
     model.unlora_training_question_ids = frozenset(manifest.get("training_corpus",{}).get("question_ids",[]))
     from repe.intent_gate import load as load_intent_gate
     model.unlora_intent_gate = load_intent_gate(manifest)

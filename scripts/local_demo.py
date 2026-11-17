@@ -44,7 +44,7 @@ def unpack_bundle(archive, destination):
         if bundle.getmember('bundle.json').size > 1024*1024:
             raise ValueError('Oversized model inventory')
         metadata = json.load(bundle.extractfile('bundle.json'))
-        if metadata.get('protocol') != 'multi-unlora-model-bundle-v1':
+        if metadata.get('protocol') not in ('multi-unlora-model-bundle-v1','multi-unlora-model-bundle-v2'):
             raise ValueError('Unsupported model bundle')
         prefix = model_prefix(metadata.get('manifest'))
         files = metadata.get('files', {})
@@ -93,6 +93,14 @@ def unpack_bundle(archive, destination):
         if spec.get('path') != '/vol/'+prefix+'factual_gate.json':
             raise ValueError('Model factual-gate path mismatch')
         load_factual_gate({**manifest, 'factual_gate': {**spec, 'path': str((destination/prefix/'factual_gate.json').resolve())}})
+    if manifest.get('safety_hallucination') is not None:
+        from inference.runtime import preserved_safety_hall
+        spec = preserved_safety_hall(manifest)
+        if spec['path'] != '/vol/'+prefix+'safety_hallucination':
+            raise ValueError('Preserved safety adapter path mismatch')
+        for name,key in [('adapter_model.safetensors','adapter_sha256'),('adapter_config.json','adapter_config_sha256')]:
+            if sha256(destination/prefix/'safety_hallucination'/name) != spec[key]:
+                raise ValueError('Preserved safety adapter checksum mismatch')
     if 'use_kv_cache' in manifest and type(manifest['use_kv_cache']) is not bool:
         raise ValueError('Invalid model cache setting')
     return metadata

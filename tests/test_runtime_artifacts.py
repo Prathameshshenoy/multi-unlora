@@ -236,3 +236,19 @@ def test_checkpoint_weights_reject_invalid_or_over_cap_settings(values):
 def test_checkpoint_weights_are_optional_and_exact():
     assert runtime.fixed_weights({}) is None
     assert runtime.fixed_weights({'fixed_alphas':[.2,.6]})==(.2,.6)
+
+
+def test_preserved_safety_variant_checks_both_weights_and_configuration(artifact_set):
+    root,manifest=artifact_set
+    manifest['intent_gate']={};manifest['factual_gate']={}
+    manifest['safety_hallucination']={'path':str(root/'hallucination'),
+        'adapter_sha256':'0'*64,
+        'adapter_config_sha256':hashlib.sha256((root/'hallucination/adapter_config.json').read_bytes()).hexdigest()}
+    (root/'manifest.json').write_text(json.dumps(manifest))
+    with pytest.raises(RuntimeError,match='checksum mismatch for safety_hallucination'):
+        runtime.validate_artifacts()
+    manifest['safety_hallucination']['adapter_sha256']=manifest['concepts']['hallucination']['adapter_sha256']
+    manifest['safety_hallucination']['adapter_config_sha256']='0'*64
+    (root/'manifest.json').write_text(json.dumps(manifest))
+    with pytest.raises(RuntimeError,match='configuration checksum mismatch for safety_hallucination'):
+        runtime.validate_artifacts()

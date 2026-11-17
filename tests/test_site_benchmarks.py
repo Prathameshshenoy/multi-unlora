@@ -33,6 +33,8 @@ def test_summary_changes_require_resync_without_private_results(tmp_path):
     shutil.copyfile(ROOT/'web/index.html', tmp_path/'web/index.html')
     data = json.loads(summary.read_text())
     data['rows'][0]['base_pct'] = '60.0'
+    data['rows'][0].pop('base_count',None)
+    data['rows'][0].pop('unlora_count',None)
     summary.write_text(json.dumps(data))
     with pytest.raises(ValueError, match='stale'):
         sync(tmp_path, check=True)
@@ -78,3 +80,11 @@ def test_tables_report_percentage_point_changes(baseline, corrected, html_change
                      'base_pct':baseline, 'unlora_pct':corrected}], 'notes':['Test fixture.']}
     assert html_change in render_table(data)
     assert markdown_change in render_markdown(data)
+
+
+def test_changes_use_exact_counts_instead_of_rounded_endpoints():
+    from scripts.sync_benchmarks import render_table, render_markdown
+    data={'rows':[{'benchmark':'Example','metric':'Accuracy','n':6,'base_count':4,
+                   'unlora_count':5,'base_pct':'66.7','unlora_pct':'83.3'}],'notes':['Test fixture.']}
+    assert '+16.7 pp' in render_table(data)
+    assert '+16.7 pp' in render_markdown(data)

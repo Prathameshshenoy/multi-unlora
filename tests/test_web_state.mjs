@@ -82,7 +82,7 @@ test('refresh keeps the two current examples when the API has older presets',asy
   await app.nodes.get('connect-button').events.click();
   assert.deepEqual(app.nodes.get('examples').children.map(button=>button.textContent),['Hallucination','Jailbreak']);
   app.nodes.get('examples').children[0].events.click();
-  assert.equal(app.nodes.get('prompt').value,'What did the letters in "NIKE" originally stand for?');
+  assert.equal(app.nodes.get('prompt').value,'What happens if birds eat uncooked rice?');
   app.nodes.get('examples').children[1].events.click();
   assert.equal(app.nodes.get('brief-answers').checked,false);
 });

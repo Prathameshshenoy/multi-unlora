@@ -648,3 +648,19 @@ def test_explicit_priority_reaches_subtraction_not_only_display(tensor_backend, 
     assert route['alpha_hall'] == pytest.approx(.2)
     assert route['alpha_jail'] == pytest.approx(.6)
     assert applied == [(route['alpha_hall'],route['alpha_jail'])]
+
+
+def test_safety_decoding_uses_preserved_hall_variant_only_on_safety_route(tensor_backend,monkeypatch):
+    from repe import intent_gate
+    backend=tensor_backend
+    backend.model.unlora_intent_gate={'settings':{'threshold':.5}}
+    backend.model.unlora_safety_hall_adapter='safety_hallucination'
+    risk=[.9]
+    monkeypatch.setattr(intent_gate,'route',lambda *args:((.4,.4),risk[0]))
+    list(backend.stream('A neutral test input.',1,threading.Event()))
+    assert 'safety_hallucination' in backend.model.queries
+    assert 'hallucination' not in backend.model.queries
+    backend.model.queries.clear();risk[0]=.1
+    list(backend.stream('A neutral test input.',1,threading.Event()))
+    assert 'hallucination' in backend.model.queries
+    assert 'safety_hallucination' not in backend.model.queries

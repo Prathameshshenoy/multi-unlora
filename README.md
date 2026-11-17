@@ -21,17 +21,16 @@ promising a particular response.
 
 | Benchmark | Metric | Base | Multi-UnLoRA | Change |
 | --- | --- | ---: | ---: | ---: |
-| MMLU (n=14,042) | Accuracy ↑ | 62.9% | 62.9% | 0 pp |
+| MMLU (n=14,042) | Accuracy ↑ | 62.9% | 62.7% | -0.2 pp |
 | AdvBench · direct (n=382) | Attack success rate ↓ | 0.0% | 0.0% | 0 pp |
 | AdvBench · fixed format (n=382) | Attack success rate ↓ | 56.8% | 25.4% | -31.4 pp |
-| TruthfulQA · two-choice (n=158) | Accuracy ↑ | 75.9% | 75.9% | 0 pp |
-| TruthfulQA · brief response (n=158) | Reference accuracy ↑ | 62.7% | 62.7% | 0 pp |
+| TruthfulQA · two-choice (n=158) | Answer accuracy ↑ | 76.6% | 83.5% | +7.0 pp |
 
-Greedy decoding on Llama 3 8B Instruct with Multi-UnLoRA 8B v1.1.0. MMLU uses the full zero-shot test set; other rows use subsets after training and tuning overlap checks.
+Greedy decoding on Llama 3 8B Instruct with Multi-UnLoRA 8B v1.2.0. MMLU uses the full zero-shot test set.
 
-AdvBench tests direct requests and one fixed attack format, with up to 128 output tokens. HarmBench judges raw answers. Display-guard refusals are excluded.
+TruthfulQA uses its updated two-choice task on questions excluded from adapter training and routing calibration.
 
-TruthfulQA two-choice and brief-response accuracy use different scoring methods. Brief answers are reference-judged by Qwen2.5 7B. Change is in percentage points.
+AdvBench uses 382 goals after overlap checks, direct requests and one fixed attack format. Raw responses up to 128 tokens are scored by HarmBench. Display-guard refusals are excluded. Changes are percentage points computed from unrounded counts.
 
 <!-- END BENCHMARK RESULTS -->
 
@@ -54,7 +53,7 @@ Start the local demo:
 uv run python scripts/local_demo.py
 ```
 
-On the first run, the launcher downloads the [Multi-UnLoRA 8B v1.1.0 adapters](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.1.0),
+On the first run, the launcher downloads the [Multi-UnLoRA 8B v1.2.0 adapters](https://github.com/Prathameshshenoy/multi-unlora/releases/tag/model-v1.2.0),
 checks its SHA256, installs it into your Modal workspace and prepares the runtime.
 
 Open **http://127.0.0.1:8000**. Enter a prompt and select **Compare**.
@@ -62,8 +61,8 @@ Run the same command for later sessions.
 
 First setup downloads the base model into your Modal volume before the timed
 GPU session starts. The first comparison then loads it on the GPU, so it takes
-longer than later requests. The bundle contains the two
-trained adapters and calibration vectors; it does not include the base weights.
+longer than later requests. The bundle contains factual and safety adapter
+checkpoints, routing heads and calibration vectors; it does not include the base weights.
 See [local setup](docs/LOCAL_SETUP.md) for the bundle, troubleshooting and options.
 
 ## Cost and session controls
@@ -90,7 +89,8 @@ domain configuration is needed.
 Choose an example or type your own question. **One sentence** gives shorter
 responses across all four runs; turn it off for longer answers. Increase the
 output token budget when a response reaches its limit. **Ctrl/Cmd+Enter** starts
-a comparison.
+a comparison. The hallucination example tests a rice-and-birds myth described by
+the [Cornell Lab of Ornithology](https://www.allaboutbirds.org/news/im-getting-married-next-month-is-it-true-that-rice-causes-birds-stomachs-to-explode/).
 
 Responses run sequentially, with progress shown for each model. Some potentially
 harmful outputs are withheld and clearly labelled. If a separate display guard
@@ -104,12 +104,13 @@ At every generated token:
 corrected = base − alpha_hall × (hall − base) − alpha_jail × (jail − base)
 ```
 
-The checkpoint routes prompts using the base model's hidden state and chooses
-a jointly calibrated pair of correction weights. Lower-risk prompts use zero
-adapter correction. A plausibility filter and a per-token KL budget limit
-changes, and independent KV caches speed up generation. The four displayed texts are
-independent generations; the engine subtracts logit differences, not response
-strings. [Model details](docs/MODEL_CARD.md) · [API reference](web/README.md).
+The checkpoint routes prompts using the frozen base model's hidden state.
+Safety prompts use a preserved expert pair. A separate factual route uses the
+trained factual checkpoint for misconception-style questions. Other prompts use
+zero correction. A plausibility filter and per-token KL budget limit changes,
+and independent KV caches speed up generation. The four texts are independent
+generations; the engine subtracts logit differences, not response strings.
+[Model details](docs/MODEL_CARD.md) · [API reference](web/README.md).
 
 ## Preview the interface without a GPU
 

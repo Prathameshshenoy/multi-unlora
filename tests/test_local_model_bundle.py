@@ -274,10 +274,18 @@ def test_bundle_round_trip_with_secondary_factual_gate(tmp_path):
     ]:
         path=root/name;path.write_text(json.dumps(payload))
         manifest[field]={**spec,'path':'/vol/'+name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+    preserved=root/'preserved';preserved.mkdir()
+    (preserved/'adapter_model.safetensors').write_bytes(b'preserved original safety weights')
+    config_bytes=(root/'source/hallucination/adapter_config.json').read_bytes()
+    (preserved/'adapter_config.json').write_bytes(config_bytes)
+    manifest['safety_hallucination']={'path':'/vol/preserved',
+        'adapter_sha256':hashlib.sha256((preserved/'adapter_model.safetensors').read_bytes()).hexdigest(),
+        'adapter_config_sha256':hashlib.sha256(config_bytes).hexdigest()}
     source.write_text(json.dumps(manifest));archive=tmp_path/'selective.tar.gz'
     package_model(root,archive)
     metadata=unpack_bundle(archive,tmp_path/'installed')
     assert MODEL_PREFIX+'factual_gate.json' in metadata['files']
     installed=json.loads((tmp_path/'installed'/MODEL_PREFIX/'manifest.json').read_text())
+    assert (tmp_path/'installed'/MODEL_PREFIX/'safety_hallucination/adapter_model.safetensors').read_bytes()==b'preserved original safety weights'
     assert installed['factual_gate']['alpha']==.2
     assert installed['factual_gate']['path']=='/vol/'+MODEL_PREFIX+'factual_gate.json'
